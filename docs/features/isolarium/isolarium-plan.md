@@ -47,12 +47,13 @@ Use these skills by invoking them before the relevant action:
 | Steel Thread | Description |
 |--------------|-------------|
 | 1. Foundation | Go CLI skeleton with `status` command, CI pipeline, and basic test infrastructure |
-| 2. Credential Storage | `config set/show/delete` commands for GitHub App credentials in macOS Keychain |
-| 3. VM Lifecycle | `create` and `destroy` commands for Lima VM management |
-| 4. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
-| 5. Script Execution | `run --script` command to execute user scripts inside VM |
-| 6. Claude Session | `--copy-session` and `--fresh-login` flags for Claude Code authentication |
-| 7. SSH Access | `ssh` command for interactive VM debugging |
+| 2. Basic VM Lifecycle | Basic `create` and `destroy` commands for Lima VM management |
+| 3. Credential Storage | `config set/show/delete` commands for GitHub App credentials in macOS Keychain |
+| 4. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
+| 5. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
+| 6. Script Execution | `run --script` command to execute user scripts inside VM |
+| 7. Claude Session | `--copy-session` and `--fresh-login` flags for Claude Code authentication |
+| 8. SSH Access | `ssh` command for interactive VM debugging |
 
 ---
 
@@ -76,11 +77,41 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 2: Credential Storage
+## Steel Thread 2: Basic VM Lifecycle
+
+**Goal:** Implement basic `create` and `destroy` commands for Lima VM management.
+
+- [x] **Task 2.1: `create` provisions a Lima VM with required toolchain**
+  - TaskType: OUTCOME
+  - Entrypoint: `cd /path/to/git/repo && ./isolarium create`
+  - Observable: Lima VM named "isolarium" created and running; VM contains git, Node.js, Docker, gh CLI, and Claude Code installed; command exits 0
+  - Evidence: Test runs `create` in a git repo directory, then runs `limactl list` and asserts VM exists and is running; runs `limactl shell isolarium -- which git node docker gh claude` and asserts all tools found
+  - Steps:
+    - [x] Create `internal/lima/lima.go` with `CreateVM()` function
+    - [x] Create `internal/lima/template.yaml` Lima VM configuration with Ubuntu base, Docker, Node.js, git, gh CLI
+    - [x] Add provisioning script to install Claude Code via npm
+    - [x] Create `internal/lima/lima_test.go` unit tests for configuration generation
+    - [x] Add `create` subcommand to CLI that reads current directory git remote and current branch
+    - [x] Create `internal/git/git.go` with `GetRemoteURL()` and `GetCurrentBranch()` functions
+    - [x] Create integration test that provisions VM in a test git repo
+
+- [x] **Task 2.2: `destroy` deletes the Lima VM completely**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium destroy`
+  - Observable: Lima VM "isolarium" stopped and deleted; command exits 0; `limactl list` shows no "isolarium" VM
+  - Evidence: Test creates VM, runs `destroy`, then runs `limactl list` and asserts VM is gone
+  - Steps:
+    - [x] Create `DestroyVM()` function in `internal/lima/lima.go`
+    - [x] Add `destroy` subcommand to CLI
+    - [x] Create test that destroys VM and verifies it's gone
+
+---
+
+## Steel Thread 3: Credential Storage
 
 **Goal:** Implement `config` subcommands for managing GitHub App credentials in macOS Keychain.
 
-- [ ] **Task 2.1: `config set` stores GitHub App credentials in Keychain**
+- [ ] **Task 3.1: `config set` stores GitHub App credentials in Keychain**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium config set --app-id 12345 --private-key-file ./test-key.pem`
   - Observable: Credentials stored in macOS Keychain under service "isolarium" with account "github-app"; command exits 0 with confirmation message
@@ -92,7 +123,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add `config` command group to CLI with `set` subcommand accepting `--app-id` and `--private-key-file` flags
     - [ ] Create `cmd/isolarium/config_test.go` integration test that runs the full command
 
-- [ ] **Task 2.2: `config show` displays configured GitHub App ID**
+- [ ] **Task 3.2: `config show` displays configured GitHub App ID**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium config show`
   - Observable: Outputs `GitHub App ID: 12345` (shows ID but not private key) with exit code 0; outputs "not configured" if no credentials stored
@@ -102,7 +133,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add `show` subcommand to `config` command group
     - [ ] Create test in `cmd/isolarium/config_test.go` for the show command
 
-- [ ] **Task 2.3: `config delete` removes credentials from Keychain**
+- [ ] **Task 3.3: `config delete` removes credentials from Keychain**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium config delete`
   - Observable: Credentials removed from Keychain; command exits 0 with confirmation message; subsequent `config show` reports "not configured"
@@ -112,7 +143,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add `delete` subcommand to `config` command group
     - [ ] Create test that verifies the full delete flow
 
-- [ ] **Task 2.4: `status` reports GitHub App configuration state**
+- [ ] **Task 3.4: `status` reports GitHub App configuration state**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `GitHub App: configured (App ID: 12345)` when credentials exist, or `GitHub App: not configured` when absent
@@ -123,25 +154,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 3: VM Lifecycle
+## Steel Thread 4: VM Lifecycle Hardening
 
-**Goal:** Implement `create` and `destroy` commands for Lima VM management.
+**Goal:** Add error handling and status reporting for VM lifecycle.
 
-- [ ] **Task 3.1: `create` provisions a Lima VM with required toolchain**
-  - TaskType: OUTCOME
-  - Entrypoint: `cd /path/to/git/repo && ./isolarium create`
-  - Observable: Lima VM named "isolarium" created and running; VM contains git, Node.js, Docker, gh CLI, and Claude Code installed; command exits 0
-  - Evidence: Test runs `create` in a git repo directory, then runs `limactl list` and asserts VM exists and is running; runs `limactl shell isolarium -- which git node docker gh claude` and asserts all tools found
-  - Steps:
-    - [ ] Create `internal/lima/lima.go` with `CreateVM()` function
-    - [ ] Create `internal/lima/template.yaml` Lima VM configuration with Ubuntu base, Docker, Node.js, git, gh CLI
-    - [ ] Add provisioning script to install Claude Code via npm
-    - [ ] Create `internal/lima/lima_test.go` unit tests for configuration generation
-    - [ ] Add `create` subcommand to CLI that reads current directory git remote and current branch
-    - [ ] Create `internal/git/git.go` with `GetRemoteURL()` and `GetCurrentBranch()` functions
-    - [ ] Create integration test that provisions VM in a test git repo
-
-- [ ] **Task 3.2: `create` fails gracefully when not in a git repository**
+- [ ] **Task 4.1: `create` fails gracefully when not in a git repository**
   - TaskType: OUTCOME
   - Entrypoint: `cd /tmp && ./isolarium create`
   - Observable: Command exits with non-zero code and error message "not a git repository"
@@ -150,7 +167,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update `create` command to check for git repository before proceeding
     - [ ] Add test for the error case
 
-- [ ] **Task 3.3: `create` fails gracefully when VM already exists**
+- [ ] **Task 4.2: `create` fails gracefully when VM already exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create` (when VM already exists)
   - Observable: Command exits with non-zero code and error message "VM already exists"
@@ -159,17 +176,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add VM existence check to `create` command
     - [ ] Add test that creates VM, then attempts second create
 
-- [ ] **Task 3.4: `destroy` deletes the Lima VM completely**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium destroy`
-  - Observable: Lima VM "isolarium" stopped and deleted; command exits 0; `limactl list` shows no "isolarium" VM
-  - Evidence: Test creates VM, runs `destroy`, then runs `limactl list` and asserts VM is gone
-  - Steps:
-    - [ ] Create `internal/lima/destroy.go` with `DestroyVM()` function
-    - [ ] Add `destroy` subcommand to CLI
-    - [ ] Create test that creates and destroys VM
-
-- [ ] **Task 3.5: `destroy` succeeds idempotently when no VM exists**
+- [ ] **Task 4.3: `destroy` succeeds idempotently when no VM exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium destroy` (when no VM exists)
   - Observable: Command exits 0 with message "no VM to destroy"
@@ -178,7 +185,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update `destroy` to handle missing VM gracefully
     - [ ] Add test for idempotent destroy
 
-- [ ] **Task 3.6: `status` reports VM state (none/running/stopped)**
+- [ ] **Task 4.4: `status` reports VM state (none/running/stopped)**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
@@ -189,11 +196,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 4: Repository Cloning
+## Steel Thread 5: Repository Cloning
 
 **Goal:** Clone repository inside VM using minted GitHub App installation token.
 
-- [ ] **Task 4.1: `create` mints GitHub App installation token**
+- [ ] **Task 5.1: `create` mints GitHub App installation token**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create` (with configured GitHub App and valid installation on repo)
   - Observable: Installation token minted from GitHub API; token used for git clone inside VM
@@ -204,7 +211,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Create `internal/github/token_test.go` with unit tests using mock HTTP responses
     - [ ] Update `create` command to mint token after VM creation
 
-- [ ] **Task 4.2: `create` clones repository inside VM using token, checking out host's current branch**
+- [ ] **Task 5.2: `create` clones repository inside VM using token, checking out host's current branch**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create`
   - Observable: Repository cloned at `/home/lima.linux/repo` inside VM using the minted token; same branch as host checked out; git remote configured with token for push
@@ -215,7 +222,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Configure git credential helper inside VM for token-based auth
     - [ ] Add integration test that verifies clone completes on correct branch
 
-- [ ] **Task 4.3: `status` reports associated repository**
+- [ ] **Task 5.3: `status` reports associated repository**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `Repository: owner/repo` when VM exists with cloned repo
@@ -227,11 +234,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 5: Script Execution
+## Steel Thread 6: Script Execution
 
 **Goal:** Implement `run --script` command to execute user scripts inside VM.
 
-- [ ] **Task 5.1: `run --script` copies and executes script inside VM**
+- [ ] **Task 6.1: `run --script` copies and executes script inside VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh`
   - Observable: Script copied to VM, executed with attached I/O; stdout/stderr streamed to terminal; exit code propagated
@@ -242,7 +249,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Implement I/O streaming using `limactl shell` with attached TTY
     - [ ] Create test with simple echo script
 
-- [ ] **Task 5.2: `run` mints fresh token and injects as environment variable**
+- [ ] **Task 6.2: `run` mints fresh token and injects as environment variable**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh`
   - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during script execution
@@ -252,7 +259,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Pass token via environment variable to `limactl shell`
     - [ ] Add test that verifies token is available in script environment
 
-- [ ] **Task 5.3: `run` fails gracefully when VM does not exist**
+- [ ] **Task 6.3: `run` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
@@ -261,7 +268,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add VM existence check to `run` command
     - [ ] Add test for missing VM error
 
-- [ ] **Task 5.4: `run` handles Ctrl+C to terminate script**
+- [ ] **Task 6.4: `run` handles Ctrl+C to terminate script**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./long-running.sh` then Ctrl+C
   - Observable: Script receives SIGINT; script terminates; `isolarium run` exits
@@ -272,11 +279,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 6: Claude Session
+## Steel Thread 7: Claude Session
 
 **Goal:** Implement `--copy-session` and `--fresh-login` flags for Claude Code authentication.
 
-- [ ] **Task 6.1: `run --copy-session` copies Claude session from host to VM**
+- [ ] **Task 7.1: `run --copy-session` copies Claude session from host to VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh --copy-session`
   - Observable: Contents of `~/.claude/` from host copied to `/home/lima.linux/.claude/` inside VM; Claude Code in script can authenticate without login prompt
@@ -287,7 +294,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Copy `~/.claude/` directory contents to VM before script execution
     - [ ] Add test that verifies session files are copied
 
-- [ ] **Task 6.2: `run --fresh-login` skips session copy for device code flow**
+- [ ] **Task 7.2: `run --fresh-login` skips session copy for device code flow**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh --fresh-login`
   - Observable: No `~/.claude/` copied from host; Claude Code in VM prompts for device code authentication
@@ -299,11 +306,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 7: SSH Access
+## Steel Thread 8: SSH Access
 
 **Goal:** Implement `ssh` command for interactive VM debugging.
 
-- [ ] **Task 7.1: `ssh` opens interactive shell in VM**
+- [ ] **Task 8.1: `ssh` opens interactive shell in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
@@ -313,7 +320,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add `ssh` subcommand to CLI
     - [ ] Create test that pipes commands to ssh and verifies output
 
-- [ ] **Task 7.2: `ssh` fails gracefully when VM does not exist**
+- [ ] **Task 8.2: `ssh` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
@@ -328,7 +335,7 @@ Use these skills by invoking them before the relevant action:
 
 **Goal:** Verify security properties defined in the specification.
 
-- [ ] **Task 8.1: VM has no host filesystem mounts**
+- [ ] **Task 9.1: VM has no host filesystem mounts**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-host-mounts.sh`
   - Observable: Lima VM configuration has no `mounts:` entries; `mount` command inside VM shows no host paths
@@ -338,7 +345,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update Lima template to explicitly disable default mounts
     - [ ] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 8.2: VM has no host Docker socket exposure**
+- [ ] **Task 9.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-docker-socket.sh`
   - Observable: `/var/run/docker.sock` inside VM is the VM's own Docker daemon socket, not the host's
@@ -347,7 +354,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
     - [ ] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 8.3: No ambient git credentials in VM**
+- [ ] **Task 9.3: No ambient git credentials in VM**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-git-credentials.sh`
   - Observable: `git config --global credential.helper` inside VM is empty or returns non-zero; no `~/.git-credentials` file exists
@@ -360,7 +367,7 @@ Use these skills by invoking them before the relevant action:
 
 ## Test Infrastructure
 
-- [ ] **Task 9.1: Create test-scripts directory structure**
+- [ ] **Task 10.1: Create test-scripts directory structure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: test-end-to-end.sh runs test-cleanup.sh and all test scripts in sequence; exits 0 if all pass
@@ -374,9 +381,17 @@ Use these skills by invoking them before the relevant action:
 
 ## Change History
 
+### 2026-02-04: Reordered steel threads to prioritize basic VM lifecycle
+
+Moved basic VM create/destroy tasks before credential storage to enable earlier VM testing:
+- New Steel Thread 2: Basic VM Lifecycle (tasks 2.1-2.2, formerly 3.1 and 3.4)
+- Steel Thread 3: Credential Storage (formerly Steel Thread 2, tasks renumbered 3.1-3.4)
+- New Steel Thread 4: VM Lifecycle Hardening (remaining VM tasks, formerly 3.2, 3.3, 3.5, 3.6)
+- All subsequent steel threads renumbered (5-8 for main features, 9 for security, 10 for test infra)
+
 ### 2026-02-04: Branch handling
 
 Updated to reflect design decision that VM clones/checks out the same branch as the host repo:
-- Steel Thread 4 overview: Added "checking out host's current branch"
-- Task 3.1: Added `GetCurrentBranch()` function to git detection
-- Task 4.2: Updated to clone with branch parameter and verify correct branch checkout
+- Steel Thread 5 overview: Added "checking out host's current branch"
+- Task 2.1: Added `GetCurrentBranch()` function to git detection
+- Task 5.2: Updated to clone with branch parameter and verify correct branch checkout

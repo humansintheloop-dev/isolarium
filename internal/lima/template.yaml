@@ -1,0 +1,92 @@
+# Lima VM configuration for isolarium
+# This template creates an isolated Linux environment for running coding agents
+
+# Use Ubuntu LTS as the base image
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: "aarch64"
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+    arch: "x86_64"
+
+# VM resources
+cpus: 4
+memory: "8GiB"
+disk: "50GiB"
+
+# SECURITY: No host filesystem mounts
+mounts: []
+
+# Network: use default user-mode networking (no socket_vmnet required)
+
+# Enable containerd/nerdctl for Docker compatibility
+containerd:
+  system: false
+  user: true
+
+# Provisioning script to install required tools
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Update package lists
+      apt-get update
+
+      # Install essential tools (including unzip/zip for SDKMAN)
+      apt-get install -y \
+        git \
+        curl \
+        wget \
+        ca-certificates \
+        gnupg \
+        lsb-release \
+        unzip \
+        zip
+
+      # Install Docker
+      curl -fsSL https://get.docker.com | sh
+
+      # Install Node.js LTS
+      curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+      apt-get install -y nodejs
+
+      # Install GitHub CLI
+      curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+      chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+      apt-get update
+      apt-get install -y gh
+
+      # Install SDKMAN and JDK 17 for the user
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -ex -o pipefail
+
+      # Add current user to docker group (requires logout/login to take effect)
+      sudo usermod -aG docker "$USER"
+
+      # Install SDKMAN and JDK 17
+      # Note: SDKMAN scripts have unbound variables, so disable -u for this section
+      set +u
+      curl -s "https://get.sdkman.io" | bash
+      export SDKMAN_DIR="$HOME/.sdkman"
+      source "$SDKMAN_DIR/bin/sdkman-init.sh"
+      sdk install java 17.0.10-tem
+      set -u
+
+      # Create symlinks for java in /usr/local/bin for non-interactive shell access
+      sudo ln -sf "$HOME/.sdkman/candidates/java/current/bin/java" /usr/local/bin/java
+      sudo ln -sf "$HOME/.sdkman/candidates/java/current/bin/javac" /usr/local/bin/javac
+
+      # Set JAVA_HOME system-wide for tools like Maven/Gradle
+      echo "JAVA_HOME=$HOME/.sdkman/candidates/java/current" | sudo tee -a /etc/environment
+
+      # Install Claude Code via npm (requires sudo for global install)
+      sudo npm install -g @anthropic-ai/claude-code
+
+# SSH configuration
+ssh:
+  localPort: 0
+  loadDotSSHPubKeys: true
