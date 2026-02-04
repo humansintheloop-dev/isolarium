@@ -34,6 +34,6 @@ func GetStatus() Status {
 
 func isGitHubAppConfigured() bool {
 	appID := os.Getenv("GITHUB_APP_ID")
-	privateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
-	return appID != "" && privateKey != ""
+	privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	return appID != "" && privateKeyPath != ""
 }

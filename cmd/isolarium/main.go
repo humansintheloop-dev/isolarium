@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/cer/isolarium/internal/git"
 	"github.com/cer/isolarium/internal/github"
@@ -11,7 +13,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func loadEnvFile(path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		return // File doesn't exist, skip silently
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			// Only set if not already set in environment
+			if os.Getenv(key) == "" {
+				os.Setenv(key, value)
+			}
+		}
+	}
+}
+
 func main() {
+	// Load .env.local if it exists
+	loadEnvFile(".env.local")
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
 		Short: "Secure execution environment for coding agents",
@@ -75,10 +104,14 @@ func main() {
 			// Try to mint a token if GitHub App is configured
 			var token string
 			appID := os.Getenv("GITHUB_APP_ID")
-			privateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
-			if appID != "" && privateKey != "" {
+			privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+			if appID != "" && privateKeyPath != "" {
+				privateKeyBytes, err := os.ReadFile(privateKeyPath)
+				if err != nil {
+					return fmt.Errorf("failed to read private key from %s: %w", privateKeyPath, err)
+				}
 				fmt.Println("Minting GitHub App token...")
-				minter, err := github.NewTokenMinter(appID, privateKey, "")
+				minter, err := github.NewTokenMinter(appID, string(privateKeyBytes), "")
 				if err != nil {
 					return fmt.Errorf("failed to create token minter: %w", err)
 				}

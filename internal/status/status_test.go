@@ -16,7 +16,7 @@ func TestGetStatus_ReturnsNoVMWhenNoVMExists(t *testing.T) {
 func TestGetStatus_ReturnsNotConfiguredWhenNoCredentials(t *testing.T) {
 	// Clear env vars to ensure clean state
 	os.Unsetenv("GITHUB_APP_ID")
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 
 	s := GetStatus()
 
@@ -28,10 +28,10 @@ func TestGetStatus_ReturnsNotConfiguredWhenNoCredentials(t *testing.T) {
 func TestGetStatus_ReturnsConfiguredWhenBothEnvVarsSet(t *testing.T) {
 	// Set both env vars
 	os.Setenv("GITHUB_APP_ID", "12345")
-	os.Setenv("GITHUB_APP_PRIVATE_KEY", "test-private-key")
+	os.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
 	defer func() {
 		os.Unsetenv("GITHUB_APP_ID")
-		os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+		os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	}()
 
 	s := GetStatus()
@@ -43,7 +43,7 @@ func TestGetStatus_ReturnsConfiguredWhenBothEnvVarsSet(t *testing.T) {
 
 func TestGetStatus_ReturnsNotConfiguredWhenOnlyAppIDSet(t *testing.T) {
 	os.Setenv("GITHUB_APP_ID", "12345")
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	defer os.Unsetenv("GITHUB_APP_ID")
 
 	s := GetStatus()
@@ -55,13 +55,13 @@ func TestGetStatus_ReturnsNotConfiguredWhenOnlyAppIDSet(t *testing.T) {
 
 func TestGetStatus_ReturnsNotConfiguredWhenOnlyPrivateKeySet(t *testing.T) {
 	os.Unsetenv("GITHUB_APP_ID")
-	os.Setenv("GITHUB_APP_PRIVATE_KEY", "test-private-key")
-	defer os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+	os.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
+	defer os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 
 	s := GetStatus()
 
 	if s.GitHubAppConfigured {
-		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_PRIVATE_KEY is set")
+		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_PRIVATE_KEY_PATH is set")
 	}
 }
 

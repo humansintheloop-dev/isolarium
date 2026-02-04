@@ -6,3 +6,4 @@ docs/features/isolarium/isolarium-sessionID.txt
 /isolarium
 *.exe
 /cmd/isolarium/isolarium
+.env.local

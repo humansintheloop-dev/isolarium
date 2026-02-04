@@ -48,7 +48,7 @@ Use these skills by invoking them before the relevant action:
 |--------------|-------------|
 | 1. Foundation | Go CLI skeleton with `status` command, CI pipeline, and basic test infrastructure |
 | 2. Basic VM Lifecycle | Basic `create` and `destroy` commands for Lima VM management |
-| 3. Credential Storage | GitHub App credentials via environment variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`) |
+| 3. Credential Storage | GitHub App credentials via environment variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY_PATH`) |
 | 4. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
 | 5. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
 | 6. Script Execution | `run --script` command to execute user scripts inside VM |
@@ -111,15 +111,15 @@ Use these skills by invoking them before the relevant action:
 
 **Goal:** Support GitHub App credentials via environment variables.
 
-**Note:** Originally planned to use macOS Keychain, but pivoted to environment variables due to Keychain ownership/code-signing complexities. Users set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables directly.
+**Note:** Originally planned to use macOS Keychain, but pivoted to environment variables due to Keychain ownership/code-signing complexities. Users set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` environment variables directly.
 
 - [x] **Task 3.1: `status` reports GitHub App configuration state from environment variables**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
-  - Observable: Status output includes `GitHub App: configured` when both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables are set, or `GitHub App: not configured` when either is absent
+  - Observable: Status output includes `GitHub App: configured` when both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` environment variables are set, or `GitHub App: not configured` when either is absent
   - Evidence: Tests verify status reports correctly based on environment variable presence
   - Steps:
-    - [x] Update `internal/status/status.go` to check `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables
+    - [x] Update `internal/status/status.go` to check `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` environment variables
     - [x] Update status_test.go with tests for both configured and unconfigured states (both env vars set, only one set, neither set)
 
 ---
@@ -371,6 +371,6 @@ Updated to reflect design decision that VM clones/checks out the same branch as 
 
 Due to macOS Keychain ownership and code-signing complexities (errSecInvalidOwnerEdit when different binaries try to access the same credentials), pivoted Steel Thread 3 from Keychain-based storage to environment variables:
 - Removed `config set/show/delete` commands
-- Users now set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables directly
+- Users now set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` environment variables directly
 - `status` command checks these environment variables to report configuration state
 - Simplified from 4 tasks to 1 task (Task 3.1)

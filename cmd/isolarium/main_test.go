@@ -80,6 +80,74 @@ func TestDestroyCommand_SucceedsWhenVMExists(t *testing.T) {
 	}
 }
 
+func TestLoadEnvFile_LoadsVariables(t *testing.T) {
+	// Create a temp directory and env file
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env.local")
+
+	content := `GITHUB_APP_ID=12345
+GITHUB_APP_PRIVATE_KEY_PATH=/path/to/key.pem
+# This is a comment
+ANOTHER_VAR=value with spaces
+`
+	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write env file: %v", err)
+	}
+
+	// Clear any existing values
+	os.Unsetenv("GITHUB_APP_ID")
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	os.Unsetenv("ANOTHER_VAR")
+
+	// Load the env file
+	loadEnvFile(envFile)
+
+	// Verify variables were loaded
+	if got := os.Getenv("GITHUB_APP_ID"); got != "12345" {
+		t.Errorf("GITHUB_APP_ID: expected '12345', got '%s'", got)
+	}
+	if got := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); got != "/path/to/key.pem" {
+		t.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: expected '/path/to/key.pem', got '%s'", got)
+	}
+	if got := os.Getenv("ANOTHER_VAR"); got != "value with spaces" {
+		t.Errorf("ANOTHER_VAR: expected 'value with spaces', got '%s'", got)
+	}
+
+	// Clean up
+	os.Unsetenv("GITHUB_APP_ID")
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	os.Unsetenv("ANOTHER_VAR")
+}
+
+func TestLoadEnvFile_DoesNotOverrideExisting(t *testing.T) {
+	// Create a temp env file
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env.local")
+
+	content := `GITHUB_APP_ID=from-file`
+	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write env file: %v", err)
+	}
+
+	// Set existing value
+	os.Setenv("GITHUB_APP_ID", "from-environment")
+	defer os.Unsetenv("GITHUB_APP_ID")
+
+	// Load the env file
+	loadEnvFile(envFile)
+
+	// Existing value should NOT be overridden
+	if got := os.Getenv("GITHUB_APP_ID"); got != "from-environment" {
+		t.Errorf("GITHUB_APP_ID should not be overridden: expected 'from-environment', got '%s'", got)
+	}
+}
+
+func TestLoadEnvFile_HandlesNonexistentFile(t *testing.T) {
+	// Should not panic or error on missing file
+	loadEnvFile("/nonexistent/path/.env.local")
+	// If we get here, the test passes
+}
+
 func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
 	// Get the current working directory to build absolute path
 	cwd, err := os.Getwd()
