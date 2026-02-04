@@ -277,6 +277,72 @@ func TestWriteAndReadMetadata_Integration(t *testing.T) {
 	}
 }
 
+func TestCopyClaudeCredentials_Integration(t *testing.T) {
+	// Skip if Lima is not installed
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+
+	// Load .env.local for credentials path
+	loadTestEnvFile(t)
+
+	// Get credentials path from environment
+	credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
+	if credentialsPath == "" {
+		t.Fatal("CLAUDE_CREDENTIALS_PATH not set in .env.local")
+	}
+
+	// Verify credentials file exists on host
+	if _, err := os.Stat(credentialsPath); err != nil {
+		t.Fatalf("credentials file not found at %s: %v", credentialsPath, err)
+	}
+
+	// Ensure VM is running
+	ensureVMRunning(t)
+
+	// Remove any existing credentials in VM first
+	exec.Command("limactl", "shell", "isolarium", "--", "bash", "-c", "rm -rf ~/.claude").Run()
+
+	// Copy credentials to VM
+	if err := CopyClaudeCredentials(credentialsPath); err != nil {
+		t.Fatalf("CopyClaudeCredentials failed: %v", err)
+	}
+
+	// Verify file exists in VM
+	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", ".claude/.credentials.json")
+	if err := cmd.Run(); err != nil {
+		t.Fatal("credentials file does not exist in VM")
+	}
+
+	// Verify permissions are 600
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "stat", "-c", "%a", ".claude/.credentials.json")
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to check file permissions: %v", err)
+	}
+	perms := strings.TrimSpace(string(output))
+	if perms != "600" {
+		t.Errorf("expected permissions 600, got %s", perms)
+	}
+
+	// Run Claude inside the VM to verify credentials work
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "bash", "-c", "claude -p 'say hello'")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("claude command failed: %v\noutput: %s", err, output)
+	}
+
+	// Verify output contains a response (not a login prompt)
+	outputStr := strings.ToLower(string(output))
+	if strings.Contains(outputStr, "login") || strings.Contains(outputStr, "authenticate") {
+		t.Errorf("claude prompted for login instead of using credentials: %s", output)
+	}
+	if len(output) == 0 {
+		t.Error("claude produced no output")
+	}
+	t.Logf("Claude response: %s", output)
+}
+
 // ensureVMRunning checks if the VM exists and is running, creating it if necessary
 func ensureVMRunning(t *testing.T) {
 	t.Helper()

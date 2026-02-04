@@ -49,11 +49,12 @@ Use these skills by invoking them before the relevant action:
 | 1. Foundation | Go CLI skeleton with `status` command, CI pipeline, and basic test infrastructure |
 | 2. Basic VM Lifecycle | Basic `create` and `destroy` commands for Lima VM management |
 | 3. Credential Storage | GitHub App credentials via environment variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY_PATH`) |
-| 4. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
-| 5. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
+| 4. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
+| 5. Claude Session | `--copy-session` flag to copy Claude Code session from host to VM |
 | 6. Script Execution | `run --script` command to execute user scripts inside VM |
-| 7. Claude Session | `--copy-session` and `--fresh-login` flags for Claude Code authentication |
-| 8. SSH Access | `ssh` command for interactive VM debugging |
+| 7. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
+| 8. Fresh Login | `--fresh-login` flag for device code authentication flow |
+| 9. SSH Access | `ssh` command for interactive VM debugging |
 
 ---
 
@@ -124,53 +125,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 4: VM Lifecycle Hardening
-
-**Goal:** Add error handling and status reporting for VM lifecycle.
-
-- [ ] **Task 4.1: `create` fails gracefully when not in a git repository**
-  - TaskType: OUTCOME
-  - Entrypoint: `cd /tmp && ./isolarium create`
-  - Observable: Command exits with non-zero code and error message "not a git repository"
-  - Evidence: Test runs `create` in a non-git directory and asserts exit code is non-zero and stderr contains error message
-  - Steps:
-    - [ ] Update `create` command to check for git repository before proceeding
-    - [ ] Add test for the error case
-
-- [ ] **Task 4.2: `create` fails gracefully when VM already exists**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium create` (when VM already exists)
-  - Observable: Command exits with non-zero code and error message "VM already exists"
-  - Evidence: Test runs `create` twice; second invocation fails with expected error
-  - Steps:
-    - [ ] Add VM existence check to `create` command
-    - [ ] Add test that creates VM, then attempts second create
-
-- [ ] **Task 4.3: `destroy` succeeds idempotently when no VM exists**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium destroy` (when no VM exists)
-  - Observable: Command exits 0 with message "no VM to destroy"
-  - Evidence: Test runs `destroy` when no VM exists and asserts exit code 0
-  - Steps:
-    - [ ] Update `destroy` to handle missing VM gracefully
-    - [ ] Add test for idempotent destroy
-
-- [ ] **Task 4.4: `status` reports VM state (none/running/stopped)**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium status`
-  - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
-  - Evidence: Test checks status with no VM (none), creates VM and checks status (running), stops VM and checks status (stopped)
-  - Steps:
-    - [ ] Update `internal/status/status.go` to query Lima VM state
-    - [ ] Add tests for all three VM states
-
----
-
-## Steel Thread 5: Repository Cloning
+## Steel Thread 4: Repository Cloning
 
 **Goal:** Clone repository inside VM using minted GitHub App installation token.
 
-- [x] **Task 5.1: `create` mints GitHub App installation token**
+- [x] **Task 4.1: `create` mints GitHub App installation token**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create` (with configured GitHub App and valid installation on repo)
   - Observable: Installation token minted from GitHub API; token used for git clone inside VM
@@ -182,7 +141,7 @@ Use these skills by invoking them before the relevant action:
     - [x] Create `internal/github/token_test.go` with unit tests using mock HTTP responses
     - [x] Update `create` command to mint token after VM creation (when GitHub App configured)
 
-- [x] **Task 5.2: `create` clones repository inside VM using token, checking out host's current branch**
+- [x] **Task 4.2: `create` clones repository inside VM using token, checking out host's current branch**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create`
   - Observable: Repository cloned at `~/repo` inside VM using the minted token; same branch as host checked out; git remote configured with token for push
@@ -193,7 +152,7 @@ Use these skills by invoking them before the relevant action:
     - [x] Token embedded in clone URL using `https://x-access-token:TOKEN@github.com/...` format
     - [x] Public repos can be cloned without auth when GitHub App not configured
 
-- [x] **Task 5.3: `status` reports associated repository**
+- [x] **Task 4.3: `status` reports associated repository**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `Repository: owner/repo` when VM exists with cloned repo
@@ -202,6 +161,26 @@ Use these skills by invoking them before the relevant action:
     - [x] Create `internal/lima/metadata.go` to store/read repository metadata in VM at `~/.isolarium/repo.json`
     - [x] Update status command to read and display repository info
     - [x] Add test for repository fields in Status struct
+
+---
+
+## Steel Thread 5: Claude Session
+
+**Goal:** Implement `--copy-session` flag to copy Claude Code credentials from host to VM.
+
+**Environment variable:** `CLAUDE_CREDENTIALS_PATH` - path to credentials file on host
+
+- [x] **Task 5.1: `run --copy-session` copies Claude credentials from host to VM**
+  - TaskType: OUTCOME
+  - Entrypoint: `CLAUDE_CREDENTIALS_PATH=~/.claude/.credentials.json ./isolarium run --script ./agent.sh --copy-session`
+  - Observable: Credentials file copied to VM at `~/.claude/.credentials.json` with permissions `600`; Claude Code in script can authenticate without login prompt
+  - Evidence: Test runs `run --copy-session` with a script that executes `claude -p "hello"` and verifies it completes successfully (exit code 0, output contains a greeting response) without prompting for login
+  - Steps:
+    - [x] Create `internal/lima/session.go` with `CopyClaudeCredentials(credentialsPath)` function
+    - [x] Add `--copy-session` flag to `run` command (default: true)
+    - [x] Read `CLAUDE_CREDENTIALS_PATH` environment variable
+    - [x] Copy credentials file to VM at `~/.claude/.credentials.json` with mode 600
+    - [x] Add test that runs `claude -p "hello"` inside VM and verifies successful execution
 
 ---
 
@@ -250,22 +229,53 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 7: Claude Session
+## Steel Thread 7: VM Lifecycle Hardening
 
-**Goal:** Implement `--copy-session` and `--fresh-login` flags for Claude Code authentication.
+**Goal:** Add error handling and status reporting for VM lifecycle.
 
-- [ ] **Task 7.1: `run --copy-session` copies Claude session from host to VM**
+- [ ] **Task 7.1: `create` fails gracefully when not in a git repository**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium run --script ./agent.sh --copy-session`
-  - Observable: Contents of `~/.claude/` from host copied to `/home/lima.linux/.claude/` inside VM; Claude Code in script can authenticate without login prompt
-  - Evidence: Test creates mock `~/.claude/` directory with test files, runs `run --copy-session`, verifies files exist in VM via `limactl shell`
+  - Entrypoint: `cd /tmp && ./isolarium create`
+  - Observable: Command exits with non-zero code and error message "not a git repository"
+  - Evidence: Test runs `create` in a non-git directory and asserts exit code is non-zero and stderr contains error message
   - Steps:
-    - [ ] Create `internal/lima/session.go` with `CopyClaudeSession(vm)` function
-    - [ ] Add `--copy-session` flag to `run` command (default: true)
-    - [ ] Copy `~/.claude/` directory contents to VM before script execution
-    - [ ] Add test that verifies session files are copied
+    - [ ] Update `create` command to check for git repository before proceeding
+    - [ ] Add test for the error case
 
-- [ ] **Task 7.2: `run --fresh-login` skips session copy for device code flow**
+- [ ] **Task 7.2: `create` fails gracefully when VM already exists**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium create` (when VM already exists)
+  - Observable: Command exits with non-zero code and error message "VM already exists"
+  - Evidence: Test runs `create` twice; second invocation fails with expected error
+  - Steps:
+    - [ ] Add VM existence check to `create` command
+    - [ ] Add test that creates VM, then attempts second create
+
+- [ ] **Task 7.3: `destroy` succeeds idempotently when no VM exists**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium destroy` (when no VM exists)
+  - Observable: Command exits 0 with message "no VM to destroy"
+  - Evidence: Test runs `destroy` when no VM exists and asserts exit code 0
+  - Steps:
+    - [ ] Update `destroy` to handle missing VM gracefully
+    - [ ] Add test for idempotent destroy
+
+- [ ] **Task 7.4: `status` reports VM state (none/running/stopped)**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium status`
+  - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
+  - Evidence: Test checks status with no VM (none), creates VM and checks status (running), stops VM and checks status (stopped)
+  - Steps:
+    - [ ] Update `internal/status/status.go` to query Lima VM state
+    - [ ] Add tests for all three VM states
+
+---
+
+## Steel Thread 8: Fresh Login
+
+**Goal:** Implement `--fresh-login` flag for device code authentication flow.
+
+- [ ] **Task 8.1: `run --fresh-login` skips session copy for device code flow**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh --fresh-login`
   - Observable: No `~/.claude/` copied from host; Claude Code in VM prompts for device code authentication
@@ -277,11 +287,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 8: SSH Access
+## Steel Thread 9: SSH Access
 
 **Goal:** Implement `ssh` command for interactive VM debugging.
 
-- [ ] **Task 8.1: `ssh` opens interactive shell in VM**
+- [ ] **Task 9.1: `ssh` opens interactive shell in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
@@ -291,7 +301,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add `ssh` subcommand to CLI
     - [ ] Create test that pipes commands to ssh and verifies output
 
-- [ ] **Task 8.2: `ssh` fails gracefully when VM does not exist**
+- [ ] **Task 9.2: `ssh` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
@@ -302,11 +312,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Security Verification Tasks
+## Steel Thread 10: Security Verification
 
 **Goal:** Verify security properties defined in the specification.
 
-- [ ] **Task 9.1: VM has no host filesystem mounts**
+- [ ] **Task 10.1: VM has no host filesystem mounts**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-host-mounts.sh`
   - Observable: Lima VM configuration has no `mounts:` entries; `mount` command inside VM shows no host paths
@@ -316,7 +326,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update Lima template to explicitly disable default mounts
     - [ ] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 9.2: VM has no host Docker socket exposure**
+- [ ] **Task 10.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-docker-socket.sh`
   - Observable: `/var/run/docker.sock` inside VM is the VM's own Docker daemon socket, not the host's
@@ -325,7 +335,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
     - [ ] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 9.3: No ambient git credentials in VM**
+- [ ] **Task 10.3: No ambient git credentials in VM**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-git-credentials.sh`
   - Observable: `git config --global credential.helper` inside VM is empty or returns non-zero; no `~/.git-credentials` file exists
@@ -336,9 +346,9 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Test Infrastructure
+## Steel Thread 11: Test Infrastructure
 
-- [ ] **Task 10.1: Create test-scripts directory structure**
+- [ ] **Task 11.1: Create test-scripts directory structure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: test-end-to-end.sh runs test-cleanup.sh and all test scripts in sequence; exits 0 if all pass
@@ -374,3 +384,30 @@ Due to macOS Keychain ownership and code-signing complexities (errSecInvalidOwne
 - Users now set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` environment variables directly
 - `status` command checks these environment variables to report configuration state
 - Simplified from 4 tasks to 1 task (Task 3.1)
+
+### 2026-02-05: Improved Task 7.1 verification to use functional test
+
+Updated Task 7.1 evidence to verify session copying actually works by running Claude Code:
+- Changed from checking file existence to running `claude -p "hello"` inside VM
+- Test verifies Claude Code executes successfully (exit code 0, output contains a greeting response) without login prompt
+- This provides stronger evidence that the session copy is functional, not just present
+
+### 2026-02-05: Reordered and renumbered steel threads
+
+Reordered threads to prioritize core functionality before hardening, and extracted Fresh Login into its own thread:
+- Thread 4: Repository Cloning (formerly Thread 5)
+- Thread 5: Claude Session (formerly Thread 7, Fresh Login extracted)
+- Thread 6: Script Execution (unchanged)
+- Thread 7: VM Lifecycle Hardening (formerly Thread 4)
+- Thread 8: Fresh Login (extracted from Thread 7)
+- Thread 9: SSH Access (formerly Thread 8)
+- Thread 10: Security Verification (formerly unnumbered)
+- Thread 11: Test Infrastructure (formerly unnumbered)
+- All task numbers updated to match their parent thread
+
+### 2026-02-05: Revised Claude credentials handling
+
+Changed from copying entire `~/.claude/` directory to copying only the credentials file:
+- New environment variable `CLAUDE_CREDENTIALS_PATH` specifies credentials file on host
+- File is copied to VM at `~/.claude/.credentials.json` with permissions 600 (owner read/write only)
+- This is more secure and avoids copying unnecessary data (conversation history, settings, etc.)

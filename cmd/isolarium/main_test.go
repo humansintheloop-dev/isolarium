@@ -148,6 +148,34 @@ func TestLoadEnvFile_HandlesNonexistentFile(t *testing.T) {
 	// If we get here, the test passes
 }
 
+func TestRunCommand_HasCopySessionFlag(t *testing.T) {
+	// Build the binary first
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	// Run 'run --help' to verify the flag exists
+	cmd := exec.Command(binaryPath, "run", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run --help failed: %v, output: %s", err, output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "--copy-session") {
+		t.Errorf("expected 'run' command to have '--copy-session' flag, got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "--script") {
+		t.Errorf("expected 'run' command to have '--script' flag, got: %s", outputStr)
+	}
+}
+
 func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
 	// Get the current working directory to build absolute path
 	cwd, err := os.Getwd()

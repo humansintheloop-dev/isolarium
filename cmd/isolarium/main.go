@@ -150,9 +150,48 @@ func main() {
 		},
 	}
 
+	var scriptPath string
+	var copySession bool
+	runCmd := &cobra.Command{
+		Use:   "run",
+		Short: "Execute a script inside the VM",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if VM exists
+			exists, err := lima.VMExists()
+			if err != nil {
+				return fmt.Errorf("failed to check VM status: %w", err)
+			}
+			if !exists {
+				return fmt.Errorf("no VM exists; run 'isolarium create' first")
+			}
+
+			// Copy Claude credentials if requested
+			if copySession {
+				credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
+				if credentialsPath == "" {
+					return fmt.Errorf("CLAUDE_CREDENTIALS_PATH environment variable not set")
+				}
+				fmt.Println("Copying Claude credentials to VM...")
+				if err := lima.CopyClaudeCredentials(credentialsPath); err != nil {
+					return fmt.Errorf("failed to copy credentials: %w", err)
+				}
+			}
+
+			// Script execution will be implemented in Task 6.1
+			if scriptPath != "" {
+				fmt.Printf("Script path: %s (execution not yet implemented)\n", scriptPath)
+			}
+
+			return nil
+		},
+	}
+	runCmd.Flags().StringVar(&scriptPath, "script", "", "Path to script to execute in VM")
+	runCmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to VM")
+
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(createCmd)
 	rootCmd.AddCommand(destroyCmd)
+	rootCmd.AddCommand(runCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
