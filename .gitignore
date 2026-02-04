@@ -1,3 +1,8 @@
 docs/features/isolarium/isolarium-sessionID.txt
 .claude/issues
 .claude/sessions
+
+# Go binaries
+/isolarium
+*.exe
+/cmd/isolarium/isolarium

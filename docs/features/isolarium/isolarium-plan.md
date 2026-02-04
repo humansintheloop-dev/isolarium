@@ -60,19 +60,19 @@ Use these skills by invoking them before the relevant action:
 
 **Goal:** Establish Go CLI skeleton with a working `status` command, CI pipeline, and test infrastructure.
 
-- [ ] **Task 1.1: Go CLI with `status` command reports "no VM" state**
+- [x] **Task 1.1: Go CLI with `status` command reports "no VM" state**
   - TaskType: INFRA
   - Entrypoint: `go build -o isolarium ./cmd/isolarium && ./isolarium status`
   - Observable: CLI outputs `VM: none` and `GitHub App: not configured` with exit code 0
   - Evidence: CI runs `go test ./...` which includes a test that invokes the CLI and asserts the expected output
   - Steps:
-    - [ ] Create `go.mod` with module `github.com/cer/isolarium` and Go 1.22+
-    - [ ] Create `cmd/isolarium/main.go` with Cobra CLI setup and `status` subcommand
-    - [ ] Create `internal/status/status.go` with status checking logic that returns VM state and config state
-    - [ ] Create `internal/status/status_test.go` that tests the status logic returns correct defaults
-    - [ ] Create `cmd/isolarium/main_test.go` that executes the binary and asserts output contains expected strings
-    - [ ] Create `.github/workflows/ci.yml` that runs `go test ./...`
-    - [ ] Create `.gitignore` for Go binaries and build artifacts
+    - [x] Create `go.mod` with module `github.com/cer/isolarium` and Go 1.22+
+    - [x] Create `cmd/isolarium/main.go` with Cobra CLI setup and `status` subcommand
+    - [x] Create `internal/status/status.go` with status checking logic that returns VM state and config state
+    - [x] Create `internal/status/status_test.go` that tests the status logic returns correct defaults
+    - [x] Create `cmd/isolarium/main_test.go` that executes the binary and asserts output contains expected strings
+    - [x] Create `.github/workflows/ci.yml` that runs `go test ./...`
+    - [x] Create `.gitignore` for Go binaries and build artifacts
 
 ---
 
