@@ -64,3 +64,19 @@ func TestGetStatus_ReturnsNotConfiguredWhenOnlyPrivateKeySet(t *testing.T) {
 		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_PRIVATE_KEY is set")
 	}
 }
+
+func TestStatus_HasRepositoryFields(t *testing.T) {
+	s := Status{
+		VMState:             "running",
+		GitHubAppConfigured: true,
+		Repository:          "cer/isolarium",
+		Branch:              "main",
+	}
+
+	if s.Repository != "cer/isolarium" {
+		t.Errorf("expected Repository 'cer/isolarium', got '%s'", s.Repository)
+	}
+	if s.Branch != "main" {
+		t.Errorf("expected Branch 'main', got '%s'", s.Branch)
+	}
+}

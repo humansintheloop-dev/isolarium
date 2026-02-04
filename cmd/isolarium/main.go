@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/cer/isolarium/internal/git"
+	"github.com/cer/isolarium/internal/github"
 	"github.com/cer/isolarium/internal/lima"
 	"github.com/cer/isolarium/internal/status"
 	"github.com/spf13/cobra"
@@ -22,6 +23,10 @@ func main() {
 		Run: func(cmd *cobra.Command, args []string) {
 			s := status.GetStatus()
 			fmt.Printf("VM: %s\n", s.VMState)
+			if s.Repository != "" {
+				fmt.Printf("Repository: %s\n", s.Repository)
+				fmt.Printf("Branch: %s\n", s.Branch)
+			}
 			if s.GitHubAppConfigured {
 				fmt.Println("GitHub App: configured")
 			} else {
@@ -59,6 +64,39 @@ func main() {
 			fmt.Println("Creating Lima VM...")
 			if err := lima.CreateVM(); err != nil {
 				return fmt.Errorf("failed to create VM: %w", err)
+			}
+
+			// Parse owner/repo from URL
+			owner, repo, err := github.ParseRepoURL(remoteURL)
+			if err != nil {
+				return fmt.Errorf("failed to parse repository URL: %w", err)
+			}
+
+			// Try to mint a token if GitHub App is configured
+			var token string
+			appID := os.Getenv("GITHUB_APP_ID")
+			privateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
+			if appID != "" && privateKey != "" {
+				fmt.Println("Minting GitHub App token...")
+				minter, err := github.NewTokenMinter(appID, privateKey, "")
+				if err != nil {
+					return fmt.Errorf("failed to create token minter: %w", err)
+				}
+				token, err = minter.MintInstallationToken(owner, repo)
+				if err != nil {
+					return fmt.Errorf("failed to mint token: %w", err)
+				}
+			}
+
+			// Clone the repository
+			fmt.Println("Cloning repository...")
+			if err := lima.CloneRepo(remoteURL, branch, token); err != nil {
+				return fmt.Errorf("failed to clone repository: %w", err)
+			}
+
+			// Write metadata
+			if err := lima.WriteRepoMetadata(owner, repo, branch); err != nil {
+				return fmt.Errorf("failed to write metadata: %w", err)
 			}
 
 			fmt.Println("VM created successfully")
