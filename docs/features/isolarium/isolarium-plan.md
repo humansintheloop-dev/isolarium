@@ -48,7 +48,7 @@ Use these skills by invoking them before the relevant action:
 |--------------|-------------|
 | 1. Foundation | Go CLI skeleton with `status` command, CI pipeline, and basic test infrastructure |
 | 2. Basic VM Lifecycle | Basic `create` and `destroy` commands for Lima VM management |
-| 3. Credential Storage | `config set/show/delete` commands for GitHub App credentials in macOS Keychain |
+| 3. Credential Storage | GitHub App credentials via environment variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`) |
 | 4. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
 | 5. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
 | 6. Script Execution | `run --script` command to execute user scripts inside VM |
@@ -109,48 +109,18 @@ Use these skills by invoking them before the relevant action:
 
 ## Steel Thread 3: Credential Storage
 
-**Goal:** Implement `config` subcommands for managing GitHub App credentials in macOS Keychain.
+**Goal:** Support GitHub App credentials via environment variables.
 
-- [ ] **Task 3.1: `config set` stores GitHub App credentials in Keychain**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium config set --app-id 12345 --private-key-file ./test-key.pem`
-  - Observable: Credentials stored in macOS Keychain under service "isolarium" with account "github-app"; command exits 0 with confirmation message
-  - Evidence: Test creates a temp private key file, runs `config set`, then uses `security find-generic-password` to verify the credential exists
-  - Steps:
-    - [ ] Add `github.com/keybase/go-keychain` dependency to go.mod
-    - [ ] Create `internal/keychain/keychain.go` with `StoreCredentials(appID string, privateKey []byte)` function
-    - [ ] Create `internal/keychain/keychain_test.go` that tests storing and retrieving credentials
-    - [ ] Add `config` command group to CLI with `set` subcommand accepting `--app-id` and `--private-key-file` flags
-    - [ ] Create `cmd/isolarium/config_test.go` integration test that runs the full command
+**Note:** Originally planned to use macOS Keychain, but pivoted to environment variables due to Keychain ownership/code-signing complexities. Users set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables directly.
 
-- [ ] **Task 3.2: `config show` displays configured GitHub App ID**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium config show`
-  - Observable: Outputs `GitHub App ID: 12345` (shows ID but not private key) with exit code 0; outputs "not configured" if no credentials stored
-  - Evidence: Test stores credentials via `config set`, then runs `config show` and asserts output contains the app ID
-  - Steps:
-    - [ ] Add `GetCredentials() (appID string, privateKey []byte, error)` to keychain package
-    - [ ] Add `show` subcommand to `config` command group
-    - [ ] Create test in `cmd/isolarium/config_test.go` for the show command
-
-- [ ] **Task 3.3: `config delete` removes credentials from Keychain**
-  - TaskType: OUTCOME
-  - Entrypoint: `./isolarium config delete`
-  - Observable: Credentials removed from Keychain; command exits 0 with confirmation message; subsequent `config show` reports "not configured"
-  - Evidence: Test stores credentials, runs `config delete`, then verifies `config show` reports not configured
-  - Steps:
-    - [ ] Add `DeleteCredentials()` to keychain package
-    - [ ] Add `delete` subcommand to `config` command group
-    - [ ] Create test that verifies the full delete flow
-
-- [ ] **Task 3.4: `status` reports GitHub App configuration state**
+- [x] **Task 3.1: `status` reports GitHub App configuration state from environment variables**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
-  - Observable: Status output includes `GitHub App: configured (App ID: 12345)` when credentials exist, or `GitHub App: not configured` when absent
-  - Evidence: Test configures credentials, runs status, asserts "configured" in output; deletes credentials, runs status, asserts "not configured"
+  - Observable: Status output includes `GitHub App: configured` when both `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables are set, or `GitHub App: not configured` when either is absent
+  - Evidence: Tests verify status reports correctly based on environment variable presence
   - Steps:
-    - [ ] Update `internal/status/status.go` to check Keychain for credentials
-    - [ ] Update status_test.go with tests for both configured and unconfigured states
+    - [x] Update `internal/status/status.go` to check `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables
+    - [x] Update status_test.go with tests for both configured and unconfigured states (both env vars set, only one set, neither set)
 
 ---
 
@@ -395,3 +365,11 @@ Updated to reflect design decision that VM clones/checks out the same branch as 
 - Steel Thread 5 overview: Added "checking out host's current branch"
 - Task 2.1: Added `GetCurrentBranch()` function to git detection
 - Task 5.2: Updated to clone with branch parameter and verify correct branch checkout
+
+### 2026-02-04: Pivoted from Keychain to environment variables for credentials
+
+Due to macOS Keychain ownership and code-signing complexities (errSecInvalidOwnerEdit when different binaries try to access the same credentials), pivoted Steel Thread 3 from Keychain-based storage to environment variables:
+- Removed `config set/show/delete` commands
+- Users now set `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` environment variables directly
+- `status` command checks these environment variables to report configuration state
+- Simplified from 4 tasks to 1 task (Task 3.1)

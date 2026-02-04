@@ -1,6 +1,7 @@
 package status
 
 import (
+	"os"
 	"testing"
 )
 
@@ -13,9 +14,53 @@ func TestGetStatus_ReturnsNoVMWhenNoVMExists(t *testing.T) {
 }
 
 func TestGetStatus_ReturnsNotConfiguredWhenNoCredentials(t *testing.T) {
+	// Clear env vars to ensure clean state
+	os.Unsetenv("GITHUB_APP_ID")
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+
 	s := GetStatus()
 
 	if s.GitHubAppConfigured {
 		t.Error("expected GitHubAppConfigured to be false")
+	}
+}
+
+func TestGetStatus_ReturnsConfiguredWhenBothEnvVarsSet(t *testing.T) {
+	// Set both env vars
+	os.Setenv("GITHUB_APP_ID", "12345")
+	os.Setenv("GITHUB_APP_PRIVATE_KEY", "test-private-key")
+	defer func() {
+		os.Unsetenv("GITHUB_APP_ID")
+		os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+	}()
+
+	s := GetStatus()
+
+	if !s.GitHubAppConfigured {
+		t.Error("expected GitHubAppConfigured to be true when both env vars are set")
+	}
+}
+
+func TestGetStatus_ReturnsNotConfiguredWhenOnlyAppIDSet(t *testing.T) {
+	os.Setenv("GITHUB_APP_ID", "12345")
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+	defer os.Unsetenv("GITHUB_APP_ID")
+
+	s := GetStatus()
+
+	if s.GitHubAppConfigured {
+		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_ID is set")
+	}
+}
+
+func TestGetStatus_ReturnsNotConfiguredWhenOnlyPrivateKeySet(t *testing.T) {
+	os.Unsetenv("GITHUB_APP_ID")
+	os.Setenv("GITHUB_APP_PRIVATE_KEY", "test-private-key")
+	defer os.Unsetenv("GITHUB_APP_PRIVATE_KEY")
+
+	s := GetStatus()
+
+	if s.GitHubAppConfigured {
+		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_PRIVATE_KEY is set")
 	}
 }

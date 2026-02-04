@@ -1,5 +1,7 @@
 package status
 
+import "os"
+
 // Status represents the current state of the isolarium environment
 type Status struct {
 	VMState             string
@@ -10,6 +12,12 @@ type Status struct {
 func GetStatus() Status {
 	return Status{
 		VMState:             "none",
-		GitHubAppConfigured: false,
+		GitHubAppConfigured: isGitHubAppConfigured(),
 	}
+}
+
+func isGitHubAppConfigured() bool {
+	appID := os.Getenv("GITHUB_APP_ID")
+	privateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
+	return appID != "" && privateKey != ""
 }
