@@ -35,6 +35,20 @@ func BuildCloneCommand(cloneURL, branch string) []string {
 	}
 }
 
+const workflowToolsRepo = "https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git"
+
+// BuildWorkflowToolsCloneCommand constructs the limactl command to clone workflow tools into the VM
+func BuildWorkflowToolsCloneCommand(token string) []string {
+	cloneURL := workflowToolsRepo
+	if token != "" {
+		cloneURL = strings.Replace(cloneURL, "https://github.com/", "https://x-access-token:"+token+"@github.com/", 1)
+	}
+	return []string{
+		"limactl", "shell", vmName, "--",
+		"git", "clone", cloneURL, "workflow-tools",
+	}
+}
+
 // CloneRepo clones a repository inside the Lima VM
 func CloneRepo(remoteURL, branch, token string) error {
 	cloneURL := BuildCloneURL(remoteURL, token)
@@ -46,6 +60,67 @@ func CloneRepo(remoteURL, branch, token string) error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
+	}
+
+	return nil
+}
+
+// CloneWorkflowTools clones the workflow tools repository into the VM
+func CloneWorkflowTools(token string) error {
+	args := BuildWorkflowToolsCloneCommand(token)
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to clone workflow tools: %w", err)
+	}
+
+	return nil
+}
+
+// BuildInstallMarketplaceCommand constructs the command to run install-marketplace.sh
+func BuildInstallMarketplaceCommand() []string {
+	return []string{
+		"limactl", "shell", vmName, "--",
+		"bash", "-c", "cd ~/workflow-tools && ./install-marketplace.sh",
+	}
+}
+
+// InstallMarketplacePlugins runs the install-marketplace.sh script
+func InstallMarketplacePlugins() error {
+	args := BuildInstallMarketplaceCommand()
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install marketplace plugins: %w", err)
+	}
+
+	return nil
+}
+
+// BuildReinstallPluginCommand constructs the command to run reinstall-plugin.sh
+func BuildReinstallPluginCommand() []string {
+	return []string{
+		"limactl", "shell", vmName, "--",
+		"bash", "-c", "cd ~/workflow-tools && ./reinstall-plugin.sh",
+	}
+}
+
+// ReinstallPlugins runs the reinstall-plugin.sh script
+func ReinstallPlugins() error {
+	args := BuildReinstallPluginCommand()
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to reinstall plugins: %w", err)
 	}
 
 	return nil

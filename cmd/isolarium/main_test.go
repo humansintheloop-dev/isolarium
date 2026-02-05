@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,46 +51,22 @@ func TestStatusCommand_OutputsGitHubAppNotConfigured(t *testing.T) {
 	}
 }
 
-func TestDestroyCommand_SucceedsWhenVMExists(t *testing.T) {
-	// Get the current working directory to build absolute path
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-
-	// Build the binary first
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	// Run destroy command (VM exists from previous tests)
-	cmd := exec.Command(binaryPath, "destroy")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("destroy command failed: %v, output: %s", err, output)
-	}
-
-	// Verify VM is gone
-	listCmd := exec.Command("limactl", "list", "--format", "{{.Name}}")
-	listOutput, _ := listCmd.Output()
-	if strings.Contains(string(listOutput), "isolarium") {
-		t.Error("VM still exists after destroy")
-	}
-}
-
 func TestLoadEnvFile_LoadsVariables(t *testing.T) {
 	// Create a temp directory and env file
 	tmpDir := t.TempDir()
 	envFile := filepath.Join(tmpDir, ".env.local")
 
-	content := `GITHUB_APP_ID=12345
-GITHUB_APP_PRIVATE_KEY_PATH=/path/to/key.pem
+	// Create a real file for the _PATH variable
+	keyFile := filepath.Join(tmpDir, "key.pem")
+	if err := os.WriteFile(keyFile, []byte("key content"), 0600); err != nil {
+		t.Fatalf("failed to write key file: %v", err)
+	}
+
+	content := fmt.Sprintf(`GITHUB_APP_ID=12345
+GITHUB_APP_PRIVATE_KEY_PATH=%s
 # This is a comment
 ANOTHER_VAR=value with spaces
-`
+`, keyFile)
 	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write env file: %v", err)
 	}
@@ -100,14 +77,16 @@ ANOTHER_VAR=value with spaces
 	os.Unsetenv("ANOTHER_VAR")
 
 	// Load the env file
-	loadEnvFile(envFile)
+	if err := loadEnvFile(envFile); err != nil {
+		t.Fatalf("loadEnvFile failed: %v", err)
+	}
 
 	// Verify variables were loaded
 	if got := os.Getenv("GITHUB_APP_ID"); got != "12345" {
 		t.Errorf("GITHUB_APP_ID: expected '12345', got '%s'", got)
 	}
-	if got := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); got != "/path/to/key.pem" {
-		t.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: expected '/path/to/key.pem', got '%s'", got)
+	if got := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); got != keyFile {
+		t.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: expected '%s', got '%s'", keyFile, got)
 	}
 	if got := os.Getenv("ANOTHER_VAR"); got != "value with spaces" {
 		t.Errorf("ANOTHER_VAR: expected 'value with spaces', got '%s'", got)
@@ -134,7 +113,9 @@ func TestLoadEnvFile_DoesNotOverrideExisting(t *testing.T) {
 	defer os.Unsetenv("GITHUB_APP_ID")
 
 	// Load the env file
-	loadEnvFile(envFile)
+	if err := loadEnvFile(envFile); err != nil {
+		t.Fatalf("loadEnvFile failed: %v", err)
+	}
 
 	// Existing value should NOT be overridden
 	if got := os.Getenv("GITHUB_APP_ID"); got != "from-environment" {
@@ -143,9 +124,135 @@ func TestLoadEnvFile_DoesNotOverrideExisting(t *testing.T) {
 }
 
 func TestLoadEnvFile_HandlesNonexistentFile(t *testing.T) {
-	// Should not panic or error on missing file
-	loadEnvFile("/nonexistent/path/.env.local")
-	// If we get here, the test passes
+	// Should not panic or error on missing env file
+	err := loadEnvFile("/nonexistent/path/.env.local")
+	if err != nil {
+		t.Errorf("expected no error for missing env file, got: %v", err)
+	}
+}
+
+func TestLoadEnvFile_ValidatesPathVariablesExist(t *testing.T) {
+	// Create a temp directory and env file
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env.local")
+
+	// Create a real file that the PATH variable will reference
+	realFile := filepath.Join(tmpDir, "real-key.pem")
+	if err := os.WriteFile(realFile, []byte("key content"), 0600); err != nil {
+		t.Fatalf("failed to write real file: %v", err)
+	}
+
+	content := fmt.Sprintf(`GITHUB_APP_PRIVATE_KEY_PATH=%s
+`, realFile)
+	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write env file: %v", err)
+	}
+
+	// Clear any existing values
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+
+	// Load the env file - should succeed because file exists
+	err := loadEnvFile(envFile)
+	if err != nil {
+		t.Errorf("expected no error when PATH file exists, got: %v", err)
+	}
+
+	// Verify variable was loaded
+	if got := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); got != realFile {
+		t.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: expected '%s', got '%s'", realFile, got)
+	}
+
+	// Clean up
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+}
+
+func TestLoadEnvFile_ErrorsWhenPathVariableFileNotFound(t *testing.T) {
+	// Create a temp directory and env file
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env.local")
+
+	// Reference a non-existent file
+	nonExistentFile := filepath.Join(tmpDir, "non-existent-key.pem")
+
+	content := fmt.Sprintf(`GITHUB_APP_PRIVATE_KEY_PATH=%s
+`, nonExistentFile)
+	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write env file: %v", err)
+	}
+
+	// Clear any existing values
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+
+	// Load the env file - should fail because referenced file doesn't exist
+	err := loadEnvFile(envFile)
+	if err == nil {
+		t.Error("expected error when PATH file doesn't exist, got nil")
+	}
+
+	// Error message should mention the variable name and the path
+	if err != nil {
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "GITHUB_APP_PRIVATE_KEY_PATH") {
+			t.Errorf("error should mention variable name, got: %s", errMsg)
+		}
+		if !strings.Contains(errMsg, nonExistentFile) {
+			t.Errorf("error should mention file path, got: %s", errMsg)
+		}
+	}
+
+	// Clean up
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+}
+
+func TestLoadEnvFile_ValidatesMultiplePathVariables(t *testing.T) {
+	// Create a temp directory and env file
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env.local")
+
+	// Create real files
+	keyFile := filepath.Join(tmpDir, "key.pem")
+	certFile := filepath.Join(tmpDir, "cert.pem")
+	if err := os.WriteFile(keyFile, []byte("key"), 0600); err != nil {
+		t.Fatalf("failed to write key file: %v", err)
+	}
+	if err := os.WriteFile(certFile, []byte("cert"), 0600); err != nil {
+		t.Fatalf("failed to write cert file: %v", err)
+	}
+
+	content := fmt.Sprintf(`GITHUB_APP_PRIVATE_KEY_PATH=%s
+SOME_CERT_PATH=%s
+REGULAR_VAR=not_a_path
+`, keyFile, certFile)
+	if err := os.WriteFile(envFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write env file: %v", err)
+	}
+
+	// Clear any existing values
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	os.Unsetenv("SOME_CERT_PATH")
+	os.Unsetenv("REGULAR_VAR")
+
+	// Load the env file - should succeed
+	err := loadEnvFile(envFile)
+	if err != nil {
+		t.Errorf("expected no error, got: %v", err)
+	}
+
+	// Verify all variables were loaded
+	if got := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH"); got != keyFile {
+		t.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: expected '%s', got '%s'", keyFile, got)
+	}
+	if got := os.Getenv("SOME_CERT_PATH"); got != certFile {
+		t.Errorf("SOME_CERT_PATH: expected '%s', got '%s'", certFile, got)
+	}
+	if got := os.Getenv("REGULAR_VAR"); got != "not_a_path" {
+		t.Errorf("REGULAR_VAR: expected 'not_a_path', got '%s'", got)
+	}
+
+	// Clean up
+	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	os.Unsetenv("SOME_CERT_PATH")
+	os.Unsetenv("REGULAR_VAR")
 }
 
 func TestRunCommand_HasCopySessionFlag(t *testing.T) {

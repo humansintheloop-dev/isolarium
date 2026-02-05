@@ -51,3 +51,71 @@ func TestBuildCloneCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildWorkflowToolsCloneCommand(t *testing.T) {
+	cmd := BuildWorkflowToolsCloneCommand("ghs_token123")
+	expected := []string{
+		"limactl", "shell", "isolarium", "--",
+		"git", "clone",
+		"https://x-access-token:ghs_token123@github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git",
+		"workflow-tools",
+	}
+	if len(cmd) != len(expected) {
+		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
+	}
+	for i, arg := range expected {
+		if cmd[i] != arg {
+			t.Errorf("arg %d: expected %q, got %q", i, arg, cmd[i])
+		}
+	}
+}
+
+func TestBuildWorkflowToolsCloneCommand_NoToken(t *testing.T) {
+	cmd := BuildWorkflowToolsCloneCommand("")
+	expected := []string{
+		"limactl", "shell", "isolarium", "--",
+		"git", "clone",
+		"https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git",
+		"workflow-tools",
+	}
+	if len(cmd) != len(expected) {
+		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
+	}
+	for i, arg := range expected {
+		if cmd[i] != arg {
+			t.Errorf("arg %d: expected %q, got %q", i, arg, cmd[i])
+		}
+	}
+}
+
+func TestBuildInstallMarketplaceCommand(t *testing.T) {
+	cmd := BuildInstallMarketplaceCommand()
+	expected := []string{
+		"limactl", "shell", "isolarium", "--",
+		"bash", "-c", "cd ~/workflow-tools && ./install-marketplace.sh",
+	}
+	if len(cmd) != len(expected) {
+		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
+	}
+	for i, arg := range expected {
+		if cmd[i] != arg {
+			t.Errorf("arg %d: expected %q, got %q", i, arg, cmd[i])
+		}
+	}
+}
+
+func TestBuildReinstallPluginCommand(t *testing.T) {
+	cmd := BuildReinstallPluginCommand()
+	expected := []string{
+		"limactl", "shell", "isolarium", "--",
+		"bash", "-c", "cd ~/workflow-tools && ./reinstall-plugin.sh",
+	}
+	if len(cmd) != len(expected) {
+		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
+	}
+	for i, arg := range expected {
+		if cmd[i] != arg {
+			t.Errorf("arg %d: expected %q, got %q", i, arg, cmd[i])
+		}
+	}
+}

@@ -49,7 +49,7 @@ func loadTestEnvFile(t *testing.T) {
 // These tests require Lima to be installed and can take several minutes to run
 // Run with: go test -tags=integration ./internal/lima/...
 
-func TestCreateAndDestroyVM_Integration(t *testing.T) {
+func TestZZZ_CreateAndDestroyVM_Integration(t *testing.T) {
 	// Skip if Lima is not installed
 	if _, err := exec.LookPath("limactl"); err != nil {
 		t.Skip("Lima not installed, skipping integration test")
@@ -93,7 +93,9 @@ func TestVMHasRequiredTools_Integration(t *testing.T) {
 		t.Skip("Lima not installed, skipping integration test")
 	}
 
-	// This test assumes VM is already created (run after TestCreateAndDestroyVM_Integration)
+	// Ensure VM is running
+	ensureVMRunning(t)
+
 	// Check for required tools (all should be in PATH via symlinks or direct install)
 	tools := []string{"git", "node", "docker", "gh", "claude", "java"}
 	for _, tool := range tools {
@@ -355,6 +357,94 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 		t.Errorf("HelloWorld.java does not contain main method: %s", content)
 	}
 	t.Logf("HelloWorld.java content:\n%s", content)
+}
+
+func TestCloneWorkflowTools_Integration(t *testing.T) {
+	// Skip if Lima is not installed
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+
+	// Ensure VM is running
+	ensureVMRunning(t)
+
+	// Remove any existing workflow-tools directory
+	exec.Command("limactl", "shell", "isolarium", "--", "rm", "-rf", "workflow-tools").Run()
+
+	// Clone workflow tools repository (public repo, no token needed)
+	if err := CloneWorkflowTools(""); err != nil {
+		t.Fatalf("CloneWorkflowTools failed: %v", err)
+	}
+
+	// Verify workflow-tools directory exists
+	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", "workflow-tools")
+	if err := cmd.Run(); err != nil {
+		t.Fatal("workflow-tools directory does not exist in VM")
+	}
+
+	// Verify expected scripts exist
+	scripts := []string{"install-marketplace.sh", "reinstall-plugin.sh"}
+	for _, script := range scripts {
+		cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", "workflow-tools/"+script)
+		if err := cmd.Run(); err != nil {
+			t.Errorf("expected script %s not found in workflow-tools", script)
+		}
+	}
+}
+
+func TestInstallMarketplacePlugins_Integration(t *testing.T) {
+	// Skip if Lima is not installed
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+
+	// Ensure VM is running and workflow tools are cloned
+	ensureVMRunning(t)
+
+	// Check that workflow-tools exists (cloned by previous test or setup)
+	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", "workflow-tools")
+	if err := cmd.Run(); err != nil {
+		t.Skip("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
+	}
+
+	// Run install-marketplace.sh
+	if err := InstallMarketplacePlugins(); err != nil {
+		t.Fatalf("InstallMarketplacePlugins failed: %v", err)
+	}
+
+	// Verify marketplace plugins are installed by checking Claude Code config
+	// The install-marketplace.sh script installs plugins to ~/.claude/plugins/
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", ".claude/plugins")
+	if err := cmd.Run(); err != nil {
+		t.Error("~/.claude/plugins directory does not exist after marketplace installation")
+	}
+}
+
+func TestReinstallPlugins_Integration(t *testing.T) {
+	// Skip if Lima is not installed
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+
+	// Ensure VM is running and workflow tools are cloned
+	ensureVMRunning(t)
+
+	// Check that workflow-tools exists
+	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", "workflow-tools")
+	if err := cmd.Run(); err != nil {
+		t.Skip("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
+	}
+
+	// Run reinstall-plugin.sh
+	if err := ReinstallPlugins(); err != nil {
+		t.Fatalf("ReinstallPlugins failed: %v", err)
+	}
+
+	// Verify plugins are installed by checking Claude Code config
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", ".claude/plugins")
+	if err := cmd.Run(); err != nil {
+		t.Error("~/.claude/plugins directory does not exist after plugin reinstallation")
+	}
 }
 
 // ensureVMRunning checks if the VM exists and is running, creating it if necessary

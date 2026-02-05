@@ -51,10 +51,13 @@ Use these skills by invoking them before the relevant action:
 | 3. Credential Storage | GitHub App credentials via environment variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY_PATH`) |
 | 4. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
 | 5. Claude Session | `--copy-session` flag to copy Claude Code session from host to VM |
-| 6. Script Execution | `run --script` command to execute user scripts inside VM |
-| 7. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
-| 8. Fresh Login | `--fresh-login` flag for device code authentication flow |
-| 9. SSH Access | `ssh` command for interactive VM debugging |
+| 6. Workflow Tools Installation | Clone workflow tools repo and install Claude Code plugins during VM creation |
+| 7. Script Execution | `run --script` command to execute user scripts inside VM |
+| 8. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
+| 9. Fresh Login | `--fresh-login` flag for device code authentication flow |
+| 10. SSH Access | `ssh` command for interactive VM debugging |
+| 11. Security Verification | Verify VM isolation properties (no host mounts, no Docker socket, no git credentials) |
+| 12. Test Infrastructure | End-to-end test scripts and CI integration |
 
 ---
 
@@ -184,11 +187,47 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 6: Script Execution
+## Steel Thread 6: Workflow Tools Installation
+
+**Goal:** Enhance VM setup to include workflow tools and Claude Code plugins from the humansintheloop-dev repository.
+
+- [x] **Task 6.1: `create` clones workflow tools repository into VM**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium create`
+  - Observable: Repository `humansintheloop-dev/humansintheloop-dev-workflow-and-tools` cloned at `~/workflow-tools` inside VM
+  - Evidence: Test runs `create`, then runs `limactl shell isolarium -- ls ~/workflow-tools` and asserts directory contains expected files (install-marketplace.sh, reinstall-plugin.sh)
+  - Steps:
+    - [x] Update `internal/lima/lima.go` `CreateVM()` to clone workflow tools repo after main repo clone
+    - [x] Clone using `git clone git@github.com:humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git ~/workflow-tools`
+    - [x] Add test that verifies workflow tools directory exists with expected scripts
+
+- [x] **Task 6.2: `create` runs install-marketplace.sh to install marketplace plugins**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium create`
+  - Observable: Marketplace plugins installed; install-marketplace.sh exits 0
+  - Evidence: Test runs `create`, then verifies marketplace plugins are present in Claude Code configuration
+  - Steps:
+    - [x] Execute `~/workflow-tools/install-marketplace.sh` after cloning workflow tools
+    - [x] Capture and log output from install script
+    - [x] Add test that verifies installation completed
+
+- [x] **Task 6.3: `create` runs reinstall-plugin.sh to install custom plugins**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium create`
+  - Observable: Custom plugins installed into Claude Code; reinstall-plugin.sh exits 0
+  - Evidence: Test runs `create`, then verifies custom plugins are present in Claude Code plugin directory
+  - Steps:
+    - [x] Execute `~/workflow-tools/reinstall-plugin.sh` after marketplace installation
+    - [x] Capture and log output from reinstall script
+    - [x] Add test that verifies plugins are installed
+
+---
+
+## Steel Thread 7: Script Execution
 
 **Goal:** Implement `run --script` command to execute user scripts inside VM.
 
-- [ ] **Task 6.1: `run --script` copies and executes script inside VM**
+- [ ] **Task 7.1: `run --script` copies and executes script inside VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh`
   - Observable: Script copied to VM, executed with attached I/O; stdout/stderr streamed to terminal; exit code propagated
@@ -199,7 +238,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Implement I/O streaming using `limactl shell` with attached TTY
     - [ ] Create test with simple echo script
 
-- [ ] **Task 6.2: `run` mints fresh token and injects as environment variable**
+- [ ] **Task 7.2: `run` mints fresh token and injects as environment variable**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh`
   - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during script execution
@@ -209,7 +248,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Pass token via environment variable to `limactl shell`
     - [ ] Add test that verifies token is available in script environment
 
-- [ ] **Task 6.3: `run` fails gracefully when VM does not exist**
+- [ ] **Task 7.3: `run` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
@@ -218,7 +257,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add VM existence check to `run` command
     - [ ] Add test for missing VM error
 
-- [ ] **Task 6.4: `run` handles Ctrl+C to terminate script**
+- [ ] **Task 7.4: `run` handles Ctrl+C to terminate script**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./long-running.sh` then Ctrl+C
   - Observable: Script receives SIGINT; script terminates; `isolarium run` exits
@@ -229,11 +268,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 7: VM Lifecycle Hardening
+## Steel Thread 8: VM Lifecycle Hardening
 
 **Goal:** Add error handling and status reporting for VM lifecycle.
 
-- [ ] **Task 7.1: `create` fails gracefully when not in a git repository**
+- [ ] **Task 8.1: `create` fails gracefully when not in a git repository**
   - TaskType: OUTCOME
   - Entrypoint: `cd /tmp && ./isolarium create`
   - Observable: Command exits with non-zero code and error message "not a git repository"
@@ -242,7 +281,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update `create` command to check for git repository before proceeding
     - [ ] Add test for the error case
 
-- [ ] **Task 7.2: `create` fails gracefully when VM already exists**
+- [ ] **Task 8.2: `create` fails gracefully when VM already exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create` (when VM already exists)
   - Observable: Command exits with non-zero code and error message "VM already exists"
@@ -251,7 +290,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add VM existence check to `create` command
     - [ ] Add test that creates VM, then attempts second create
 
-- [ ] **Task 7.3: `destroy` succeeds idempotently when no VM exists**
+- [ ] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium destroy` (when no VM exists)
   - Observable: Command exits 0 with message "no VM to destroy"
@@ -260,7 +299,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update `destroy` to handle missing VM gracefully
     - [ ] Add test for idempotent destroy
 
-- [ ] **Task 7.4: `status` reports VM state (none/running/stopped)**
+- [ ] **Task 8.4: `status` reports VM state (none/running/stopped)**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
@@ -271,11 +310,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 8: Fresh Login
+## Steel Thread 9: Fresh Login
 
 **Goal:** Implement `--fresh-login` flag for device code authentication flow.
 
-- [ ] **Task 8.1: `run --fresh-login` skips session copy for device code flow**
+- [ ] **Task 9.1: `run --fresh-login` skips session copy for device code flow**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh --fresh-login`
   - Observable: No `~/.claude/` copied from host; Claude Code in VM prompts for device code authentication
@@ -287,11 +326,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 9: SSH Access
+## Steel Thread 10: SSH Access
 
 **Goal:** Implement `ssh` command for interactive VM debugging.
 
-- [ ] **Task 9.1: `ssh` opens interactive shell in VM**
+- [ ] **Task 10.1: `ssh` opens interactive shell in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
@@ -301,7 +340,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Add `ssh` subcommand to CLI
     - [ ] Create test that pipes commands to ssh and verifies output
 
-- [ ] **Task 9.2: `ssh` fails gracefully when VM does not exist**
+- [ ] **Task 10.2: `ssh` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
@@ -312,11 +351,11 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 10: Security Verification
+## Steel Thread 11: Security Verification
 
 **Goal:** Verify security properties defined in the specification.
 
-- [ ] **Task 10.1: VM has no host filesystem mounts**
+- [ ] **Task 11.1: VM has no host filesystem mounts**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-host-mounts.sh`
   - Observable: Lima VM configuration has no `mounts:` entries; `mount` command inside VM shows no host paths
@@ -326,7 +365,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Update Lima template to explicitly disable default mounts
     - [ ] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 10.2: VM has no host Docker socket exposure**
+- [ ] **Task 11.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-docker-socket.sh`
   - Observable: `/var/run/docker.sock` inside VM is the VM's own Docker daemon socket, not the host's
@@ -335,7 +374,7 @@ Use these skills by invoking them before the relevant action:
     - [ ] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
     - [ ] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 10.3: No ambient git credentials in VM**
+- [ ] **Task 11.3: No ambient git credentials in VM**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-git-credentials.sh`
   - Observable: `git config --global credential.helper` inside VM is empty or returns non-zero; no `~/.git-credentials` file exists
@@ -346,9 +385,9 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 11: Test Infrastructure
+## Steel Thread 12: Test Infrastructure
 
-- [ ] **Task 11.1: Create test-scripts directory structure**
+- [ ] **Task 12.1: Create test-scripts directory structure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: test-end-to-end.sh runs test-cleanup.sh and all test scripts in sequence; exits 0 if all pass
@@ -411,3 +450,12 @@ Changed from copying entire `~/.claude/` directory to copying only the credentia
 - New environment variable `CLAUDE_CREDENTIALS_PATH` specifies credentials file on host
 - File is copied to VM at `~/.claude/.credentials.json` with permissions 600 (owner read/write only)
 - This is more secure and avoids copying unnecessary data (conversation history, settings, etc.)
+
+### 2026-02-05: Added Workflow Tools Installation thread
+
+Added new Steel Thread 6 to install workflow tools and Claude Code plugins during VM creation:
+- Clone `git@github.com:humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git` to `~/workflow-tools`
+- Run `install-marketplace.sh` to install marketplace plugins
+- Run `reinstall-plugin.sh` to install custom plugins into Claude Code
+- Renumbered subsequent threads: Script Execution (6→7), VM Lifecycle Hardening (7→8), Fresh Login (8→9), SSH Access (9→10), Security Verification (10→11), Test Infrastructure (11→12)
+- Updated Steel Thread Overview table to include all threads (was missing Security Verification and Test Infrastructure)

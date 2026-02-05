@@ -13,10 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func loadEnvFile(path string) {
+func loadEnvFile(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return // File doesn't exist, skip silently
+		return nil // File doesn't exist, skip silently
 	}
 	defer file.Close()
 
@@ -30,17 +30,29 @@ func loadEnvFile(path string) {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
+
+			// Validate that _PATH variables reference existing files
+			if strings.HasSuffix(key, "_PATH") && value != "" {
+				if _, err := os.Stat(value); os.IsNotExist(err) {
+					return fmt.Errorf("%s references non-existent file: %s", key, value)
+				}
+			}
+
 			// Only set if not already set in environment
 			if os.Getenv(key) == "" {
 				os.Setenv(key, value)
 			}
 		}
 	}
+	return nil
 }
 
 func main() {
 	// Load .env.local if it exists
-	loadEnvFile(".env.local")
+	if err := loadEnvFile(".env.local"); err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading .env.local: %v\n", err)
+		os.Exit(1)
+	}
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
 		Short: "Secure execution environment for coding agents",
@@ -130,6 +142,24 @@ func main() {
 			// Write metadata
 			if err := lima.WriteRepoMetadata(owner, repo, branch); err != nil {
 				return fmt.Errorf("failed to write metadata: %w", err)
+			}
+
+			// Clone workflow tools repository (public repo, no token needed)
+			fmt.Println("Cloning workflow tools...")
+			if err := lima.CloneWorkflowTools(""); err != nil {
+				return fmt.Errorf("failed to clone workflow tools: %w", err)
+			}
+
+			// Install marketplace plugins
+			fmt.Println("Installing marketplace plugins...")
+			if err := lima.InstallMarketplacePlugins(); err != nil {
+				return fmt.Errorf("failed to install marketplace plugins: %w", err)
+			}
+
+			// Install custom plugins
+			fmt.Println("Installing custom plugins...")
+			if err := lima.ReinstallPlugins(); err != nil {
+				return fmt.Errorf("failed to install custom plugins: %w", err)
 			}
 
 			fmt.Println("VM created successfully")
