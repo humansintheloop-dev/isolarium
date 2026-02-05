@@ -71,10 +71,12 @@ Isolarium is a CLI tool that provides a secure, isolated execution environment f
 
 | Capability | Description |
 |------------|-------------|
-| Copy session from host | Copy `~/.claude/` from host into VM (default, zero friction) |
+| Copy credentials from host | Copy credentials file from `CLAUDE_CREDENTIALS_PATH` to VM `~/.claude/.credentials.json` (default) |
 | Fresh login | User authenticates via device code flow inside VM (separate session) |
 
 **Flag:** `--copy-session` (default) or `--fresh-login`
+
+**Environment variable:** `CLAUDE_CREDENTIALS_PATH` - path to credentials file on host
 
 ### 3.4 Repository Handling
 
@@ -146,7 +148,7 @@ Runs a user-provided script inside the VM.
 
 **Actions:**
 1. Copy script into VM
-2. If `--copy-session`: copy `~/.claude/` from host into VM
+2. If `--copy-session`: copy credentials file from `CLAUDE_CREDENTIALS_PATH` to VM `~/.claude/.credentials.json` (mode 600)
 3. Mint fresh GitHub App installation token (tokens are short-lived)
 4. Inject token as environment variable
 5. Execute script with attached I/O
@@ -269,8 +271,10 @@ Opens an interactive shell inside the VM.
 
 | Mode | Behavior |
 |------|----------|
-| `--copy-session` (default) | Copy host's `~/.claude/` into VM; no login required |
+| `--copy-session` (default) | Copy credentials file specified by `CLAUDE_CREDENTIALS_PATH` to VM `~/.claude/.credentials.json` with permissions `600`; no login required |
 | `--fresh-login` | User authenticates via device code flow; separate session |
+
+**Environment variable:** `CLAUDE_CREDENTIALS_PATH` - path to credentials file on host (required for `--copy-session`)
 
 ---
 
@@ -492,3 +496,10 @@ Updated repository handling to specify that the VM clones/checks out the same br
 - Section 3.4: Repository Handling capabilities
 - Section 4.2: `isolarium create` actions and outputs
 - Section 10.1: Acceptance criteria AC-3
+
+### 2026-02-05: Revised Claude credentials handling
+
+Changed from copying entire `~/.claude/` directory to copying only the credentials file:
+- New environment variable `CLAUDE_CREDENTIALS_PATH` specifies credentials file on host
+- File is copied to VM at `~/.claude/.credentials.json` with permissions 600
+- Updated sections 3.3, 4.2, and 6.3
