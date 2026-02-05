@@ -326,21 +326,35 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	}
 
 	// Run Claude inside the VM to verify credentials work
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "bash", "-c", "claude -p 'say hello'")
+	// Have Claude create a file to prove it can actually do work
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "bash", "-c",
+		"cd /tmp && claude --allowed-tools Write -p 'Create a Java hello world called HelloWorld.java'")
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("claude command failed: %v\noutput: %s", err, output)
 	}
-
-	// Verify output contains a response (not a login prompt)
-	outputStr := strings.ToLower(string(output))
-	if strings.Contains(outputStr, "login") || strings.Contains(outputStr, "authenticate") {
-		t.Errorf("claude prompted for login instead of using credentials: %s", output)
-	}
-	if len(output) == 0 {
-		t.Error("claude produced no output")
-	}
 	t.Logf("Claude response: %s", output)
+
+	// Verify the file was created
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", "/tmp/HelloWorld.java")
+	if err := cmd.Run(); err != nil {
+		t.Fatal("Claude did not create HelloWorld.java")
+	}
+
+	// Verify the file contains valid Java code
+	cmd = exec.Command("limactl", "shell", "isolarium", "--", "cat", "/tmp/HelloWorld.java")
+	output, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to read HelloWorld.java: %v", err)
+	}
+	content := string(output)
+	if !strings.Contains(content, "class HelloWorld") {
+		t.Errorf("HelloWorld.java does not contain expected class: %s", content)
+	}
+	if !strings.Contains(content, "public static void main") {
+		t.Errorf("HelloWorld.java does not contain main method: %s", content)
+	}
+	t.Logf("HelloWorld.java content:\n%s", content)
 }
 
 // ensureVMRunning checks if the VM exists and is running, creating it if necessary
