@@ -52,7 +52,7 @@ Use these skills by invoking them before the relevant action:
 | 4. Repository Cloning | Clone repository inside VM using minted GitHub App installation token, checking out host's current branch |
 | 5. Claude Session | `--copy-session` flag to copy Claude Code session from host to VM |
 | 6. Workflow Tools Installation | Clone workflow tools repo and install Claude Code plugins during VM creation |
-| 7. Script Execution | `run --script` command to execute user scripts inside VM |
+| 7. Command Execution | `run` command to execute commands inside VM in the repo directory |
 | 8. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
 | 9. Fresh Login | `--fresh-login` flag for device code authentication flow |
 | 10. SSH Access | `ssh` command for interactive VM debugging |
@@ -223,48 +223,65 @@ Use these skills by invoking them before the relevant action:
 
 ---
 
-## Steel Thread 7: Script Execution
+## Steel Thread 7: Command Execution
 
-**Goal:** Implement `run --script` command to execute user scripts inside VM.
+**Goal:** Implement `run` command to execute commands inside the VM in the repo directory.
 
-- [ ] **Task 7.1: `run --script` copies and executes script inside VM**
+**Syntax:** `isolarium run [options] -- command arg...`
+
+The command runs directly inside the VM in `~/repo` — no files are copied from the host. By default the command runs non-interactively (stdout/stderr streamed). The `--interactive`/`-i` flag enables TTY mode for commands that need user interaction (e.g., Claude Code).
+
+- [ ] **Task 7.1: `run` executes a command inside the VM in the repo directory**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium run --script ./agent.sh`
-  - Observable: Script copied to VM, executed with attached I/O; stdout/stderr streamed to terminal; exit code propagated
-  - Evidence: Test creates VM, creates test script that echoes "hello", runs `run --script`, asserts "hello" appears in output
+  - Entrypoint: `./isolarium run -- echo hello`
+  - Observable: Command executed inside VM in `~/repo` directory; stdout/stderr streamed to terminal; exit code propagated
+  - Evidence: Test creates VM, runs `run -- echo hello`, asserts "hello" appears in output and exit code is 0; runs `run -- pwd`, asserts output is `/home/<user>.linux/repo`
   - Steps:
-    - [ ] Create `internal/lima/exec.go` with `CopyFile(vm, src, dest)` and `ExecScript(vm, scriptPath)` functions
-    - [ ] Add `run` subcommand with `--script` flag
-    - [ ] Implement I/O streaming using `limactl shell` with attached TTY
-    - [ ] Create test with simple echo script
+    - [ ] Create `internal/lima/exec.go` with `ExecCommand(vm, workdir, args)` function using `limactl shell`
+    - [ ] Add `run` subcommand that takes args after `--`
+    - [ ] Set working directory to `~/repo` for command execution
+    - [ ] Stream stdout/stderr to terminal (non-interactive by default)
+    - [ ] Propagate command exit code
+    - [ ] Create test with simple echo command
 
-- [ ] **Task 7.2: `run` mints fresh token and injects as environment variable**
+- [ ] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium run --script ./agent.sh`
-  - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during script execution
-  - Evidence: Test creates script that echoes `$GIT_TOKEN`, runs `run --script`, asserts token value appears in output (non-empty, valid format)
+  - Entrypoint: `./isolarium run -i -- claude`
+  - Observable: Command runs with TTY attached via `limactl shell --tty`; user can interact with the command
+  - Evidence: Test runs `run -i -- cat` with stdin piped, verifies input is echoed back (TTY mode active)
+  - Steps:
+    - [ ] Add `--interactive`/`-i` flag to `run` command
+    - [ ] When `-i` is set, use `limactl shell --tty` to attach TTY
+    - [ ] Connect stdin/stdout/stderr for interactive use
+    - [ ] Create test that verifies interactive mode works
+
+- [ ] **Task 7.3: `run` mints fresh token and injects as environment variable**
+  - TaskType: OUTCOME
+  - Entrypoint: `./isolarium run -- printenv GIT_TOKEN`
+  - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during command execution
+  - Evidence: Test runs `run -- printenv GIT_TOKEN`, asserts token value appears in output (non-empty, valid format)
   - Steps:
     - [ ] Update `run` command to mint fresh token before execution
     - [ ] Pass token via environment variable to `limactl shell`
-    - [ ] Add test that verifies token is available in script environment
+    - [ ] Add test that verifies token is available in command environment
 
-- [ ] **Task 7.3: `run` fails gracefully when VM does not exist**
+- [ ] **Task 7.4: `run` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium run --script ./agent.sh` (when no VM exists)
+  - Entrypoint: `./isolarium run -- echo hello` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
   - Evidence: Test runs `run` without creating VM, asserts error message and non-zero exit
   - Steps:
     - [ ] Add VM existence check to `run` command
     - [ ] Add test for missing VM error
 
-- [ ] **Task 7.4: `run` handles Ctrl+C to terminate script**
+- [ ] **Task 7.5: `run` handles Ctrl+C to terminate command**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium run --script ./long-running.sh` then Ctrl+C
-  - Observable: Script receives SIGINT; script terminates; `isolarium run` exits
-  - Evidence: Test creates script with sleep loop, runs `run --script` in background, sends SIGINT, asserts process terminates within timeout
+  - Entrypoint: `./isolarium run -- sleep 3600` then Ctrl+C
+  - Observable: Command receives SIGINT; command terminates; `isolarium run` exits
+  - Evidence: Test runs `run -- sleep 3600` in background, sends SIGINT, asserts process terminates within timeout
   - Steps:
     - [ ] Set up signal handling in `run` command to forward SIGINT to VM process
-    - [ ] Create test with long-running script and signal handling
+    - [ ] Create test with long-running command and signal handling
 
 ---
 
@@ -459,3 +476,13 @@ Added new Steel Thread 6 to install workflow tools and Claude Code plugins durin
 - Run `reinstall-plugin.sh` to install custom plugins into Claude Code
 - Renumbered subsequent threads: Script Execution (6→7), VM Lifecycle Hardening (7→8), Fresh Login (8→9), SSH Access (9→10), Security Verification (10→11), Test Infrastructure (11→12)
 - Updated Steel Thread Overview table to include all threads (was missing Security Verification and Test Infrastructure)
+
+### 2026-02-06: Revised Steel Thread 7 from script execution to command execution
+
+Redesigned the `run` command interface:
+- Changed syntax from `isolarium run --script <path>` to `isolarium run [options] -- command arg...`
+- Commands run directly inside the VM in `~/repo` — no file copying from host
+- Non-interactive by default (stdout/stderr streamed)
+- Added `--interactive`/`-i` flag for TTY mode via `limactl shell --tty` (for commands needing user interaction like Claude Code)
+- Renamed thread from "Script Execution" to "Command Execution"
+- Added new Task 7.2 for interactive mode; renumbered remaining tasks (old 7.2→7.3, 7.3→7.4, new 7.5 for Ctrl+C)

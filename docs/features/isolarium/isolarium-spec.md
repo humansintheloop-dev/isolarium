@@ -85,13 +85,13 @@ Isolarium is a CLI tool that provides a secure, isolated execution environment f
 | Detect repository | Read remote URL and current branch from host's current git directory |
 | Clone inside VM | Clone the repository into the VM filesystem using the minted token, checking out the same branch as the host |
 
-### 3.5 Script Execution
+### 3.5 Command Execution
 
 | Capability | Description |
 |------------|-------------|
-| Execute user script | Run a user-provided script inside the VM |
-| Attached I/O | Stream stdout/stderr to terminal; Ctrl+C stops the script |
-| Script responsibility | The script handles Claude Code invocation and git operations (push, PR, etc.) |
+| Execute command | Run a command inside the VM in the repo directory |
+| Non-interactive mode (default) | Stream stdout/stderr to terminal; Ctrl+C stops the command |
+| Interactive mode (`-i`) | Attach TTY for commands that need user interaction (e.g., Claude Code) |
 
 ---
 
@@ -101,7 +101,7 @@ Isolarium is a CLI tool that provides a secure, isolated execution environment f
 
 ```
 isolarium create          # Create and start VM for current repo
-isolarium run --script x  # Run script in existing VM
+isolarium run [opts] -- cmd  # Run command in VM repo directory
 isolarium destroy         # Delete the VM
 isolarium status          # Show VM state, repo, credentials status
 isolarium config          # Manage GitHub App credentials in Keychain
@@ -131,31 +131,31 @@ Creates a new Lima VM configured for the repository in the current directory.
 - VM running and ready
 - Repository cloned at known path inside VM, on the same branch as host
 
-#### `isolarium run --script <path>`
+#### `isolarium run [options] -- command arg...`
 
-Runs a user-provided script inside the VM.
+Runs a command inside the VM in the repo directory (`~/repo`).
 
 **Flags:**
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--script` | Path to script on host (required) | - |
+| `--interactive`, `-i` | Attach TTY for interactive commands | false |
 | `--copy-session` | Copy Claude Code session from host | true |
 | `--fresh-login` | Use device code flow for fresh Claude session | false |
 
 **Preconditions:**
 - VM exists and is running
-- Script file exists on host
 
 **Actions:**
-1. Copy script into VM
-2. If `--copy-session`: copy credentials file from `CLAUDE_CREDENTIALS_PATH` to VM `~/.claude/.credentials.json` (mode 600)
-3. Mint fresh GitHub App installation token (tokens are short-lived)
-4. Inject token as environment variable
-5. Execute script with attached I/O
-6. Wait for script completion or Ctrl+C
+1. If `--copy-session`: copy credentials file from `CLAUDE_CREDENTIALS_PATH` to VM `~/.claude/.credentials.json` (mode 600)
+2. Mint fresh GitHub App installation token (tokens are short-lived)
+3. Inject token as environment variable
+4. Execute command in `~/repo` directory
+   - Default: non-interactive, stdout/stderr streamed via `limactl shell`
+   - With `-i`: interactive, TTY attached via `limactl shell --tty`
+5. Wait for command completion or Ctrl+C
 
 **Outputs:**
-- Script stdout/stderr streamed to terminal
+- Command stdout/stderr streamed to terminal
 - Exit code propagated
 
 #### `isolarium destroy`
@@ -335,12 +335,10 @@ Opens an interactive shell inside the VM.
    - CLI creates Lima VM
    - CLI mints installation token
    - CLI clones repo inside VM
-3. Developer prepares agent script (`agent.sh`) that invokes Claude Code
-4. Developer runs agent: `isolarium run --script ./agent.sh`
-   - CLI copies script into VM
+3. Developer runs agent: `isolarium run -i -- claude`
    - CLI copies Claude session into VM
    - CLI mints fresh token
-   - CLI executes script with attached I/O
+   - CLI executes command in `~/repo` with TTY attached
    - Claude Code runs, makes changes, commits, pushes to branch
 5. Developer reviews changes on GitHub
 6. Developer destroys VM: `isolarium destroy`
@@ -365,18 +363,18 @@ Opens an interactive shell inside the VM.
 
 **Steps:**
 
-1. Developer runs: `isolarium run --script ./agent.sh --fresh-login`
+1. Developer runs: `isolarium run -i --fresh-login -- claude`
 2. Claude Code inside VM displays device code URL
 3. Developer opens URL in browser on host, enters code, authenticates
 4. Claude Code receives session tokens
-5. Script continues with Claude Code authenticated
+5. Command continues with Claude Code authenticated
 
 ### 8.4 Scenario: Recover from Suspected Compromise
 
 **Steps:**
 
 1. Developer observes suspicious agent behavior
-2. Developer presses Ctrl+C to stop script
+2. Developer presses Ctrl+C to stop command
 3. Developer runs: `isolarium destroy`
 4. VM and all contents are deleted
 5. Developer optionally rotates GitHub App credentials
@@ -425,7 +423,7 @@ Opens an interactive shell inside the VM.
 | AC-1 | `isolarium config set` stores GitHub App credentials in macOS Keychain |
 | AC-2 | `isolarium create` provisions a Lima VM with all required tools installed |
 | AC-3 | `isolarium create` clones the repository inside the VM using a minted token, checking out the same branch as the host |
-| AC-4 | `isolarium run --script` executes the script inside the VM with attached I/O |
+| AC-4 | `isolarium run -- command` executes the command inside the VM in the repo directory |
 | AC-5 | `isolarium run` injects a fresh GitHub token as an environment variable |
 | AC-6 | `isolarium run --copy-session` makes Claude Code work without login |
 | AC-7 | `isolarium run --fresh-login` triggers device code authentication |
@@ -449,7 +447,7 @@ Opens an interactive shell inside the VM.
 |----|-----------|
 | AC-U1 | `isolarium create` completes in under 2 minutes on first run |
 | AC-U2 | `isolarium run` startup overhead is under 10 seconds |
-| AC-U3 | Ctrl+C during `run` terminates the script cleanly |
+| AC-U3 | Ctrl+C during `run` terminates the command cleanly |
 | AC-U4 | Error messages include actionable guidance |
 
 ---
@@ -503,3 +501,13 @@ Changed from copying entire `~/.claude/` directory to copying only the credentia
 - New environment variable `CLAUDE_CREDENTIALS_PATH` specifies credentials file on host
 - File is copied to VM at `~/.claude/.credentials.json` with permissions 600
 - Updated sections 3.3, 4.2, and 6.3
+
+### 2026-02-06: Revised `run` command from script execution to command execution
+
+Changed `run` from copying and executing a host script to running a command directly inside the VM:
+- New syntax: `isolarium run [options] -- command arg...`
+- Commands run in `~/repo` directory inside VM — no files copied from host
+- Non-interactive by default (stdout/stderr streamed)
+- New `--interactive`/`-i` flag attaches TTY via `limactl shell --tty` for interactive commands
+- Removed `--script` flag
+- Updated sections 3.5, 4.1, 4.2, 8.1, 8.3, 8.4, 10.1, 10.3
