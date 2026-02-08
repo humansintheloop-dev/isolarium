@@ -331,15 +331,15 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Implement `--fresh-login` flag for device code authentication flow.
 
-- [ ] **Task 9.1: `run --fresh-login` skips session copy for device code flow**
+- [x] **Task 9.1: `run --fresh-login` skips session copy for device code flow**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh --fresh-login`
   - Observable: No `~/.claude/` copied from host; Claude Code in VM prompts for device code authentication
   - Evidence: Test runs with `--fresh-login`, verifies `~/.claude/` in VM is empty or absent
   - Steps:
-    - [ ] Add `--fresh-login` flag that sets `--copy-session=false`
-    - [ ] Ensure `--fresh-login` and `--copy-session` are mutually exclusive
-    - [ ] Add test that verifies session is not copied with `--fresh-login`
+    - [x] Add `--fresh-login` flag that sets `--copy-session=false`
+    - [x] Ensure `--fresh-login` and `--copy-session` are mutually exclusive
+    - [x] Add test that verifies session is not copied with `--fresh-login`
 
 ---
 
@@ -513,3 +513,6 @@ Updated destroy to print 'no VM to destroy' when VM absent; added conditional te
 
 ### 2026-02-08 14:04 - mark-task-complete
 Added GetVMState and parseVMState to query Lima VM state; status now reports running/stopped/none
+
+### 2026-02-08 14:05 - mark-task-complete
+Added --fresh-login flag mutually exclusive with --copy-session; disables credential copying for device code flow

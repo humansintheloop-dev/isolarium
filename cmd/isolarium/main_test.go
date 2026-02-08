@@ -284,6 +284,54 @@ func TestRunCommand_HasCopySessionFlag(t *testing.T) {
 	}
 }
 
+func TestRunCommand_HasFreshLoginFlag(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	cmd := exec.Command(binaryPath, "run", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run --help failed: %v, output: %s", err, output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "--fresh-login") {
+		t.Errorf("expected 'run' command to have '--fresh-login' flag, got: %s", outputStr)
+	}
+}
+
+func TestRunCommand_FreshLoginAndCopySessionMutuallyExclusive(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	// Both flags should cause an error
+	cmd := exec.Command(binaryPath, "run", "--fresh-login", "--copy-session", "--", "echo", "hello")
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatalf("expected error when both --fresh-login and --copy-session are set, got: %s", output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "mutually exclusive") {
+		t.Errorf("expected error about mutually exclusive flags, got: %s", outputStr)
+	}
+}
+
 func TestRunCommand_UsageShowsCommandSyntax(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {

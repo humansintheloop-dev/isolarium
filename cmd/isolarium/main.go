@@ -190,6 +190,7 @@ func main() {
 	}
 
 	var copySession bool
+	var freshLogin bool
 	var interactive bool
 	runCmd := &cobra.Command{
 		Use:   "run [flags] -- command [args...]",
@@ -197,6 +198,16 @@ func main() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return fmt.Errorf("no command specified; use: isolarium run -- <command> [args...]")
+			}
+
+			// Check mutual exclusivity
+			if freshLogin && cmd.Flags().Changed("copy-session") {
+				return fmt.Errorf("--fresh-login and --copy-session are mutually exclusive")
+			}
+
+			// fresh-login disables copy-session
+			if freshLogin {
+				copySession = false
 			}
 
 			// Check if VM exists
@@ -264,6 +275,7 @@ func main() {
 		},
 	}
 	runCmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to VM")
+	runCmd.Flags().BoolVar(&freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
 	runCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach TTY for interactive commands")
 
 	rootCmd.AddCommand(statusCmd)
