@@ -550,6 +550,29 @@ func TestDestroyCommand_SucceedsWhenNoVMExists(t *testing.T) {
 	}
 }
 
+func TestSSHCommand_Exists(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	cmd := exec.Command(binaryPath, "ssh", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ssh --help failed: %v, output: %s", err, output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "interactive shell") {
+		t.Errorf("expected ssh help to mention interactive shell, got: %s", outputStr)
+	}
+}
+
 func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 	// Skip if no isolarium VM exists
 	checkCmd := exec.Command("limactl", "list", "--json")

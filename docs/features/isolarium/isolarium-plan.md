@@ -347,15 +347,15 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Implement `ssh` command for interactive VM debugging.
 
-- [ ] **Task 10.1: `ssh` opens interactive shell in VM**
+- [x] **Task 10.1: `ssh` opens interactive shell in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
   - Evidence: Test runs `ssh` command with stdin containing `echo test && exit`, asserts "test" appears in output
   - Steps:
-    - [ ] Create `internal/lima/ssh.go` with `OpenShell(vm)` function using `limactl shell`
-    - [ ] Add `ssh` subcommand to CLI
-    - [ ] Create test that pipes commands to ssh and verifies output
+    - [x] Create `internal/lima/ssh.go` with `OpenShell(vm)` function using `limactl shell`
+    - [x] Add `ssh` subcommand to CLI
+    - [x] Create test that pipes commands to ssh and verifies output
 
 - [ ] **Task 10.2: `ssh` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
@@ -516,3 +516,6 @@ Added GetVMState and parseVMState to query Lima VM state; status now reports run
 
 ### 2026-02-08 14:05 - mark-task-complete
 Added --fresh-login flag mutually exclusive with --copy-session; disables credential copying for device code flow
+
+### 2026-02-08 14:07 - mark-task-complete
+Added ssh subcommand with OpenShell function using limactl shell --tty, with VM existence check

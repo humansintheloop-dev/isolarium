@@ -278,10 +278,34 @@ func main() {
 	runCmd.Flags().BoolVar(&freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
 	runCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach TTY for interactive commands")
 
+	sshCmd := &cobra.Command{
+		Use:   "ssh",
+		Short: "Open an interactive shell inside the VM",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			exists, err := lima.VMExists()
+			if err != nil {
+				return fmt.Errorf("failed to check VM status: %w", err)
+			}
+			if !exists {
+				return fmt.Errorf("no VM exists; run 'isolarium create' first")
+			}
+
+			exitCode, err := lima.OpenShell(lima.GetVMName())
+			if err != nil {
+				return fmt.Errorf("failed to open shell: %w", err)
+			}
+			if exitCode != 0 {
+				os.Exit(exitCode)
+			}
+			return nil
+		},
+	}
+
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(createCmd)
 	rootCmd.AddCommand(destroyCmd)
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(sshCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
