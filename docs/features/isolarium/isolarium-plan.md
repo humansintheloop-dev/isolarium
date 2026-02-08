@@ -347,7 +347,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Implement `ssh` command for interactive VM debugging.
 
-- [ ] **Task 10.1: `ssh` opens interactive shell in VM**
+- [x] **Task 10.1: `ssh` opens interactive shell in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
@@ -552,3 +552,6 @@ Added integration test for DestroyVM idempotency; skips when VM exists to avoid 
 
 ### 2026-02-08 15:31 - mark-task-complete
 Added integration test verifying GetVMState returns 'running' for a running VM
+
+### 2026-02-08 15:48 - mark-task-complete
+Added integration test verifying OpenShell pipes stdin/stdout via BuildShellCommand

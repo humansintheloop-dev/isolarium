@@ -52,10 +52,6 @@ func loadTestEnvFile(t *testing.T) {
 // Run with: go test -tags=integration ./internal/lima/...
 
 func TestZZZ_DestroyVM_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
 	ensureVMRunning(t)
 
 	// Destroy the VM
@@ -75,10 +71,6 @@ func TestZZZ_DestroyVM_Integration(t *testing.T) {
 
 // Task 8.3: Test DestroyVM is idempotent — runs after TestZZZ_DestroyVM_Integration
 func TestZZZZ_DestroyVM_Idempotent_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
 	// First call — no VM should exist (destroyed by previous test)
 	if err := DestroyVM(); err != nil {
 		t.Fatalf("first DestroyVM with no VM failed: %v", err)
@@ -91,12 +83,6 @@ func TestZZZZ_DestroyVM_Idempotent_Integration(t *testing.T) {
 }
 
 func TestVMHasRequiredTools_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
-	// Ensure VM is running
 	ensureVMRunning(t)
 
 	// Check for required tools (all should be in PATH via symlinks or direct install)
@@ -116,12 +102,6 @@ func TestVMHasRequiredTools_Integration(t *testing.T) {
 }
 
 func TestCloneRepoWithToken_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
-	// Ensure VM is running, create if necessary
 	ensureVMRunning(t)
 
 	// Get the expected branch from the host repo
@@ -237,12 +217,6 @@ func findProjectRoot(t *testing.T) string {
 }
 
 func TestWriteAndReadMetadata_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
-	// Ensure VM is running, create if necessary
 	ensureVMRunning(t)
 
 	// Write metadata
@@ -283,11 +257,6 @@ func TestWriteAndReadMetadata_Integration(t *testing.T) {
 }
 
 func TestCopyClaudeCredentials_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
 	// Load .env.local for credentials path
 	loadTestEnvFile(t)
 
@@ -363,12 +332,6 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 }
 
 func TestCloneWorkflowTools_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
-	// Ensure VM is running
 	ensureVMRunning(t)
 
 	// Remove any existing workflow-tools directory
@@ -396,12 +359,6 @@ func TestCloneWorkflowTools_Integration(t *testing.T) {
 }
 
 func TestInstallMarketplacePlugins_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
-	// Ensure VM is running and workflow tools are cloned
 	ensureVMRunning(t)
 
 	// Check that workflow-tools exists (cloned by previous test or setup)
@@ -424,12 +381,6 @@ func TestInstallMarketplacePlugins_Integration(t *testing.T) {
 }
 
 func TestReinstallPlugins_Integration(t *testing.T) {
-	// Skip if Lima is not installed
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
-
-	// Ensure VM is running and workflow tools are cloned
 	ensureVMRunning(t)
 
 	// Check that workflow-tools exists
@@ -452,9 +403,6 @@ func TestReinstallPlugins_Integration(t *testing.T) {
 
 // Task 7.1: Test ExecCommand runs commands inside VM in repo directory
 func TestExecCommand_EchoHello_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
 	ensureVMRunning(t)
 	ensureRepoDirExists(t)
 
@@ -485,9 +433,6 @@ func TestExecCommand_EchoHello_Integration(t *testing.T) {
 
 // Task 7.2: Test ExecInteractiveCommand with TTY mode
 func TestExecInteractiveCommand_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
 	ensureVMRunning(t)
 	ensureRepoDirExists(t)
 
@@ -508,9 +453,6 @@ func TestExecInteractiveCommand_Integration(t *testing.T) {
 
 // Task 7.3: Test ExecCommand with environment variable injection
 func TestExecCommand_WithEnvVars_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
 	ensureVMRunning(t)
 	ensureRepoDirExists(t)
 
@@ -530,9 +472,6 @@ func TestExecCommand_WithEnvVars_Integration(t *testing.T) {
 
 // Task 7.5: Test SIGINT terminates command in VM
 func TestExecCommand_SIGINT_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
 	ensureVMRunning(t)
 	ensureRepoDirExists(t)
 
@@ -566,9 +505,6 @@ func TestExecCommand_SIGINT_Integration(t *testing.T) {
 
 // Task 8.4: Test GetVMState returns correct state for running VM
 func TestGetVMState_Integration(t *testing.T) {
-	if _, err := exec.LookPath("limactl"); err != nil {
-		t.Skip("Lima not installed, skipping integration test")
-	}
 	ensureVMRunning(t)
 
 	state := GetVMState()
@@ -577,7 +513,23 @@ func TestGetVMState_Integration(t *testing.T) {
 	}
 }
 
-// ensureVMRunning checks if the VM exists and is running, creating or starting it if necessary
+// Task 10.1: Test OpenShell opens interactive shell
+func TestOpenShell_Integration(t *testing.T) {
+	ensureVMRunning(t)
+
+	cmdArgs := BuildShellCommand("isolarium")
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	cmd.Stdin = strings.NewReader("echo test\nexit\n")
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("shell command failed: %v", err)
+	}
+	if !strings.Contains(string(output), "test") {
+		t.Errorf("expected output to contain 'test', got: %s", output)
+	}
+}
+
+// ensureVMRunning checks if the VM exists and is running, creating or starting it if necessary.
 func ensureVMRunning(t *testing.T) {
 	t.Helper()
 
