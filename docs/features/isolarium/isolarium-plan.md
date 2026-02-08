@@ -244,7 +244,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Propagate command exit code
     - [x] Create test with simple echo command
 
-- [ ] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
+- [x] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -i -- claude`
   - Observable: Command runs with TTY attached via `limactl shell --tty`; user can interact with the command
@@ -537,3 +537,6 @@ Already implemented: clean.sh, test-end-to-end.sh, and CI workflow all exist fro
 
 ### 2026-02-08 15:24 - mark-task-complete
 Added integration test; fixed limactl flag ordering bug (--workdir must precede instance name); fixed ~/repo expansion (use GetVMHomeDir for absolute path)
+
+### 2026-02-08 15:25 - mark-task-complete
+Added integration test verifying interactive command pipes stdin/stdout correctly

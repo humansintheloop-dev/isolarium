@@ -480,6 +480,29 @@ func TestExecCommand_EchoHello_Integration(t *testing.T) {
 	}
 }
 
+// Task 7.2: Test ExecInteractiveCommand with TTY mode
+func TestExecInteractiveCommand_Integration(t *testing.T) {
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+	ensureVMRunning(t)
+	ensureRepoDirExists(t)
+
+	workdir := vmRepoDir(t)
+
+	// Use cat to echo back stdin; pipe "hello" in and capture stdout
+	cmdArgs := BuildInteractiveExecCommand("isolarium", workdir, nil, []string{"cat"})
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	cmd.Stdin = strings.NewReader("hello\n")
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("interactive cat failed: %v", err)
+	}
+	if !strings.Contains(string(output), "hello") {
+		t.Errorf("expected output to contain 'hello', got: %s", output)
+	}
+}
+
 // ensureVMRunning checks if the VM exists and is running, creating or starting it if necessary
 func ensureVMRunning(t *testing.T) {
 	t.Helper()
