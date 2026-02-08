@@ -382,23 +382,23 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Update Lima template to explicitly disable default mounts
     - [x] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 11.2: VM has no host Docker socket exposure**
+- [x] **Task 11.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-docker-socket.sh`
   - Observable: `/var/run/docker.sock` inside VM is the VM's own Docker daemon socket, not the host's
   - Evidence: `test-scripts/test-end-to-end.sh` runs `test-no-docker-socket.sh` which verifies Docker socket is VM-local
   - Steps:
-    - [ ] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
-    - [ ] Add script to `test-scripts/test-end-to-end.sh`
+    - [x] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
+    - [x] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 11.3: No ambient git credentials in VM**
+- [x] **Task 11.3: No ambient git credentials in VM**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-git-credentials.sh`
   - Observable: `git config --global credential.helper` inside VM is empty or returns non-zero; no `~/.git-credentials` file exists
   - Evidence: `test-scripts/test-end-to-end.sh` runs `test-no-git-credentials.sh` which verifies no global git credentials
   - Steps:
-    - [ ] Create `test-scripts/test-no-git-credentials.sh` that checks git credential configuration
-    - [ ] Add script to `test-scripts/test-end-to-end.sh`
+    - [x] Create `test-scripts/test-no-git-credentials.sh` that checks git credential configuration
+    - [x] Add script to `test-scripts/test-end-to-end.sh`
 
 ---
 
@@ -525,3 +525,9 @@ VM check already implemented in Task 10.1; added conditional test
 
 ### 2026-02-08 14:08 - mark-task-complete
 Created test-no-host-mounts.sh; Lima template already has mounts: []; updated end-to-end runner
+
+### 2026-02-08 14:09 - mark-task-complete
+Created test-no-docker-socket.sh; added to end-to-end runner
+
+### 2026-02-08 14:09 - mark-task-complete
+Created test-no-git-credentials.sh; added to end-to-end runner
