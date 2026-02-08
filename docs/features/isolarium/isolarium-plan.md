@@ -255,7 +255,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Connect stdin/stdout/stderr for interactive use
     - [x] Create test that verifies interactive mode works
 
-- [ ] **Task 7.3: `run` mints fresh token and injects as environment variable**
+- [x] **Task 7.3: `run` mints fresh token and injects as environment variable**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- printenv GIT_TOKEN`
   - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during command execution
@@ -540,3 +540,6 @@ Added integration test; fixed limactl flag ordering bug (--workdir must precede 
 
 ### 2026-02-08 15:25 - mark-task-complete
 Added integration test verifying interactive command pipes stdin/stdout correctly
+
+### 2026-02-08 15:29 - mark-task-complete
+Added integration test verifying env var injection via env prefix in limactl shell

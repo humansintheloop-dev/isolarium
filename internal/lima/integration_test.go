@@ -503,6 +503,28 @@ func TestExecInteractiveCommand_Integration(t *testing.T) {
 	}
 }
 
+// Task 7.3: Test ExecCommand with environment variable injection
+func TestExecCommand_WithEnvVars_Integration(t *testing.T) {
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+	ensureVMRunning(t)
+	ensureRepoDirExists(t)
+
+	workdir := vmRepoDir(t)
+
+	envVars := map[string]string{"TEST_VAR": "test_value"}
+	cmdArgs := BuildExecCommand("isolarium", workdir, envVars, []string{"printenv", "TEST_VAR"})
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("printenv TEST_VAR failed: %v", err)
+	}
+	if !strings.Contains(string(output), "test_value") {
+		t.Errorf("expected output to contain 'test_value', got: %s", output)
+	}
+}
+
 // ensureVMRunning checks if the VM exists and is running, creating or starting it if necessary
 func ensureVMRunning(t *testing.T) {
 	t.Helper()
