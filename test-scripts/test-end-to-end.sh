@@ -21,6 +21,18 @@ else
 fi
 
 echo ""
+echo "=== Running security verification tests ==="
+if command -v limactl &> /dev/null; then
+    if limactl list --json | grep -q '"name":"isolarium"'; then
+        "$SCRIPT_DIR/test-no-host-mounts.sh"
+    else
+        echo "SKIP: No isolarium VM exists, skipping security tests"
+    fi
+else
+    echo "SKIP: Lima not installed, skipping security tests"
+fi
+
+echo ""
 echo "=== Running cleanup ==="
 if command -v limactl &> /dev/null; then
     go test -tags=cleanup -run TestDestroyCommand ./...

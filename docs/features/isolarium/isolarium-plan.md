@@ -372,15 +372,15 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Verify security properties defined in the specification.
 
-- [ ] **Task 11.1: VM has no host filesystem mounts**
+- [x] **Task 11.1: VM has no host filesystem mounts**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-host-mounts.sh`
   - Observable: Lima VM configuration has no `mounts:` entries; `mount` command inside VM shows no host paths
   - Evidence: `test-scripts/test-end-to-end.sh` runs `test-no-host-mounts.sh` which creates VM and verifies no host mounts
   - Steps:
-    - [ ] Create `test-scripts/test-no-host-mounts.sh` that inspects Lima config and runs `mount` inside VM
-    - [ ] Update Lima template to explicitly disable default mounts
-    - [ ] Add script to `test-scripts/test-end-to-end.sh`
+    - [x] Create `test-scripts/test-no-host-mounts.sh` that inspects Lima config and runs `mount` inside VM
+    - [x] Update Lima template to explicitly disable default mounts
+    - [x] Add script to `test-scripts/test-end-to-end.sh`
 
 - [ ] **Task 11.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
@@ -522,3 +522,6 @@ Added ssh subcommand with OpenShell function using limactl shell --tty, with VM 
 
 ### 2026-02-08 14:07 - mark-task-complete
 VM check already implemented in Task 10.1; added conditional test
+
+### 2026-02-08 14:08 - mark-task-complete
+Created test-no-host-mounts.sh; Lima template already has mounts: []; updated end-to-end runner
