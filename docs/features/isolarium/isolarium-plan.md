@@ -265,14 +265,14 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Pass token via environment variable to `limactl shell`
     - [x] Add test that verifies token is available in command environment
 
-- [ ] **Task 7.4: `run` fails gracefully when VM does not exist**
+- [x] **Task 7.4: `run` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- echo hello` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
   - Evidence: Test runs `run` without creating VM, asserts error message and non-zero exit
   - Steps:
-    - [ ] Add VM existence check to `run` command
-    - [ ] Add test for missing VM error
+    - [x] Add VM existence check to `run` command
+    - [x] Add test for missing VM error
 
 - [ ] **Task 7.5: `run` handles Ctrl+C to terminate command**
   - TaskType: OUTCOME
@@ -495,3 +495,6 @@ Added --interactive/-i flag with TTY mode using limactl shell --tty, ExecInterac
 
 ### 2026-02-08 13:56 - mark-task-complete
 Added env var injection via command-line env prefix, run command mints fresh token when GitHub App configured
+
+### 2026-02-08 13:58 - mark-task-complete
+VM existence check was already implemented in Task 7.1; added conditional test that skips when VM exists
