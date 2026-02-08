@@ -316,14 +316,14 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Update `destroy` to handle missing VM gracefully
     - [x] Add test for idempotent destroy
 
-- [ ] **Task 8.4: `status` reports VM state (none/running/stopped)**
+- [x] **Task 8.4: `status` reports VM state (none/running/stopped)**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
   - Evidence: Test checks status with no VM (none), creates VM and checks status (running), stops VM and checks status (stopped)
   - Steps:
-    - [ ] Update `internal/status/status.go` to query Lima VM state
-    - [ ] Add tests for all three VM states
+    - [x] Update `internal/status/status.go` to query Lima VM state
+    - [x] Add tests for all three VM states
 
 ---
 
@@ -510,3 +510,6 @@ Already implemented in CreateVM; added CLI test that verifies error when VM exis
 
 ### 2026-02-08 14:01 - mark-task-complete
 Updated destroy to print 'no VM to destroy' when VM absent; added conditional test
+
+### 2026-02-08 14:04 - mark-task-complete
+Added GetVMState and parseVMState to query Lima VM state; status now reports running/stopped/none

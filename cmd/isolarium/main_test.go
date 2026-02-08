@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestStatusCommand_OutputsVMNone(t *testing.T) {
+func TestStatusCommand_OutputsValidVMState(t *testing.T) {
 	// Build the binary first
 	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
 	buildCmd.Dir = "."
@@ -27,8 +27,10 @@ func TestStatusCommand_OutputsVMNone(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "VM: none") {
-		t.Errorf("expected output to contain 'VM: none', got: %s", outputStr)
+	if !strings.Contains(outputStr, "VM: none") &&
+		!strings.Contains(outputStr, "VM: running") &&
+		!strings.Contains(outputStr, "VM: stopped") {
+		t.Errorf("expected output to contain valid VM state, got: %s", outputStr)
 	}
 }
 

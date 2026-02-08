@@ -45,6 +45,41 @@ func containsVM(jsonOutput, name string) bool {
 			strings.Contains(jsonOutput, fmt.Sprintf(`"name": "%s"`, name)))
 }
 
+// parseVMState extracts the VM state from limactl list JSON output.
+// Returns "running", "stopped", or "none".
+func parseVMState(jsonOutput, name string) string {
+	// Each line is a separate JSON object for a VM
+	for _, line := range strings.Split(jsonOutput, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Check if this line is for our VM
+		if !strings.Contains(line, fmt.Sprintf(`"name":"%s"`, name)) &&
+			!strings.Contains(line, fmt.Sprintf(`"name": "%s"`, name)) {
+			continue
+		}
+		// Extract status
+		if strings.Contains(line, `"status":"Running"`) || strings.Contains(line, `"status": "Running"`) {
+			return "running"
+		}
+		if strings.Contains(line, `"status":"Stopped"`) || strings.Contains(line, `"status": "Stopped"`) {
+			return "stopped"
+		}
+	}
+	return "none"
+}
+
+// GetVMState returns the current state of the isolarium VM: "running", "stopped", or "none"
+func GetVMState() string {
+	cmd := exec.Command("limactl", "list", "--json")
+	output, err := cmd.Output()
+	if err != nil {
+		return "none"
+	}
+	return parseVMState(string(output), vmName)
+}
+
 // CreateVM creates and starts the isolarium Lima VM
 func CreateVM() error {
 	// Check if VM already exists

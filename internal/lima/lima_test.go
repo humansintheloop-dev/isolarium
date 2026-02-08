@@ -36,3 +36,35 @@ func TestGetVMName(t *testing.T) {
 		t.Errorf("expected VM name 'isolarium', got %q", name)
 	}
 }
+
+func TestParseVMState_Running(t *testing.T) {
+	json := `{"name":"isolarium","status":"Running"}
+{"name":"other","status":"Stopped"}`
+	state := parseVMState(json, "isolarium")
+	if state != "running" {
+		t.Errorf("expected 'running', got %q", state)
+	}
+}
+
+func TestParseVMState_Stopped(t *testing.T) {
+	json := `{"name":"isolarium","status":"Stopped"}`
+	state := parseVMState(json, "isolarium")
+	if state != "stopped" {
+		t.Errorf("expected 'stopped', got %q", state)
+	}
+}
+
+func TestParseVMState_None(t *testing.T) {
+	json := `{"name":"other","status":"Running"}`
+	state := parseVMState(json, "isolarium")
+	if state != "none" {
+		t.Errorf("expected 'none', got %q", state)
+	}
+}
+
+func TestParseVMState_EmptyOutput(t *testing.T) {
+	state := parseVMState("", "isolarium")
+	if state != "none" {
+		t.Errorf("expected 'none', got %q", state)
+	}
+}

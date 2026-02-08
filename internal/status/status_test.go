@@ -5,11 +5,12 @@ import (
 	"testing"
 )
 
-func TestGetStatus_ReturnsNoVMWhenNoVMExists(t *testing.T) {
+func TestGetStatus_ReturnsValidVMState(t *testing.T) {
 	s := GetStatus()
 
-	if s.VMState != "none" {
-		t.Errorf("expected VMState to be 'none', got '%s'", s.VMState)
+	validStates := map[string]bool{"none": true, "running": true, "stopped": true}
+	if !validStates[s.VMState] {
+		t.Errorf("expected VMState to be 'none', 'running', or 'stopped', got '%s'", s.VMState)
 	}
 }
 

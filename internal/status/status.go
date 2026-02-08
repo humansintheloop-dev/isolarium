@@ -18,15 +18,17 @@ type Status struct {
 // GetStatus returns the current status of the isolarium environment
 func GetStatus() Status {
 	s := Status{
-		VMState:             "none",
+		VMState:             lima.GetVMState(),
 		GitHubAppConfigured: isGitHubAppConfigured(),
 	}
 
-	// Try to read metadata from VM
-	meta, err := lima.ReadRepoMetadata()
-	if err == nil && meta != nil {
-		s.Repository = fmt.Sprintf("%s/%s", meta.Owner, meta.Repo)
-		s.Branch = meta.Branch
+	// Try to read metadata from VM if VM exists
+	if s.VMState != "none" {
+		meta, err := lima.ReadRepoMetadata()
+		if err == nil && meta != nil {
+			s.Repository = fmt.Sprintf("%s/%s", meta.Owner, meta.Repo)
+			s.Branch = meta.Branch
+		}
 	}
 
 	return s
