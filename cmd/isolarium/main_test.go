@@ -429,6 +429,42 @@ func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
 	}
 }
 
+func TestCreateCommand_FailsWhenVMAlreadyExists(t *testing.T) {
+	// Skip if no isolarium VM exists (can only test "already exists" if one does)
+	checkCmd := exec.Command("limactl", "list", "--json")
+	checkOutput, err := checkCmd.Output()
+	if err != nil {
+		t.Skip("limactl not available, skipping VM already-exists test")
+	}
+	if !strings.Contains(string(checkOutput), `"name":"isolarium"`) &&
+		!strings.Contains(string(checkOutput), `"name": "isolarium"`) {
+		t.Skip("no isolarium VM exists, skipping VM already-exists test")
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	// Run create when VM already exists
+	cmd := exec.Command(binaryPath, "create")
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatalf("expected create to fail when VM exists, got: %s", output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "already exists") {
+		t.Errorf("expected error about VM already existing, got: %s", outputStr)
+	}
+}
+
 func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 	// Skip if no isolarium VM exists
 	checkCmd := exec.Command("limactl", "list", "--json")

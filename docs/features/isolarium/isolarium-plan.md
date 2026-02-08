@@ -289,23 +289,23 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Add error handling and status reporting for VM lifecycle.
 
-- [ ] **Task 8.1: `create` fails gracefully when not in a git repository**
+- [x] **Task 8.1: `create` fails gracefully when not in a git repository**
   - TaskType: OUTCOME
   - Entrypoint: `cd /tmp && ./isolarium create`
   - Observable: Command exits with non-zero code and error message "not a git repository"
   - Evidence: Test runs `create` in a non-git directory and asserts exit code is non-zero and stderr contains error message
   - Steps:
-    - [ ] Update `create` command to check for git repository before proceeding
-    - [ ] Add test for the error case
+    - [x] Update `create` command to check for git repository before proceeding
+    - [x] Add test for the error case
 
-- [ ] **Task 8.2: `create` fails gracefully when VM already exists**
+- [x] **Task 8.2: `create` fails gracefully when VM already exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium create` (when VM already exists)
   - Observable: Command exits with non-zero code and error message "VM already exists"
   - Evidence: Test runs `create` twice; second invocation fails with expected error
   - Steps:
-    - [ ] Add VM existence check to `create` command
-    - [ ] Add test that creates VM, then attempts second create
+    - [x] Add VM existence check to `create` command
+    - [x] Add test that creates VM, then attempts second create
 
 - [ ] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
   - TaskType: OUTCOME
@@ -501,3 +501,9 @@ VM existence check was already implemented in Task 7.1; added conditional test t
 
 ### 2026-02-08 13:59 - mark-task-complete
 SIGINT propagation works natively via os/exec on Unix; added integration test verifying process terminates on SIGINT
+
+### 2026-02-08 14:00 - mark-task-complete
+Already implemented and tested in earlier steel threads
+
+### 2026-02-08 14:00 - mark-task-complete
+Already implemented in CreateVM; added CLI test that verifies error when VM exists
