@@ -231,18 +231,18 @@ Use these skills by invoking them before the relevant action:
 
 The command runs directly inside the VM in `~/repo` — no files are copied from the host. By default the command runs non-interactively (stdout/stderr streamed). The `--interactive`/`-i` flag enables TTY mode for commands that need user interaction (e.g., Claude Code).
 
-- [ ] **Task 7.1: `run` executes a command inside the VM in the repo directory**
+- [x] **Task 7.1: `run` executes a command inside the VM in the repo directory**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- echo hello`
   - Observable: Command executed inside VM in `~/repo` directory; stdout/stderr streamed to terminal; exit code propagated
   - Evidence: Test creates VM, runs `run -- echo hello`, asserts "hello" appears in output and exit code is 0; runs `run -- pwd`, asserts output is `/home/<user>.linux/repo`
   - Steps:
-    - [ ] Create `internal/lima/exec.go` with `ExecCommand(vm, workdir, args)` function using `limactl shell`
-    - [ ] Add `run` subcommand that takes args after `--`
-    - [ ] Set working directory to `~/repo` for command execution
-    - [ ] Stream stdout/stderr to terminal (non-interactive by default)
-    - [ ] Propagate command exit code
-    - [ ] Create test with simple echo command
+    - [x] Create `internal/lima/exec.go` with `ExecCommand(vm, workdir, args)` function using `limactl shell`
+    - [x] Add `run` subcommand that takes args after `--`
+    - [x] Set working directory to `~/repo` for command execution
+    - [x] Stream stdout/stderr to terminal (non-interactive by default)
+    - [x] Propagate command exit code
+    - [x] Create test with simple echo command
 
 - [ ] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
   - TaskType: OUTCOME
@@ -486,3 +486,6 @@ Redesigned the `run` command interface:
 - Added `--interactive`/`-i` flag for TTY mode via `limactl shell --tty` (for commands needing user interaction like Claude Code)
 - Renamed thread from "Script Execution" to "Command Execution"
 - Added new Task 7.2 for interactive mode; renumbered remaining tasks (old 7.2→7.3, 7.3→7.4, new 7.5 for Ctrl+C)
+
+### 2026-02-08 13:46 - mark-task-complete
+Implemented run command with -- command syntax, ExecCommand function, unit tests, and CLI tests

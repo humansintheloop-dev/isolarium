@@ -278,8 +278,54 @@ func TestRunCommand_HasCopySessionFlag(t *testing.T) {
 	if !strings.Contains(outputStr, "--copy-session") {
 		t.Errorf("expected 'run' command to have '--copy-session' flag, got: %s", outputStr)
 	}
-	if !strings.Contains(outputStr, "--script") {
-		t.Errorf("expected 'run' command to have '--script' flag, got: %s", outputStr)
+}
+
+func TestRunCommand_UsageShowsCommandSyntax(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	cmd := exec.Command(binaryPath, "run", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run --help failed: %v, output: %s", err, output)
+	}
+
+	outputStr := string(output)
+	// The usage should show that run accepts args after --
+	if !strings.Contains(outputStr, "[flags] -- command") {
+		t.Errorf("expected usage to show '-- command' syntax, got: %s", outputStr)
+	}
+}
+
+func TestRunCommand_FailsWithNoCommand(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	// Run 'run' with no args after -- should fail with a helpful message
+	cmd := exec.Command(binaryPath, "run", "--copy-session=false")
+	output, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatalf("expected run with no command to fail, got: %s", output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "no command specified") {
+		t.Errorf("expected error about no command, got: %s", outputStr)
 	}
 }
 

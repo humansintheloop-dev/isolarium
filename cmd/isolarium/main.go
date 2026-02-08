@@ -180,12 +180,15 @@ func main() {
 		},
 	}
 
-	var scriptPath string
 	var copySession bool
 	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "Execute a script inside the VM",
+		Use:   "run [flags] -- command [args...]",
+		Short: "Execute a command inside the VM in the repo directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("no command specified; use: isolarium run -- <command> [args...]")
+			}
+
 			// Check if VM exists
 			exists, err := lima.VMExists()
 			if err != nil {
@@ -207,15 +210,18 @@ func main() {
 				}
 			}
 
-			// Script execution will be implemented in Task 6.1
-			if scriptPath != "" {
-				fmt.Printf("Script path: %s (execution not yet implemented)\n", scriptPath)
+			// Execute the command inside the VM
+			exitCode, err := lima.ExecCommand(lima.GetVMName(), "~/repo", args)
+			if err != nil {
+				return fmt.Errorf("failed to execute command: %w", err)
+			}
+			if exitCode != 0 {
+				os.Exit(exitCode)
 			}
 
 			return nil
 		},
 	}
-	runCmd.Flags().StringVar(&scriptPath, "script", "", "Path to script to execute in VM")
 	runCmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to VM")
 
 	rootCmd.AddCommand(statusCmd)
