@@ -244,16 +244,16 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Propagate command exit code
     - [x] Create test with simple echo command
 
-- [ ] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
+- [x] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -i -- claude`
   - Observable: Command runs with TTY attached via `limactl shell --tty`; user can interact with the command
   - Evidence: Test runs `run -i -- cat` with stdin piped, verifies input is echoed back (TTY mode active)
   - Steps:
-    - [ ] Add `--interactive`/`-i` flag to `run` command
-    - [ ] When `-i` is set, use `limactl shell --tty` to attach TTY
-    - [ ] Connect stdin/stdout/stderr for interactive use
-    - [ ] Create test that verifies interactive mode works
+    - [x] Add `--interactive`/`-i` flag to `run` command
+    - [x] When `-i` is set, use `limactl shell --tty` to attach TTY
+    - [x] Connect stdin/stdout/stderr for interactive use
+    - [x] Create test that verifies interactive mode works
 
 - [ ] **Task 7.3: `run` mints fresh token and injects as environment variable**
   - TaskType: OUTCOME
@@ -489,3 +489,6 @@ Redesigned the `run` command interface:
 
 ### 2026-02-08 13:46 - mark-task-complete
 Implemented run command with -- command syntax, ExecCommand function, unit tests, and CLI tests
+
+### 2026-02-08 13:48 - mark-task-complete
+Added --interactive/-i flag with TTY mode using limactl shell --tty, ExecInteractiveCommand function, and tests

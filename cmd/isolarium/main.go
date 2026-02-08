@@ -181,6 +181,7 @@ func main() {
 	}
 
 	var copySession bool
+	var interactive bool
 	runCmd := &cobra.Command{
 		Use:   "run [flags] -- command [args...]",
 		Short: "Execute a command inside the VM in the repo directory",
@@ -211,7 +212,12 @@ func main() {
 			}
 
 			// Execute the command inside the VM
-			exitCode, err := lima.ExecCommand(lima.GetVMName(), "~/repo", args)
+			var exitCode int
+			if interactive {
+				exitCode, err = lima.ExecInteractiveCommand(lima.GetVMName(), "~/repo", args)
+			} else {
+				exitCode, err = lima.ExecCommand(lima.GetVMName(), "~/repo", args)
+			}
 			if err != nil {
 				return fmt.Errorf("failed to execute command: %w", err)
 			}
@@ -223,6 +229,7 @@ func main() {
 		},
 	}
 	runCmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to VM")
+	runCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach TTY for interactive commands")
 
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(createCmd)

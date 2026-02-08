@@ -329,6 +329,32 @@ func TestRunCommand_FailsWithNoCommand(t *testing.T) {
 	}
 }
 
+func TestRunCommand_HasInteractiveFlag(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	cmd := exec.Command(binaryPath, "run", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run --help failed: %v, output: %s", err, output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "--interactive") {
+		t.Errorf("expected 'run' command to have '--interactive' flag, got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "-i") {
+		t.Errorf("expected 'run' command to have '-i' shorthand flag, got: %s", outputStr)
+	}
+}
+
 func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
 	// Get the current working directory to build absolute path
 	cwd, err := os.Getwd()
