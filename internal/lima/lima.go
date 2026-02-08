@@ -151,6 +151,16 @@ func DestroyVM() error {
 	return nil
 }
 
+// GetVMHomeDir returns the home directory of the default user inside the VM
+func GetVMHomeDir() (string, error) {
+	cmd := exec.Command("limactl", "shell", vmName, "--", "bash", "-c", "echo $HOME")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get VM home directory: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 // GetArchitecture returns the architecture string for Lima
 func GetArchitecture() string {
 	if runtime.GOARCH == "arm64" {

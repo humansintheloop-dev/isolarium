@@ -244,7 +244,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Propagate command exit code
     - [x] Create test with simple echo command
 
-- [x] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
+- [ ] **Task 7.2: `run --interactive` enables TTY mode for user interaction**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -i -- claude`
   - Observable: Command runs with TTY attached via `limactl shell --tty`; user can interact with the command
@@ -255,7 +255,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Connect stdin/stdout/stderr for interactive use
     - [x] Create test that verifies interactive mode works
 
-- [x] **Task 7.3: `run` mints fresh token and injects as environment variable**
+- [ ] **Task 7.3: `run` mints fresh token and injects as environment variable**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- printenv GIT_TOKEN`
   - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during command execution
@@ -274,7 +274,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add VM existence check to `run` command
     - [x] Add test for missing VM error
 
-- [x] **Task 7.5: `run` handles Ctrl+C to terminate command**
+- [ ] **Task 7.5: `run` handles Ctrl+C to terminate command**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- sleep 3600` then Ctrl+C
   - Observable: Command receives SIGINT; command terminates; `isolarium run` exits
@@ -307,7 +307,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add VM existence check to `create` command
     - [x] Add test that creates VM, then attempts second create
 
-- [x] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
+- [ ] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium destroy` (when no VM exists)
   - Observable: Command exits 0 with message "no VM to destroy"
@@ -316,7 +316,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Update `destroy` to handle missing VM gracefully
     - [x] Add test for idempotent destroy
 
-- [x] **Task 8.4: `status` reports VM state (none/running/stopped)**
+- [ ] **Task 8.4: `status` reports VM state (none/running/stopped)**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
@@ -331,7 +331,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Implement `--fresh-login` flag for device code authentication flow.
 
-- [x] **Task 9.1: `run --fresh-login` skips session copy for device code flow**
+- [ ] **Task 9.1: `run --fresh-login` skips session copy for device code flow**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run --script ./agent.sh --fresh-login`
   - Observable: No `~/.claude/` copied from host; Claude Code in VM prompts for device code authentication
@@ -347,7 +347,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Implement `ssh` command for interactive VM debugging.
 
-- [x] **Task 10.1: `ssh` opens interactive shell in VM**
+- [ ] **Task 10.1: `ssh` opens interactive shell in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
@@ -372,7 +372,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Verify security properties defined in the specification.
 
-- [x] **Task 11.1: VM has no host filesystem mounts**
+- [ ] **Task 11.1: VM has no host filesystem mounts**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-host-mounts.sh`
   - Observable: Lima VM configuration has no `mounts:` entries; `mount` command inside VM shows no host paths
@@ -382,7 +382,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Update Lima template to explicitly disable default mounts
     - [x] Add script to `test-scripts/test-end-to-end.sh`
 
-- [x] **Task 11.2: VM has no host Docker socket exposure**
+- [ ] **Task 11.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-docker-socket.sh`
   - Observable: `/var/run/docker.sock` inside VM is the VM's own Docker daemon socket, not the host's
@@ -391,7 +391,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
     - [x] Add script to `test-scripts/test-end-to-end.sh`
 
-- [x] **Task 11.3: No ambient git credentials in VM**
+- [ ] **Task 11.3: No ambient git credentials in VM**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-git-credentials.sh`
   - Observable: `git config --global credential.helper` inside VM is empty or returns non-zero; no `~/.git-credentials` file exists
@@ -404,7 +404,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 ## Steel Thread 12: Test Infrastructure
 
-- [x] **Task 12.1: Create test-scripts directory structure**
+- [ ] **Task 12.1: Create test-scripts directory structure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: test-end-to-end.sh runs test-cleanup.sh and all test scripts in sequence; exits 0 if all pass
@@ -534,3 +534,6 @@ Created test-no-git-credentials.sh; added to end-to-end runner
 
 ### 2026-02-08 14:10 - mark-task-complete
 Already implemented: clean.sh, test-end-to-end.sh, and CI workflow all exist from earlier steel threads
+
+### 2026-02-08 15:24 - mark-task-complete
+Added integration test; fixed limactl flag ordering bug (--workdir must precede instance name); fixed ~/repo expansion (use GetVMHomeDir for absolute path)

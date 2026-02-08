@@ -258,11 +258,17 @@ func main() {
 			}
 
 			// Execute the command inside the VM
+			homeDir, homeErr := lima.GetVMHomeDir()
+			if homeErr != nil {
+				return fmt.Errorf("failed to get VM home directory: %w", homeErr)
+			}
+			workdir := homeDir + "/repo"
+
 			var exitCode int
 			if interactive {
-				exitCode, err = lima.ExecInteractiveCommand(lima.GetVMName(), "~/repo", envVars, args)
+				exitCode, err = lima.ExecInteractiveCommand(lima.GetVMName(), workdir, envVars, args)
 			} else {
-				exitCode, err = lima.ExecCommand(lima.GetVMName(), "~/repo", envVars, args)
+				exitCode, err = lima.ExecCommand(lima.GetVMName(), workdir, envVars, args)
 			}
 			if err != nil {
 				return fmt.Errorf("failed to execute command: %w", err)

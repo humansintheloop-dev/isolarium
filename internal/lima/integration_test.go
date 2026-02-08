@@ -447,7 +447,40 @@ func TestReinstallPlugins_Integration(t *testing.T) {
 	}
 }
 
-// ensureVMRunning checks if the VM exists and is running, creating it if necessary
+// Task 7.1: Test ExecCommand runs commands inside VM in repo directory
+func TestExecCommand_EchoHello_Integration(t *testing.T) {
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+	ensureVMRunning(t)
+	ensureRepoDirExists(t)
+
+	workdir := vmRepoDir(t)
+
+	// Test echo hello
+	cmdArgs := BuildExecCommand("isolarium", workdir, nil, []string{"echo", "hello"})
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("echo hello failed: %v", err)
+	}
+	if !strings.Contains(string(output), "hello") {
+		t.Errorf("expected output to contain 'hello', got: %s", output)
+	}
+
+	// Test pwd returns repo directory
+	cmdArgs = BuildExecCommand("isolarium", workdir, nil, []string{"pwd"})
+	cmd = exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	output, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("pwd failed: %v", err)
+	}
+	if !strings.Contains(string(output), "/repo") {
+		t.Errorf("expected pwd to contain '/repo', got: %s", output)
+	}
+}
+
+// ensureVMRunning checks if the VM exists and is running, creating or starting it if necessary
 func ensureVMRunning(t *testing.T) {
 	t.Helper()
 
@@ -461,15 +494,46 @@ func ensureVMRunning(t *testing.T) {
 		if err := CreateVM(); err != nil {
 			t.Fatalf("failed to create VM: %v", err)
 		}
+		return
 	}
 
-	// Verify VM is running
-	cmd := exec.Command("limactl", "list", "--format", "{{.Name}}:{{.Status}}")
-	output, err := cmd.Output()
+	// VM exists — check if it's running or stopped
+	state := GetVMState()
+	if state == "running" {
+		return
+	}
+
+	// VM is stopped, start it
+	t.Log("VM is stopped, starting...")
+	cmd := exec.Command("limactl", "start", vmName)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to start VM: %v", err)
+	}
+
+	// Verify it's now running
+	state = GetVMState()
+	if state != "running" {
+		t.Fatalf("VM is not running after start, state: %s", state)
+	}
+}
+
+// ensureRepoDirExists creates ~/repo in the VM if it doesn't already exist
+func ensureRepoDirExists(t *testing.T) {
+	t.Helper()
+	cmd := exec.Command("limactl", "shell", "isolarium", "--", "mkdir", "-p", "repo")
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to create ~/repo in VM: %v", err)
+	}
+}
+
+// vmRepoDir returns the absolute path to ~/repo inside the VM
+func vmRepoDir(t *testing.T) string {
+	t.Helper()
+	homeDir, err := GetVMHomeDir()
 	if err != nil {
-		t.Fatalf("failed to check VM status: %v", err)
+		t.Fatalf("failed to get VM home directory: %v", err)
 	}
-	if !strings.Contains(string(output), "isolarium:Running") {
-		t.Fatalf("VM is not running: %s", output)
-	}
+	return homeDir + "/repo"
 }

@@ -30,7 +30,7 @@ func buildEnvPrefix(envVars map[string]string) []string {
 // If envVars is non-empty, the command is prefixed with "env KEY=VALUE ..." to inject
 // environment variables into the VM process.
 func BuildExecCommand(vm, workdir string, envVars map[string]string, args []string) []string {
-	cmd := []string{"limactl", "shell", vm, "--workdir", workdir, "--"}
+	cmd := []string{"limactl", "shell", "--workdir", workdir, vm, "--"}
 	cmd = append(cmd, buildEnvPrefix(envVars)...)
 	cmd = append(cmd, args...)
 	return cmd
@@ -39,7 +39,7 @@ func BuildExecCommand(vm, workdir string, envVars map[string]string, args []stri
 // BuildInteractiveExecCommand constructs the limactl command for interactive execution with TTY.
 // If envVars is non-empty, the command is prefixed with "env KEY=VALUE ...".
 func BuildInteractiveExecCommand(vm, workdir string, envVars map[string]string, args []string) []string {
-	cmd := []string{"limactl", "shell", "--tty", vm, "--workdir", workdir, "--"}
+	cmd := []string{"limactl", "shell", "--tty", "--workdir", workdir, vm, "--"}
 	cmd = append(cmd, buildEnvPrefix(envVars)...)
 	cmd = append(cmd, args...)
 	return cmd
