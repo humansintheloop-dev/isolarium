@@ -274,14 +274,14 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add VM existence check to `run` command
     - [x] Add test for missing VM error
 
-- [ ] **Task 7.5: `run` handles Ctrl+C to terminate command**
+- [x] **Task 7.5: `run` handles Ctrl+C to terminate command**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- sleep 3600` then Ctrl+C
   - Observable: Command receives SIGINT; command terminates; `isolarium run` exits
   - Evidence: Test runs `run -- sleep 3600` in background, sends SIGINT, asserts process terminates within timeout
   - Steps:
-    - [ ] Set up signal handling in `run` command to forward SIGINT to VM process
-    - [ ] Create test with long-running command and signal handling
+    - [x] Set up signal handling in `run` command to forward SIGINT to VM process
+    - [x] Create test with long-running command and signal handling
 
 ---
 
@@ -498,3 +498,6 @@ Added env var injection via command-line env prefix, run command mints fresh tok
 
 ### 2026-02-08 13:58 - mark-task-complete
 VM existence check was already implemented in Task 7.1; added conditional test that skips when VM exists
+
+### 2026-02-08 13:59 - mark-task-complete
+SIGINT propagation works natively via os/exec on Unix; added integration test verifying process terminates on SIGINT

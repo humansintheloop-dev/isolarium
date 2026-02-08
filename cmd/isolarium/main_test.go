@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func TestStatusCommand_OutputsVMNone(t *testing.T) {
@@ -424,5 +426,57 @@ func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
 	outputStr := string(output)
 	if !strings.Contains(outputStr, "not a git repository") {
 		t.Errorf("expected error message to contain 'not a git repository', got: %s", outputStr)
+	}
+}
+
+func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
+	// Skip if no isolarium VM exists
+	checkCmd := exec.Command("limactl", "list", "--json")
+	checkOutput, err := checkCmd.Output()
+	if err != nil {
+		t.Skip("limactl not available, skipping signal test")
+	}
+	if !strings.Contains(string(checkOutput), `"name":"isolarium"`) &&
+		!strings.Contains(string(checkOutput), `"name": "isolarium"`) {
+		t.Skip("no isolarium VM exists, skipping signal test")
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	// Start a long-running command in the background
+	cmd := exec.Command(binaryPath, "run", "--copy-session=false", "--", "sleep", "3600")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start run command: %v", err)
+	}
+
+	// Give it time to start
+	time.Sleep(2 * time.Second)
+
+	// Send SIGINT to the process
+	if err := cmd.Process.Signal(syscall.SIGINT); err != nil {
+		t.Fatalf("failed to send SIGINT: %v", err)
+	}
+
+	// Wait for the process to exit with a timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-done:
+		// Process exited - success
+	case <-time.After(10 * time.Second):
+		cmd.Process.Kill()
+		t.Fatal("process did not terminate within 10 seconds after SIGINT")
 	}
 }
