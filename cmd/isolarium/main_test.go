@@ -465,6 +465,41 @@ func TestCreateCommand_FailsWhenVMAlreadyExists(t *testing.T) {
 	}
 }
 
+func TestDestroyCommand_SucceedsWhenNoVMExists(t *testing.T) {
+	// Skip if an isolarium VM exists (we're testing the "no VM" case)
+	checkCmd := exec.Command("limactl", "list", "--json")
+	checkOutput, err := checkCmd.Output()
+	if err != nil {
+		t.Skip("limactl not available, skipping destroy idempotent test")
+	}
+	if strings.Contains(string(checkOutput), `"name":"isolarium"`) ||
+		strings.Contains(string(checkOutput), `"name": "isolarium"`) {
+		t.Skip("isolarium VM exists, skipping no-VM destroy test")
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("failed to build binary: %v", err)
+	}
+	binaryPath := filepath.Join(cwd, "isolarium")
+
+	cmd := exec.Command(binaryPath, "destroy")
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		t.Fatalf("expected destroy to succeed when no VM exists, got error: %v, output: %s", err, output)
+	}
+
+	outputStr := string(output)
+	if !strings.Contains(outputStr, "no VM to destroy") {
+		t.Errorf("expected 'no VM to destroy' message, got: %s", outputStr)
+	}
+}
+
 func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 	// Skip if no isolarium VM exists
 	checkCmd := exec.Command("limactl", "list", "--json")

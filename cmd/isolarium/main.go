@@ -171,6 +171,15 @@ func main() {
 		Use:   "destroy",
 		Short: "Delete the Lima VM and all its contents",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			exists, err := lima.VMExists()
+			if err != nil {
+				return fmt.Errorf("failed to check VM status: %w", err)
+			}
+			if !exists {
+				fmt.Println("no VM to destroy")
+				return nil
+			}
+
 			fmt.Println("Destroying Lima VM...")
 			if err := lima.DestroyVM(); err != nil {
 				return fmt.Errorf("failed to destroy VM: %w", err)

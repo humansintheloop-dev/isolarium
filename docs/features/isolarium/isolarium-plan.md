@@ -307,14 +307,14 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add VM existence check to `create` command
     - [x] Add test that creates VM, then attempts second create
 
-- [ ] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
+- [x] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium destroy` (when no VM exists)
   - Observable: Command exits 0 with message "no VM to destroy"
   - Evidence: Test runs `destroy` when no VM exists and asserts exit code 0
   - Steps:
-    - [ ] Update `destroy` to handle missing VM gracefully
-    - [ ] Add test for idempotent destroy
+    - [x] Update `destroy` to handle missing VM gracefully
+    - [x] Add test for idempotent destroy
 
 - [ ] **Task 8.4: `status` reports VM state (none/running/stopped)**
   - TaskType: OUTCOME
@@ -507,3 +507,6 @@ Already implemented and tested in earlier steel threads
 
 ### 2026-02-08 14:00 - mark-task-complete
 Already implemented in CreateVM; added CLI test that verifies error when VM exists
+
+### 2026-02-08 14:01 - mark-task-complete
+Updated destroy to print 'no VM to destroy' when VM absent; added conditional test
