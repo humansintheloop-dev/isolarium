@@ -51,41 +51,42 @@ func loadTestEnvFile(t *testing.T) {
 // These tests require Lima to be installed and can take several minutes to run
 // Run with: go test -tags=integration ./internal/lima/...
 
-func TestZZZ_CreateAndDestroyVM_Integration(t *testing.T) {
-	// Skip if Lima is not installed
+func TestZZZ_DestroyVM_Integration(t *testing.T) {
 	if _, err := exec.LookPath("limactl"); err != nil {
 		t.Skip("Lima not installed, skipping integration test")
 	}
 
-	// Clean up any existing VM first
-	_ = DestroyVM()
+	ensureVMRunning(t)
 
-	// Create VM
-	err := CreateVM()
-	if err != nil {
-		t.Fatalf("CreateVM failed: %v", err)
-	}
-
-	// Verify VM exists and is running
-	cmd := exec.Command("limactl", "list", "--format", "{{.Name}}:{{.Status}}")
-	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to list VMs: %v", err)
-	}
-	if !strings.Contains(string(output), "isolarium:Running") {
-		t.Errorf("expected VM to be running, got: %s", output)
-	}
-
-	// Clean up
-	err = DestroyVM()
-	if err != nil {
+	// Destroy the VM
+	if err := DestroyVM(); err != nil {
 		t.Fatalf("DestroyVM failed: %v", err)
 	}
 
 	// Verify VM is gone
-	output, _ = exec.Command("limactl", "list", "--format", "{{.Name}}").Output()
-	if strings.Contains(string(output), "isolarium") {
-		t.Errorf("VM still exists after destroy: %s", output)
+	exists, err := VMExists()
+	if err != nil {
+		t.Fatalf("failed to check VM status: %v", err)
+	}
+	if exists {
+		t.Error("VM still exists after destroy")
+	}
+}
+
+// Task 8.3: Test DestroyVM is idempotent — runs after TestZZZ_DestroyVM_Integration
+func TestZZZZ_DestroyVM_Idempotent_Integration(t *testing.T) {
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+
+	// First call — no VM should exist (destroyed by previous test)
+	if err := DestroyVM(); err != nil {
+		t.Fatalf("first DestroyVM with no VM failed: %v", err)
+	}
+
+	// Second call — still no VM, should still succeed
+	if err := DestroyVM(); err != nil {
+		t.Fatalf("second DestroyVM with no VM failed: %v", err)
 	}
 }
 
@@ -560,6 +561,19 @@ func TestExecCommand_SIGINT_Integration(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		cmd.Process.Kill()
 		t.Fatal("process did not terminate within 5 seconds after SIGINT")
+	}
+}
+
+// Task 8.4: Test GetVMState returns correct state for running VM
+func TestGetVMState_Integration(t *testing.T) {
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+	ensureVMRunning(t)
+
+	state := GetVMState()
+	if state != "running" {
+		t.Errorf("expected VM state 'running', got %q", state)
 	}
 }
 

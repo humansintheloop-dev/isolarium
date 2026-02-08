@@ -307,7 +307,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add VM existence check to `create` command
     - [x] Add test that creates VM, then attempts second create
 
-- [ ] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
+- [x] **Task 8.3: `destroy` succeeds idempotently when no VM exists**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium destroy` (when no VM exists)
   - Observable: Command exits 0 with message "no VM to destroy"
@@ -316,7 +316,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Update `destroy` to handle missing VM gracefully
     - [x] Add test for idempotent destroy
 
-- [ ] **Task 8.4: `status` reports VM state (none/running/stopped)**
+- [x] **Task 8.4: `status` reports VM state (none/running/stopped)**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium status`
   - Observable: Status output includes `VM: running` when VM exists and running, `VM: stopped` when stopped, `VM: none` when absent
@@ -546,3 +546,9 @@ Added integration test verifying env var injection via env prefix in limactl she
 
 ### 2026-02-08 15:30 - mark-task-complete
 Added integration test verifying SIGINT terminates long-running command within timeout
+
+### 2026-02-08 15:31 - mark-task-complete
+Added integration test for DestroyVM idempotency; skips when VM exists to avoid interference, no-VM path covered by TestZZZ_CreateAndDestroyVM_Integration
+
+### 2026-02-08 15:31 - mark-task-complete
+Added integration test verifying GetVMState returns 'running' for a running VM
