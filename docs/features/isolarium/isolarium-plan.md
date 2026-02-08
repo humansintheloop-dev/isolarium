@@ -357,14 +357,14 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add `ssh` subcommand to CLI
     - [x] Create test that pipes commands to ssh and verifies output
 
-- [ ] **Task 10.2: `ssh` fails gracefully when VM does not exist**
+- [x] **Task 10.2: `ssh` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium ssh` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
   - Evidence: Test runs `ssh` without VM, asserts error message
   - Steps:
-    - [ ] Add VM existence check to `ssh` command
-    - [ ] Add test for missing VM error
+    - [x] Add VM existence check to `ssh` command
+    - [x] Add test for missing VM error
 
 ---
 
@@ -519,3 +519,6 @@ Added --fresh-login flag mutually exclusive with --copy-session; disables creden
 
 ### 2026-02-08 14:07 - mark-task-complete
 Added ssh subcommand with OpenShell function using limactl shell --tty, with VM existence check
+
+### 2026-02-08 14:07 - mark-task-complete
+VM check already implemented in Task 10.1; added conditional test
