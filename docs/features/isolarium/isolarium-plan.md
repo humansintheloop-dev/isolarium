@@ -255,15 +255,15 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Connect stdin/stdout/stderr for interactive use
     - [x] Create test that verifies interactive mode works
 
-- [ ] **Task 7.3: `run` mints fresh token and injects as environment variable**
+- [x] **Task 7.3: `run` mints fresh token and injects as environment variable**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- printenv GIT_TOKEN`
   - Observable: Fresh GitHub installation token minted; `GIT_TOKEN` environment variable set inside VM during command execution
   - Evidence: Test runs `run -- printenv GIT_TOKEN`, asserts token value appears in output (non-empty, valid format)
   - Steps:
-    - [ ] Update `run` command to mint fresh token before execution
-    - [ ] Pass token via environment variable to `limactl shell`
-    - [ ] Add test that verifies token is available in command environment
+    - [x] Update `run` command to mint fresh token before execution
+    - [x] Pass token via environment variable to `limactl shell`
+    - [x] Add test that verifies token is available in command environment
 
 - [ ] **Task 7.4: `run` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
@@ -492,3 +492,6 @@ Implemented run command with -- command syntax, ExecCommand function, unit tests
 
 ### 2026-02-08 13:48 - mark-task-complete
 Added --interactive/-i flag with TTY mode using limactl shell --tty, ExecInteractiveCommand function, and tests
+
+### 2026-02-08 13:56 - mark-task-complete
+Added env var injection via command-line env prefix, run command mints fresh token when GitHub App configured

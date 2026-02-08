@@ -211,12 +211,38 @@ func main() {
 				}
 			}
 
+			// Mint fresh GitHub token if configured
+			envVars := map[string]string{}
+			appID := os.Getenv("GITHUB_APP_ID")
+			privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+			if appID != "" && privateKeyPath != "" {
+				// Read repo metadata to get owner/repo
+				meta, metaErr := lima.ReadRepoMetadata()
+				if metaErr != nil {
+					return fmt.Errorf("failed to read repo metadata: %w", metaErr)
+				}
+				privateKeyBytes, readErr := os.ReadFile(privateKeyPath)
+				if readErr != nil {
+					return fmt.Errorf("failed to read private key from %s: %w", privateKeyPath, readErr)
+				}
+				fmt.Println("Minting fresh GitHub App token...")
+				minter, mintErr := github.NewTokenMinter(appID, string(privateKeyBytes), "")
+				if mintErr != nil {
+					return fmt.Errorf("failed to create token minter: %w", mintErr)
+				}
+				token, tokenErr := minter.MintInstallationToken(meta.Owner, meta.Repo)
+				if tokenErr != nil {
+					return fmt.Errorf("failed to mint token: %w", tokenErr)
+				}
+				envVars["GIT_TOKEN"] = token
+			}
+
 			// Execute the command inside the VM
 			var exitCode int
 			if interactive {
-				exitCode, err = lima.ExecInteractiveCommand(lima.GetVMName(), "~/repo", args)
+				exitCode, err = lima.ExecInteractiveCommand(lima.GetVMName(), "~/repo", envVars, args)
 			} else {
-				exitCode, err = lima.ExecCommand(lima.GetVMName(), "~/repo", args)
+				exitCode, err = lima.ExecCommand(lima.GetVMName(), "~/repo", envVars, args)
 			}
 			if err != nil {
 				return fmt.Errorf("failed to execute command: %w", err)
