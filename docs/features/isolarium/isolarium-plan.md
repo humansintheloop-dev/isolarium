@@ -404,15 +404,15 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 ## Steel Thread 12: Test Infrastructure
 
-- [ ] **Task 12.1: Create test-scripts directory structure**
+- [x] **Task 12.1: Create test-scripts directory structure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: test-end-to-end.sh runs test-cleanup.sh and all test scripts in sequence; exits 0 if all pass
   - Evidence: CI runs `./test-scripts/test-end-to-end.sh` and passes
   - Steps:
-    - [ ] Create `test-scripts/test-cleanup.sh` that destroys any existing isolarium VM
-    - [ ] Create `test-scripts/test-end-to-end.sh` that runs cleanup then individual test scripts
-    - [ ] Update `.github/workflows/ci.yml` to run `./test-scripts/test-end-to-end.sh` after `go test ./...`
+    - [x] Create `test-scripts/test-cleanup.sh` that destroys any existing isolarium VM
+    - [x] Create `test-scripts/test-end-to-end.sh` that runs cleanup then individual test scripts
+    - [x] Update `.github/workflows/ci.yml` to run `./test-scripts/test-end-to-end.sh` after `go test ./...`
 
 ---
 
@@ -531,3 +531,6 @@ Created test-no-docker-socket.sh; added to end-to-end runner
 
 ### 2026-02-08 14:09 - mark-task-complete
 Created test-no-git-credentials.sh; added to end-to-end runner
+
+### 2026-02-08 14:10 - mark-task-complete
+Already implemented: clean.sh, test-end-to-end.sh, and CI workflow all exist from earlier steel threads
