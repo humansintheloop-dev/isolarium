@@ -274,7 +274,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Add VM existence check to `run` command
     - [x] Add test for missing VM error
 
-- [ ] **Task 7.5: `run` handles Ctrl+C to terminate command**
+- [x] **Task 7.5: `run` handles Ctrl+C to terminate command**
   - TaskType: OUTCOME
   - Entrypoint: `./isolarium run -- sleep 3600` then Ctrl+C
   - Observable: Command receives SIGINT; command terminates; `isolarium run` exits
@@ -543,3 +543,6 @@ Added integration test verifying interactive command pipes stdin/stdout correctl
 
 ### 2026-02-08 15:29 - mark-task-complete
 Added integration test verifying env var injection via env prefix in limactl shell
+
+### 2026-02-08 15:30 - mark-task-complete
+Added integration test verifying SIGINT terminates long-running command within timeout

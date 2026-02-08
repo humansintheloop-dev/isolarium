@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/cer/isolarium/internal/github"
 )
@@ -522,6 +524,42 @@ func TestExecCommand_WithEnvVars_Integration(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "test_value") {
 		t.Errorf("expected output to contain 'test_value', got: %s", output)
+	}
+}
+
+// Task 7.5: Test SIGINT terminates command in VM
+func TestExecCommand_SIGINT_Integration(t *testing.T) {
+	if _, err := exec.LookPath("limactl"); err != nil {
+		t.Skip("Lima not installed, skipping integration test")
+	}
+	ensureVMRunning(t)
+	ensureRepoDirExists(t)
+
+	workdir := vmRepoDir(t)
+
+	cmdArgs := BuildExecCommand("isolarium", workdir, nil, []string{"sleep", "3600"})
+	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start sleep command: %v", err)
+	}
+
+	// Send SIGINT after 1 second
+	time.AfterFunc(1*time.Second, func() {
+		cmd.Process.Signal(syscall.SIGINT)
+	})
+
+	// Wait for process to terminate with a timeout
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-done:
+		// Process terminated as expected
+	case <-time.After(5 * time.Second):
+		cmd.Process.Kill()
+		t.Fatal("process did not terminate within 5 seconds after SIGINT")
 	}
 }
 
