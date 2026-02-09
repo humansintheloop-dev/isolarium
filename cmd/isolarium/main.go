@@ -56,6 +56,44 @@ func copyClaudeCredentialsToVM() error {
 	return lima.CopyClaudeCredentials(credentialsPath)
 }
 
+// mintGitHubToken mints a GitHub App installation token if the app is configured.
+// Uses the host's git remote to determine owner/repo.
+// Returns empty string if GitHub App is not configured.
+func mintGitHubToken() (string, error) {
+	appID := os.Getenv("GITHUB_APP_ID")
+	privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	if appID == "" || privateKeyPath == "" {
+		return "", nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+	remoteURL, err := git.GetRemoteURL(cwd)
+	if err != nil {
+		return "", fmt.Errorf("failed to get git remote URL: %w", err)
+	}
+	owner, repo, err := github.ParseRepoURL(remoteURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse repository URL: %w", err)
+	}
+	privateKeyBytes, err := os.ReadFile(privateKeyPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read private key from %s: %w", privateKeyPath, err)
+	}
+	fmt.Println("Minting fresh GitHub App token...")
+	minter, err := github.NewTokenMinter(appID, string(privateKeyBytes), "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create token minter: %w", err)
+	}
+	token, err := minter.MintInstallationToken(owner, repo)
+	if err != nil {
+		return "", fmt.Errorf("failed to mint token: %w", err)
+	}
+	return token, nil
+}
+
 func main() {
 	// Load .env.local if it exists
 	if err := loadEnvFile(".env.local"); err != nil {
@@ -236,28 +274,13 @@ func main() {
 
 			// Mint fresh GitHub token if configured
 			envVars := map[string]string{}
-			appID := os.Getenv("GITHUB_APP_ID")
-			privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
-			if appID != "" && privateKeyPath != "" {
-				// Read repo metadata to get owner/repo
-				meta, metaErr := lima.ReadRepoMetadata()
-				if metaErr != nil {
-					return fmt.Errorf("failed to read repo metadata: %w", metaErr)
-				}
-				privateKeyBytes, readErr := os.ReadFile(privateKeyPath)
-				if readErr != nil {
-					return fmt.Errorf("failed to read private key from %s: %w", privateKeyPath, readErr)
-				}
-				fmt.Println("Minting fresh GitHub App token...")
-				minter, mintErr := github.NewTokenMinter(appID, string(privateKeyBytes), "")
-				if mintErr != nil {
-					return fmt.Errorf("failed to create token minter: %w", mintErr)
-				}
-				token, tokenErr := minter.MintInstallationToken(meta.Owner, meta.Repo)
-				if tokenErr != nil {
-					return fmt.Errorf("failed to mint token: %w", tokenErr)
-				}
+			token, tokenErr := mintGitHubToken()
+			if tokenErr != nil {
+				return tokenErr
+			}
+			if token != "" {
 				envVars["GIT_TOKEN"] = token
+				envVars["GH_TOKEN"] = token
 			}
 
 			// Execute the command inside the VM
@@ -306,7 +329,17 @@ func main() {
 				}
 			}
 
-			exitCode, err := lima.OpenShell(lima.GetVMName())
+			envVars := map[string]string{}
+			token, tokenErr := mintGitHubToken()
+			if tokenErr != nil {
+				return tokenErr
+			}
+			if token != "" {
+				envVars["GIT_TOKEN"] = token
+				envVars["GH_TOKEN"] = token
+			}
+
+			exitCode, err := lima.OpenShell(lima.GetVMName(), envVars)
 			if err != nil {
 				return fmt.Errorf("failed to open shell: %w", err)
 			}
