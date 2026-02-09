@@ -104,11 +104,11 @@ func TestBuildInstallMarketplaceCommand(t *testing.T) {
 	}
 }
 
-func TestBuildReinstallPluginCommand(t *testing.T) {
-	cmd := BuildReinstallPluginCommand()
+func TestBuildInstallPluginCommand(t *testing.T) {
+	cmd := BuildInstallPluginCommand()
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
-		"bash", "-c", "cd ~/workflow-tools && ./reinstall-plugin.sh",
+		"bash", "-c", "cd ~/workflow-tools && ./install-plugin.sh",
 	}
 	if len(cmd) != len(expected) {
 		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))

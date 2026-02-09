@@ -158,7 +158,7 @@ func main() {
 
 			// Install custom plugins
 			fmt.Println("Installing custom plugins...")
-			if err := lima.ReinstallPlugins(); err != nil {
+			if err := lima.InstallPlugins(); err != nil {
 				return fmt.Errorf("failed to install custom plugins: %w", err)
 			}
 

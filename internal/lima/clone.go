@@ -103,24 +103,24 @@ func InstallMarketplacePlugins() error {
 	return nil
 }
 
-// BuildReinstallPluginCommand constructs the command to run reinstall-plugin.sh
-func BuildReinstallPluginCommand() []string {
+// BuildInstallPluginCommand constructs the command to run install-plugin.sh
+func BuildInstallPluginCommand() []string {
 	return []string{
 		"limactl", "shell", vmName, "--",
-		"bash", "-c", "cd ~/workflow-tools && ./reinstall-plugin.sh",
+		"bash", "-c", "cd ~/workflow-tools && ./install-plugin.sh",
 	}
 }
 
-// ReinstallPlugins runs the reinstall-plugin.sh script
-func ReinstallPlugins() error {
-	args := BuildReinstallPluginCommand()
+// InstallPlugins runs the install-plugin.sh script
+func InstallPlugins() error {
+	args := BuildInstallPluginCommand()
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to reinstall plugins: %w", err)
+		return fmt.Errorf("failed to install plugins: %w", err)
 	}
 
 	return nil

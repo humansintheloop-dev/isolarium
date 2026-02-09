@@ -349,7 +349,7 @@ func TestCloneWorkflowTools_Integration(t *testing.T) {
 	}
 
 	// Verify expected scripts exist
-	scripts := []string{"install-marketplace.sh", "reinstall-plugin.sh"}
+	scripts := []string{"install-marketplace.sh", "install-plugin.sh"}
 	for _, script := range scripts {
 		cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", "workflow-tools/"+script)
 		if err := cmd.Run(); err != nil {
@@ -380,7 +380,7 @@ func TestInstallMarketplacePlugins_Integration(t *testing.T) {
 	}
 }
 
-func TestReinstallPlugins_Integration(t *testing.T) {
+func TestInstallPlugins_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
 	// Check that workflow-tools exists
@@ -389,9 +389,9 @@ func TestReinstallPlugins_Integration(t *testing.T) {
 		t.Skip("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
 	}
 
-	// Run reinstall-plugin.sh
-	if err := ReinstallPlugins(); err != nil {
-		t.Fatalf("ReinstallPlugins failed: %v", err)
+	// Run install-plugin.sh
+	if err := InstallPlugins(); err != nil {
+		t.Fatalf("InstallPlugins failed: %v", err)
 	}
 
 	// Verify plugins are installed by checking Claude Code config
