@@ -4,7 +4,6 @@ package lima
 
 import (
 	"bufio"
-	"encoding/json"
 	"os"
 	"os/exec"
 	"strings"
@@ -179,30 +178,6 @@ func TestCloneRepoWithToken_Integration(t *testing.T) {
 		t.Errorf("expected branch %q, got %q", expectedBranch, actualBranch)
 	}
 
-	// Write and verify metadata
-	owner, repo, _ := parseRepoURL(remoteURL)
-	if err := WriteRepoMetadata(owner, repo, expectedBranch); err != nil {
-		t.Fatalf("failed to write metadata: %v", err)
-	}
-
-	cmd = vmShell("cat", ".isolarium/repo.json")
-	metadataOutput, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to read metadata: %v", err)
-	}
-
-	var meta RepoMetadata
-	if err := json.Unmarshal(metadataOutput, &meta); err != nil {
-		t.Fatalf("failed to parse metadata: %v", err)
-	}
-
-	if meta.Branch != expectedBranch {
-		t.Errorf("metadata branch: expected %q, got %q", expectedBranch, meta.Branch)
-	}
-	if meta.Owner == "" || meta.Repo == "" {
-		t.Errorf("metadata missing owner/repo: %+v", meta)
-	}
-	t.Logf("Metadata: owner=%s, repo=%s, branch=%s", meta.Owner, meta.Repo, meta.Branch)
 }
 
 // findProjectRoot returns the project root directory
@@ -216,45 +191,6 @@ func findProjectRoot(t *testing.T) string {
 	return strings.TrimSpace(string(output))
 }
 
-func TestWriteAndReadMetadata_Integration(t *testing.T) {
-	ensureVMRunning(t)
-
-	// Write metadata
-	if err := WriteRepoMetadata("testowner", "testrepo", "main"); err != nil {
-		t.Fatalf("WriteRepoMetadata failed: %v", err)
-	}
-
-	// Read metadata back
-	meta, err := ReadRepoMetadata()
-	if err != nil {
-		t.Fatalf("ReadRepoMetadata failed: %v", err)
-	}
-
-	if meta.Owner != "testowner" {
-		t.Errorf("expected owner 'testowner', got %q", meta.Owner)
-	}
-	if meta.Repo != "testrepo" {
-		t.Errorf("expected repo 'testrepo', got %q", meta.Repo)
-	}
-	if meta.Branch != "main" {
-		t.Errorf("expected branch 'main', got %q", meta.Branch)
-	}
-
-	// Verify file exists in VM
-	cmd := vmShell("cat", ".isolarium/repo.json")
-	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to read metadata file from VM: %v", err)
-	}
-
-	var fileMeta RepoMetadata
-	if err := json.Unmarshal(output, &fileMeta); err != nil {
-		t.Fatalf("failed to parse metadata from VM: %v", err)
-	}
-	if fileMeta.Owner != "testowner" {
-		t.Errorf("file metadata owner mismatch: got %q", fileMeta.Owner)
-	}
-}
 
 func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	// Load .env.local for credentials path
@@ -516,7 +452,7 @@ func TestGetVMState_Integration(t *testing.T) {
 func TestOpenShell_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
-	cmdArgs := BuildShellCommand("isolarium")
+	cmdArgs := BuildShellCommand("isolarium", nil)
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Stdin = strings.NewReader("echo test\nexit\n")
 	output, err := cmd.Output()

@@ -148,6 +148,10 @@ func DestroyVM() error {
 		return fmt.Errorf("failed to delete VM: %w", err)
 	}
 
+	if err := CleanupHostMetadata(); err != nil {
+		return fmt.Errorf("failed to cleanup host metadata: %w", err)
+	}
+
 	return nil
 }
 

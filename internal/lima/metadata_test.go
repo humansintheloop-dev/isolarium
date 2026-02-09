@@ -1,74 +1,118 @@
 package lima
 
 import (
-	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
-	"time"
 )
 
-func TestRepoMetadata_JSON(t *testing.T) {
-	clonedAt := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
-	meta := RepoMetadata{
-		Owner:    "cer",
-		Repo:     "isolarium",
-		Branch:   "main",
-		ClonedAt: clonedAt,
+func TestWriteAndReadMetadata_RoundTrip(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
+
+	if err := store.Write("cer", "isolarium", "main"); err != nil {
+		t.Fatalf("Write failed: %v", err)
 	}
 
-	// Test serialization
-	data, err := json.Marshal(meta)
+	meta, err := store.Read()
 	if err != nil {
-		t.Fatalf("failed to marshal: %v", err)
+		t.Fatalf("Read failed: %v", err)
 	}
 
-	// Test deserialization
-	var parsed RepoMetadata
-	if err := json.Unmarshal(data, &parsed); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
+	if meta.Owner != "cer" {
+		t.Errorf("expected owner 'cer', got %q", meta.Owner)
 	}
-
-	if parsed.Owner != "cer" {
-		t.Errorf("expected owner 'cer', got '%s'", parsed.Owner)
+	if meta.Repo != "isolarium" {
+		t.Errorf("expected repo 'isolarium', got %q", meta.Repo)
 	}
-	if parsed.Repo != "isolarium" {
-		t.Errorf("expected repo 'isolarium', got '%s'", parsed.Repo)
+	if meta.Branch != "main" {
+		t.Errorf("expected branch 'main', got %q", meta.Branch)
 	}
-	if parsed.Branch != "main" {
-		t.Errorf("expected branch 'main', got '%s'", parsed.Branch)
-	}
-	if !parsed.ClonedAt.Equal(clonedAt) {
-		t.Errorf("expected cloned_at %v, got %v", clonedAt, parsed.ClonedAt)
+	if meta.ClonedAt.IsZero() {
+		t.Error("expected ClonedAt to be set")
 	}
 }
 
-func TestBuildWriteMetadataCommand(t *testing.T) {
-	jsonData := `{"owner":"cer","repo":"isolarium"}`
-	cmd := BuildWriteMetadataCommand(jsonData)
+func TestWriteMetadata_CreatesDirectoryAutomatically(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
 
-	// Should create .isolarium directory and write the file
-	if cmd[0] != "limactl" || cmd[1] != "shell" || cmd[2] != vmName {
-		t.Errorf("unexpected command prefix: %v", cmd[:3])
+	// Directory shouldn't exist yet
+	dir := filepath.Join(baseDir, "testvm")
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("expected directory to not exist yet")
 	}
-	if cmd[3] != "--" {
-		t.Errorf("expected '--', got %q", cmd[3])
+
+	if err := store.Write("cer", "isolarium", "main"); err != nil {
+		t.Fatalf("Write failed: %v", err)
 	}
-	// The rest should be a bash command that creates dir and writes file
-	bashCmd := cmd[4]
-	if bashCmd != "bash" {
-		t.Errorf("expected 'bash', got %q", bashCmd)
+
+	// Directory should now exist
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("expected directory to exist: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("expected a directory")
 	}
 }
 
-func TestBuildReadMetadataCommand(t *testing.T) {
-	cmd := BuildReadMetadataCommand()
+func TestWriteMetadata_FilePermissions(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
 
-	expected := []string{"limactl", "shell", vmName, "--", "cat", metadataPath}
-	if len(cmd) != len(expected) {
-		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
+	if err := store.Write("cer", "isolarium", "main"); err != nil {
+		t.Fatalf("Write failed: %v", err)
 	}
-	for i, arg := range expected {
-		if cmd[i] != arg {
-			t.Errorf("arg %d: expected %q, got %q", i, arg, cmd[i])
-		}
+
+	filePath := filepath.Join(baseDir, "testvm", "repo.json")
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("expected file to exist: %v", err)
+	}
+
+	perm := info.Mode().Perm()
+	if perm != 0644 {
+		t.Errorf("expected permissions 0644, got %04o", perm)
+	}
+}
+
+func TestReadMetadata_FileNotFound(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
+
+	_, err := store.Read()
+	if err == nil {
+		t.Fatal("expected error when reading non-existent metadata")
+	}
+}
+
+func TestCleanup_RemovesDirectory(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
+
+	// Write metadata first
+	if err := store.Write("cer", "isolarium", "main"); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+
+	// Clean up
+	if err := store.Cleanup(); err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+
+	// Directory should be gone
+	dir := filepath.Join(baseDir, "testvm")
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Error("expected directory to be removed after cleanup")
+	}
+}
+
+func TestCleanup_NoErrorWhenDirectoryMissing(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
+
+	if err := store.Cleanup(); err != nil {
+		t.Fatalf("Cleanup should not fail on missing directory: %v", err)
 	}
 }
