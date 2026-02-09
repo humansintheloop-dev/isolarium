@@ -372,7 +372,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 **Goal:** Verify security properties defined in the specification.
 
-- [ ] **Task 11.1: VM has no host filesystem mounts**
+- [x] **Task 11.1: VM has no host filesystem mounts**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-host-mounts.sh`
   - Observable: Lima VM configuration has no `mounts:` entries; `mount` command inside VM shows no host paths
@@ -382,7 +382,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Update Lima template to explicitly disable default mounts
     - [x] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 11.2: VM has no host Docker socket exposure**
+- [x] **Task 11.2: VM has no host Docker socket exposure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-docker-socket.sh`
   - Observable: `/var/run/docker.sock` inside VM is the VM's own Docker daemon socket, not the host's
@@ -391,7 +391,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
     - [x] Create `test-scripts/test-no-docker-socket.sh` that verifies Docker socket ownership
     - [x] Add script to `test-scripts/test-end-to-end.sh`
 
-- [ ] **Task 11.3: No ambient git credentials in VM**
+- [x] **Task 11.3: No ambient git credentials in VM**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-no-git-credentials.sh`
   - Observable: `git config --global credential.helper` inside VM is empty or returns non-zero; no `~/.git-credentials` file exists
@@ -555,3 +555,12 @@ Added integration test verifying GetVMState returns 'running' for a running VM
 
 ### 2026-02-08 15:48 - mark-task-complete
 Added integration test verifying OpenShell pipes stdin/stdout via BuildShellCommand
+
+### 2026-02-08 15:48 - mark-task-complete
+Ran test-no-host-mounts.sh successfully against running VM
+
+### 2026-02-08 15:48 - mark-task-complete
+Ran test-no-docker-socket.sh successfully against running VM
+
+### 2026-02-08 15:49 - mark-task-complete
+Ran test-no-git-credentials.sh successfully against running VM
