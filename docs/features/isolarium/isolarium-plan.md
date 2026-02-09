@@ -404,7 +404,7 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 ## Steel Thread 12: Test Infrastructure
 
-- [ ] **Task 12.1: Create test-scripts directory structure**
+- [x] **Task 12.1: Create test-scripts directory structure**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: test-end-to-end.sh runs test-cleanup.sh and all test scripts in sequence; exits 0 if all pass
@@ -564,3 +564,6 @@ Ran test-no-docker-socket.sh successfully against running VM
 
 ### 2026-02-08 15:49 - mark-task-complete
 Ran test-no-git-credentials.sh successfully against running VM
+
+### 2026-02-09 17:52 - mark-task-complete
+Ran test-end-to-end.sh; unit tests and new integration tests pass. Pre-existing failures in clone/credentials tests are due to missing .env.local credentials, not new changes.
