@@ -150,16 +150,16 @@ func main() {
 				return fmt.Errorf("failed to clone workflow tools: %w", err)
 			}
 
-			// Install marketplace plugins
-			fmt.Println("Installing marketplace plugins...")
-			if err := lima.InstallMarketplacePlugins(); err != nil {
-				return fmt.Errorf("failed to install marketplace plugins: %w", err)
-			}
-
 			// Install custom plugins
 			fmt.Println("Installing custom plugins...")
 			if err := lima.InstallPlugins(); err != nil {
 				return fmt.Errorf("failed to install custom plugins: %w", err)
+			}
+
+			// Install i2code CLI
+			fmt.Println("Installing i2code CLI...")
+			if err := lima.InstallI2Code(); err != nil {
+				return fmt.Errorf("failed to install i2code CLI: %w", err)
 			}
 
 			fmt.Println("VM created successfully")

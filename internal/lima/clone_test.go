@@ -88,11 +88,11 @@ func TestBuildWorkflowToolsCloneCommand_NoToken(t *testing.T) {
 	}
 }
 
-func TestBuildInstallMarketplaceCommand(t *testing.T) {
-	cmd := BuildInstallMarketplaceCommand()
+func TestBuildInstallPluginCommand(t *testing.T) {
+	cmd := BuildInstallPluginCommand()
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
-		"bash", "-c", "cd ~/workflow-tools && ./install-marketplace.sh",
+		"bash", "-c", "cd ~/workflow-tools && ./install-plugin.sh",
 	}
 	if len(cmd) != len(expected) {
 		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
@@ -104,11 +104,11 @@ func TestBuildInstallMarketplaceCommand(t *testing.T) {
 	}
 }
 
-func TestBuildInstallPluginCommand(t *testing.T) {
-	cmd := BuildInstallPluginCommand()
+func TestBuildInstallI2CodeCommand(t *testing.T) {
+	cmd := BuildInstallI2CodeCommand()
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
-		"bash", "-c", "cd ~/workflow-tools && ./install-plugin.sh",
+		"bash", "-lc", "cd ~/workflow-tools && uv tool install -e .",
 	}
 	if len(cmd) != len(expected) {
 		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))

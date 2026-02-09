@@ -88,14 +88,14 @@ func TestVMHasRequiredTools_Integration(t *testing.T) {
 	// Check for required tools (all should be in PATH via symlinks or direct install)
 	tools := []string{"git", "node", "docker", "gh", "claude", "java"}
 	for _, tool := range tools {
-		cmd := exec.Command("limactl", "shell", "isolarium", "--", "which", tool)
+		cmd := vmShell("which", tool)
 		if err := cmd.Run(); err != nil {
 			t.Errorf("tool %s not found in VM", tool)
 		}
 	}
 
 	// Check JAVA_HOME is set in /etc/environment
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "grep", "JAVA_HOME", "/etc/environment")
+	cmd := vmShell("grep", "JAVA_HOME", "/etc/environment")
 	if err := cmd.Run(); err != nil {
 		t.Error("JAVA_HOME not set in /etc/environment")
 	}
@@ -122,7 +122,7 @@ func TestCloneRepoWithToken_Integration(t *testing.T) {
 	t.Logf("Testing with repo: %s, branch: %s", remoteURL, expectedBranch)
 
 	// Remove any existing repo directory
-	exec.Command("limactl", "shell", "isolarium", "--", "rm", "-rf", "repo").Run()
+	vmShell("rm", "-rf", "repo").Run()
 
 	// Load .env.local to get GitHub App credentials
 	loadTestEnvFile(t)
@@ -163,13 +163,13 @@ func TestCloneRepoWithToken_Integration(t *testing.T) {
 	}
 
 	// Verify repo was cloned by checking for go.mod
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", "repo/go.mod")
+	cmd := vmShell("test", "-f", "repo/go.mod")
 	if err := cmd.Run(); err != nil {
 		t.Error("go.mod not found in cloned repo - repo was not cloned")
 	}
 
 	// Verify correct branch is checked out
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "git", "-C", "repo", "branch", "--show-current")
+	cmd = vmShell("git", "-C", "repo", "branch", "--show-current")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to get current branch in VM: %v", err)
@@ -185,7 +185,7 @@ func TestCloneRepoWithToken_Integration(t *testing.T) {
 		t.Fatalf("failed to write metadata: %v", err)
 	}
 
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "cat", ".isolarium/repo.json")
+	cmd = vmShell("cat", ".isolarium/repo.json")
 	metadataOutput, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to read metadata: %v", err)
@@ -241,7 +241,7 @@ func TestWriteAndReadMetadata_Integration(t *testing.T) {
 	}
 
 	// Verify file exists in VM
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "cat", ".isolarium/repo.json")
+	cmd := vmShell("cat", ".isolarium/repo.json")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to read metadata file from VM: %v", err)
@@ -275,7 +275,7 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
 	// Remove any existing credentials in VM first
-	exec.Command("limactl", "shell", "isolarium", "--", "bash", "-c", "rm -rf ~/.claude").Run()
+	vmShell("bash", "-c", "rm -rf ~/.claude").Run()
 
 	// Copy credentials to VM
 	if err := CopyClaudeCredentials(credentialsPath); err != nil {
@@ -283,13 +283,13 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	}
 
 	// Verify file exists in VM
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", ".claude/.credentials.json")
+	cmd := vmShell("test", "-f", ".claude/.credentials.json")
 	if err := cmd.Run(); err != nil {
 		t.Fatal("credentials file does not exist in VM")
 	}
 
 	// Verify permissions are 600
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "stat", "-c", "%a", ".claude/.credentials.json")
+	cmd = vmShell("stat", "-c", "%a", ".claude/.credentials.json")
 	output, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to check file permissions: %v", err)
@@ -301,7 +301,7 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 
 	// Run Claude inside the VM to verify credentials work
 	// Have Claude create a file to prove it can actually do work
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "bash", "-c",
+	cmd = vmShell("bash", "-c",
 		"cd /tmp && claude --allowed-tools Write -p 'Create a Java hello world called HelloWorld.java'")
 	output, err = cmd.CombinedOutput()
 	if err != nil {
@@ -310,13 +310,13 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	t.Logf("Claude response: %s", output)
 
 	// Verify the file was created
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", "/tmp/HelloWorld.java")
+	cmd = vmShell("test", "-f", "/tmp/HelloWorld.java")
 	if err := cmd.Run(); err != nil {
 		t.Fatal("Claude did not create HelloWorld.java")
 	}
 
 	// Verify the file contains valid Java code
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "cat", "/tmp/HelloWorld.java")
+	cmd = vmShell("cat", "/tmp/HelloWorld.java")
 	output, err = cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to read HelloWorld.java: %v", err)
@@ -335,7 +335,7 @@ func TestCloneWorkflowTools_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
 	// Remove any existing workflow-tools directory
-	exec.Command("limactl", "shell", "isolarium", "--", "rm", "-rf", "workflow-tools").Run()
+	vmShell("rm", "-rf", "workflow-tools").Run()
 
 	// Clone workflow tools repository (public repo, no token needed)
 	if err := CloneWorkflowTools(""); err != nil {
@@ -343,40 +343,39 @@ func TestCloneWorkflowTools_Integration(t *testing.T) {
 	}
 
 	// Verify workflow-tools directory exists
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", "workflow-tools")
+	cmd := vmShell("test", "-d", "workflow-tools")
 	if err := cmd.Run(); err != nil {
 		t.Fatal("workflow-tools directory does not exist in VM")
 	}
 
 	// Verify expected scripts exist
-	scripts := []string{"install-marketplace.sh", "install-plugin.sh"}
+	scripts := []string{"install-plugin.sh"}
 	for _, script := range scripts {
-		cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-f", "workflow-tools/"+script)
+		cmd = vmShell("test", "-f", "workflow-tools/"+script)
 		if err := cmd.Run(); err != nil {
 			t.Errorf("expected script %s not found in workflow-tools", script)
 		}
 	}
 }
 
-func TestInstallMarketplacePlugins_Integration(t *testing.T) {
+func TestInstallI2Code_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
-	// Check that workflow-tools exists (cloned by previous test or setup)
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", "workflow-tools")
+	// Ensure workflow-tools is cloned
+	cmd := vmShell("test", "-d", "workflow-tools")
 	if err := cmd.Run(); err != nil {
-		t.Skip("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
+		t.Fatal("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
 	}
 
-	// Run install-marketplace.sh
-	if err := InstallMarketplacePlugins(); err != nil {
-		t.Fatalf("InstallMarketplacePlugins failed: %v", err)
+	// Install i2code CLI
+	if err := InstallI2Code(); err != nil {
+		t.Fatalf("InstallI2Code failed: %v", err)
 	}
 
-	// Verify marketplace plugins are installed by checking Claude Code config
-	// The install-marketplace.sh script installs plugins to ~/.claude/plugins/
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", ".claude/plugins")
+	// Verify i2code is available
+	cmd = vmShell("bash", "-lc", "which i2code")
 	if err := cmd.Run(); err != nil {
-		t.Error("~/.claude/plugins directory does not exist after marketplace installation")
+		t.Error("i2code command not found after installation")
 	}
 }
 
@@ -384,7 +383,7 @@ func TestInstallPlugins_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
 	// Check that workflow-tools exists
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", "workflow-tools")
+	cmd := vmShell("test", "-d", "workflow-tools")
 	if err := cmd.Run(); err != nil {
 		t.Skip("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
 	}
@@ -395,7 +394,7 @@ func TestInstallPlugins_Integration(t *testing.T) {
 	}
 
 	// Verify plugins are installed by checking Claude Code config
-	cmd = exec.Command("limactl", "shell", "isolarium", "--", "test", "-d", ".claude/plugins")
+	cmd = vmShell("test", "-d", ".claude/plugins")
 	if err := cmd.Run(); err != nil {
 		t.Error("~/.claude/plugins directory does not exist after plugin reinstallation")
 	}
@@ -568,11 +567,15 @@ func ensureVMRunning(t *testing.T) {
 	}
 }
 
+// vmShell creates an exec.Cmd that runs a command inside the VM via limactl shell
+func vmShell(args ...string) *exec.Cmd {
+	return exec.Command("limactl", append([]string{"shell", vmName, "--"}, args...)...)
+}
+
 // ensureRepoDirExists creates ~/repo in the VM if it doesn't already exist
 func ensureRepoDirExists(t *testing.T) {
 	t.Helper()
-	cmd := exec.Command("limactl", "shell", "isolarium", "--", "mkdir", "-p", "repo")
-	if err := cmd.Run(); err != nil {
+	if err := vmShell("mkdir", "-p", "repo").Run(); err != nil {
 		t.Fatalf("failed to create ~/repo in VM: %v", err)
 	}
 }

@@ -86,6 +86,9 @@ provision:
       # Install Claude Code via npm (requires sudo for global install)
       sudo npm install -g @anthropic-ai/claude-code
 
+      # Install uv (Python package manager) for i2code CLI
+      curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # SSH configuration
 ssh:
   localPort: 0

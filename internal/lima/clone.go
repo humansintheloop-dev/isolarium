@@ -80,29 +80,6 @@ func CloneWorkflowTools(token string) error {
 	return nil
 }
 
-// BuildInstallMarketplaceCommand constructs the command to run install-marketplace.sh
-func BuildInstallMarketplaceCommand() []string {
-	return []string{
-		"limactl", "shell", vmName, "--",
-		"bash", "-c", "cd ~/workflow-tools && ./install-marketplace.sh",
-	}
-}
-
-// InstallMarketplacePlugins runs the install-marketplace.sh script
-func InstallMarketplacePlugins() error {
-	args := BuildInstallMarketplaceCommand()
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install marketplace plugins: %w", err)
-	}
-
-	return nil
-}
-
 // BuildInstallPluginCommand constructs the command to run install-plugin.sh
 func BuildInstallPluginCommand() []string {
 	return []string{
@@ -121,6 +98,28 @@ func InstallPlugins() error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install plugins: %w", err)
+	}
+
+	return nil
+}
+
+// BuildInstallI2CodeCommand constructs the command to install the i2code CLI via uv
+func BuildInstallI2CodeCommand() []string {
+	return []string{
+		"limactl", "shell", vmName, "--",
+		"bash", "-lc", "cd ~/workflow-tools && uv tool install -e .",
+	}
+}
+
+func InstallI2Code() error {
+	args := BuildInstallI2CodeCommand()
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install i2code CLI: %w", err)
 	}
 
 	return nil
