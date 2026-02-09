@@ -47,6 +47,15 @@ func loadEnvFile(path string) error {
 	return nil
 }
 
+func copyClaudeCredentialsToVM() error {
+	credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
+	if credentialsPath == "" {
+		return fmt.Errorf("CLAUDE_CREDENTIALS_PATH environment variable not set")
+	}
+	fmt.Println("Copying Claude credentials to VM...")
+	return lima.CopyClaudeCredentials(credentialsPath)
+}
+
 func main() {
 	// Load .env.local if it exists
 	if err := loadEnvFile(".env.local"); err != nil {
@@ -219,14 +228,8 @@ func main() {
 				return fmt.Errorf("no VM exists; run 'isolarium create' first")
 			}
 
-			// Copy Claude credentials if requested
 			if copySession {
-				credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
-				if credentialsPath == "" {
-					return fmt.Errorf("CLAUDE_CREDENTIALS_PATH environment variable not set")
-				}
-				fmt.Println("Copying Claude credentials to VM...")
-				if err := lima.CopyClaudeCredentials(credentialsPath); err != nil {
+				if err := copyClaudeCredentialsToVM(); err != nil {
 					return fmt.Errorf("failed to copy credentials: %w", err)
 				}
 			}
@@ -284,6 +287,7 @@ func main() {
 	runCmd.Flags().BoolVar(&freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
 	runCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach TTY for interactive commands")
 
+	var sshCopySession bool
 	sshCmd := &cobra.Command{
 		Use:   "ssh",
 		Short: "Open an interactive shell inside the VM",
@@ -296,6 +300,12 @@ func main() {
 				return fmt.Errorf("no VM exists; run 'isolarium create' first")
 			}
 
+			if sshCopySession {
+				if err := copyClaudeCredentialsToVM(); err != nil {
+					return fmt.Errorf("failed to copy credentials: %w", err)
+				}
+			}
+
 			exitCode, err := lima.OpenShell(lima.GetVMName())
 			if err != nil {
 				return fmt.Errorf("failed to open shell: %w", err)
@@ -306,6 +316,7 @@ func main() {
 			return nil
 		},
 	}
+	sshCmd.Flags().BoolVar(&sshCopySession, "copy-session", true, "Copy Claude credentials from host to VM")
 
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(createCmd)
