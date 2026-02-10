@@ -197,15 +197,10 @@ func TestRunCommand_HasInteractiveFlag(t *testing.T) {
 	}
 }
 
-func TestRunCommand_FailsWhenNoVMExists(t *testing.T) {
+func TestRunCommand_CreatesVMWhenNoneExists(t *testing.T) {
 	checkCmd := exec.Command("limactl", "list", "--json")
-	checkOutput, err := checkCmd.Output()
-	if err != nil {
-		t.Skip("limactl not available, skipping VM existence test")
-	}
-	if strings.Contains(string(checkOutput), `"name":"isolarium"`) ||
-		strings.Contains(string(checkOutput), `"name": "isolarium"`) {
-		t.Skip("isolarium VM already exists, skipping no-VM test")
+	if _, err := checkCmd.Output(); err != nil {
+		t.Skip("limactl not available, skipping test")
 	}
 
 	cwd, err := os.Getwd()
@@ -218,16 +213,20 @@ func TestRunCommand_FailsWhenNoVMExists(t *testing.T) {
 	}
 	binaryPath := filepath.Join(cwd, "isolarium")
 
-	cmd := exec.Command(binaryPath, "run", "--copy-session=false", "--", "echo", "hello")
+	// Run from a non-git directory so it fails fast at the git check,
+	// proving it went through the create path instead of erroring about no VM.
+	tmpDir := t.TempDir()
+	cmd := exec.Command(binaryPath, "run", "--name", "test-novm", "--copy-session=false", "--", "echo", "hello")
+	cmd.Dir = tmpDir
 	output, err := cmd.CombinedOutput()
 
 	if err == nil {
-		t.Fatalf("expected run to fail when no VM exists, got: %s", output)
+		t.Fatalf("expected run to fail in non-git directory, got: %s", output)
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "no VM exists") {
-		t.Errorf("expected error about no VM, got: %s", outputStr)
+	if !strings.Contains(outputStr, "not a git repository") {
+		t.Errorf("expected error about not a git repository (indicating create path), got: %s", outputStr)
 	}
 }
 

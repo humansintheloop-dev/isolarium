@@ -1,0 +1,29 @@
+package cli
+
+import (
+	"fmt"
+
+	"github.com/cer/isolarium/internal/lima"
+	"github.com/spf13/cobra"
+)
+
+func newInstallToolsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "install-tools",
+		Short: "Install workflow tools into the VM (retry after a failed create)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			state := lima.GetVMState(vmNameFlag)
+			if state == "none" {
+				return fmt.Errorf("no VM exists; run 'isolarium create' first")
+			}
+			if state == "stopped" {
+				fmt.Println("Starting stopped VM...")
+				if err := lima.StartVM(vmNameFlag); err != nil {
+					return err
+				}
+			}
+
+			return installWorkflowTools(vmNameFlag)
+		},
+	}
+}

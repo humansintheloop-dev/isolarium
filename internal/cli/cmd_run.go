@@ -29,12 +29,8 @@ func newRunCmd() *cobra.Command {
 				copySession = false
 			}
 
-			exists, err := lima.VMExists(vmNameFlag)
-			if err != nil {
-				return fmt.Errorf("failed to check VM status: %w", err)
-			}
-			if !exists {
-				return fmt.Errorf("no VM exists; run 'isolarium create' first")
+			if err := ensureVMRunning(vmNameFlag); err != nil {
+				return err
 			}
 
 			if copySession {
@@ -60,13 +56,14 @@ func newRunCmd() *cobra.Command {
 			workdir := homeDir + "/repo"
 
 			var exitCode int
+			var execErr error
 			if interactive {
-				exitCode, err = lima.ExecInteractiveCommand(vmNameFlag, workdir, envVars, args)
+				exitCode, execErr = lima.ExecInteractiveCommand(vmNameFlag, workdir, envVars, args)
 			} else {
-				exitCode, err = lima.ExecCommand(vmNameFlag, workdir, envVars, args)
+				exitCode, execErr = lima.ExecCommand(vmNameFlag, workdir, envVars, args)
 			}
-			if err != nil {
-				return fmt.Errorf("failed to execute command: %w", err)
+			if execErr != nil {
+				return fmt.Errorf("failed to execute command: %w", execErr)
 			}
 			if exitCode != 0 {
 				os.Exit(exitCode)

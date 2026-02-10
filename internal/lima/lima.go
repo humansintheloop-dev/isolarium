@@ -78,6 +78,16 @@ func GetVMState(name string) string {
 	return parseVMState(string(output), name)
 }
 
+func StartVM(name string) error {
+	cmd := exec.Command("limactl", "start", name)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start VM: %w", err)
+	}
+	return nil
+}
+
 func CreateVM(name string) error {
 	exists, err := VMExists(name)
 	if err != nil {

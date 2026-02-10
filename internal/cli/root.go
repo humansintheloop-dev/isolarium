@@ -29,6 +29,9 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(newDestroyCmd())
 	rootCmd.AddCommand(newRunCmd())
 	rootCmd.AddCommand(newSshCmd())
+	rootCmd.AddCommand(newCloneRepoCmd())
+	rootCmd.AddCommand(newInstallToolsCmd())
+	rootCmd.AddCommand(newInstallWorkflowToolsFromSourceCmd())
 
 	return rootCmd
 }
@@ -90,14 +93,11 @@ func readClaudeCredentials() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// mintGitHubToken mints a GitHub App installation token if the app is configured.
-// Uses the host's git remote to determine owner/repo.
-// Returns empty string if GitHub App is not configured.
 func mintGitHubToken() (string, error) {
 	appID := os.Getenv("GITHUB_APP_ID")
 	privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	if appID == "" || privateKeyPath == "" {
-		return "", nil
+		return "", fmt.Errorf("GitHub App not configured (GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_PATH must be set, usually via .env.local)")
 	}
 
 	cwd, err := os.Getwd()

@@ -8,22 +8,19 @@ import (
 )
 
 // BuildCloneURL constructs the git clone URL, embedding token if provided.
-// Converts SSH URLs to HTTPS format for token authentication.
+// Only converts SSH URLs to HTTPS when a token is available for authentication.
 func BuildCloneURL(remoteURL, token string) string {
-	// Convert SSH to HTTPS if needed
+	if token == "" {
+		return remoteURL
+	}
+
 	url := remoteURL
 	if strings.HasPrefix(url, "git@github.com:") {
-		// git@github.com:owner/repo.git -> https://github.com/owner/repo.git
 		path := strings.TrimPrefix(url, "git@github.com:")
 		url = "https://github.com/" + path
 	}
 
-	// Embed token if provided
-	if token != "" {
-		// https://github.com/... -> https://x-access-token:TOKEN@github.com/...
-		url = strings.Replace(url, "https://github.com/", "https://x-access-token:"+token+"@github.com/", 1)
-	}
-
+	url = strings.Replace(url, "https://github.com/", "https://x-access-token:"+token+"@github.com/", 1)
 	return url
 }
 
@@ -47,7 +44,12 @@ func BuildWorkflowToolsCloneCommand(name, token string) []string {
 	}
 }
 
-func CloneRepo(name, remoteURL, branch, token string) error {
+var projectConfigFiles = []string{
+	".claude/settings.local.json",
+	"CLAUDE.md",
+}
+
+func CloneRepo(name, hostProjectDir, remoteURL, branch, token string) error {
 	cloneURL := BuildCloneURL(remoteURL, token)
 	args := BuildCloneCommand(name, cloneURL, branch)
 
@@ -57,6 +59,23 @@ func CloneRepo(name, remoteURL, branch, token string) error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
+	}
+
+	homeDir, err := GetVMHomeDir(name)
+	if err != nil {
+		return fmt.Errorf("failed to get VM home directory: %w", err)
+	}
+	repoDir := homeDir + "/repo"
+
+	for _, f := range projectConfigFiles {
+		src := hostProjectDir + "/" + f
+		if _, err := os.Stat(src); err != nil {
+			continue
+		}
+		fmt.Printf("Copying %s to VM...\n", f)
+		if err := CopyFileToVM(name, src, repoDir+"/"+f); err != nil {
+			return fmt.Errorf("failed to copy %s to VM: %w", f, err)
+		}
 	}
 
 	return nil
@@ -94,6 +113,65 @@ func InstallPlugins(name string) error {
 		return fmt.Errorf("failed to install plugins: %w", err)
 	}
 
+	return nil
+}
+
+func UninstallI2Code(name string) error {
+	cmd := exec.Command("limactl", "shell", name, "--",
+		"bash", "-lc", "uv tool uninstall i2code")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run() // best-effort; may not be installed
+	return nil
+}
+
+func CopyDirToVM(name, localPath, remotePath string) error {
+	// Use git ls-files to list tracked + untracked files, respecting .gitignore,
+	// then tar them up and extract in the VM.
+	tar := exec.Command("bash", "-c",
+		"cd "+localPath+" && git ls-files -co --exclude-standard -z | xargs -0 ls -d 2>/dev/null | COPYFILE_DISABLE=1 tar --no-mac-metadata -cf - -T -")
+	untar := exec.Command("limactl", "shell", name, "--",
+		"bash", "-c", "rm -rf "+remotePath+" && mkdir -p "+remotePath+" && tar -C "+remotePath+" -xf - 2>/dev/null")
+
+	pipe, err := tar.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create pipe: %w", err)
+	}
+	untar.Stdin = pipe
+	untar.Stdout = os.Stdout
+	untar.Stderr = os.Stderr
+
+	if err := tar.Start(); err != nil {
+		return fmt.Errorf("failed to start tar: %w", err)
+	}
+	if err := untar.Start(); err != nil {
+		return fmt.Errorf("failed to start untar in VM: %w", err)
+	}
+
+	if err := tar.Wait(); err != nil {
+		return fmt.Errorf("tar failed: %w", err)
+	}
+	if err := untar.Wait(); err != nil {
+		return fmt.Errorf("untar in VM failed: %w", err)
+	}
+
+	return nil
+}
+
+func CopyFileToVM(name, localPath, remotePath string) error {
+	content, err := os.ReadFile(localPath)
+	if err != nil {
+		return err
+	}
+
+	// Ensure parent directory exists, then write file
+	dir := remotePath[:strings.LastIndex(remotePath, "/")]
+	cmd := exec.Command("limactl", "shell", name, "--",
+		"bash", "-c", "mkdir -p "+dir+" && cat > "+remotePath)
+	cmd.Stdin = strings.NewReader(string(content))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to copy file to VM: %w\noutput: %s", err, output)
+	}
 	return nil
 }
 

@@ -28,9 +28,9 @@ func TestBuildCloneURL_SSHConvertsToHTTPS(t *testing.T) {
 	}
 }
 
-func TestBuildCloneURL_SSHConvertsToHTTPS_NoToken(t *testing.T) {
+func TestBuildCloneURL_SSHPreservedWithoutToken(t *testing.T) {
 	url := BuildCloneURL("git@github.com:cer/isolarium.git", "")
-	expected := "https://github.com/cer/isolarium.git"
+	expected := "git@github.com:cer/isolarium.git"
 	if url != expected {
 		t.Errorf("expected %q, got %q", expected, url)
 	}
