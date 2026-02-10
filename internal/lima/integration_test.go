@@ -53,13 +53,11 @@ func loadTestEnvFile(t *testing.T) {
 func TestZZZ_DestroyVM_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
-	// Destroy the VM
-	if err := DestroyVM(); err != nil {
+	if err := DestroyVM(vmName); err != nil {
 		t.Fatalf("DestroyVM failed: %v", err)
 	}
 
-	// Verify VM is gone
-	exists, err := VMExists()
+	exists, err := VMExists(vmName)
 	if err != nil {
 		t.Fatalf("failed to check VM status: %v", err)
 	}
@@ -70,13 +68,11 @@ func TestZZZ_DestroyVM_Integration(t *testing.T) {
 
 // Task 8.3: Test DestroyVM is idempotent — runs after TestZZZ_DestroyVM_Integration
 func TestZZZZ_DestroyVM_Idempotent_Integration(t *testing.T) {
-	// First call — no VM should exist (destroyed by previous test)
-	if err := DestroyVM(); err != nil {
+	if err := DestroyVM(vmName); err != nil {
 		t.Fatalf("first DestroyVM with no VM failed: %v", err)
 	}
 
-	// Second call — still no VM, should still succeed
-	if err := DestroyVM(); err != nil {
+	if err := DestroyVM(vmName); err != nil {
 		t.Fatalf("second DestroyVM with no VM failed: %v", err)
 	}
 }
@@ -156,8 +152,7 @@ func TestCloneRepoWithToken_Integration(t *testing.T) {
 		t.Fatal("GitHub App credentials not configured - set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_PATH in .env.local")
 	}
 
-	// Clone the repository
-	if err := CloneRepo(remoteURL, expectedBranch, token); err != nil {
+	if err := CloneRepo(vmName, remoteURL, expectedBranch, token); err != nil {
 		t.Fatalf("CloneRepo failed: %v", err)
 	}
 
@@ -214,7 +209,7 @@ func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	// Remove any existing credentials in VM first
 	vmShell("bash", "-c", "rm -rf ~/.claude").Run()
 
-	if err := CopyClaudeCredentials(credentials); err != nil {
+	if err := CopyClaudeCredentials(vmName, credentials); err != nil {
 		t.Fatalf("CopyClaudeCredentials failed: %v", err)
 	}
 
@@ -273,8 +268,7 @@ func TestCloneWorkflowTools_Integration(t *testing.T) {
 	// Remove any existing workflow-tools directory
 	vmShell("rm", "-rf", "workflow-tools").Run()
 
-	// Clone workflow tools repository (public repo, no token needed)
-	if err := CloneWorkflowTools(""); err != nil {
+	if err := CloneWorkflowTools(vmName, ""); err != nil {
 		t.Fatalf("CloneWorkflowTools failed: %v", err)
 	}
 
@@ -303,8 +297,7 @@ func TestInstallI2Code_Integration(t *testing.T) {
 		t.Fatal("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
 	}
 
-	// Install i2code CLI
-	if err := InstallI2Code(); err != nil {
+	if err := InstallI2Code(vmName); err != nil {
 		t.Fatalf("InstallI2Code failed: %v", err)
 	}
 
@@ -324,8 +317,7 @@ func TestInstallPlugins_Integration(t *testing.T) {
 		t.Skip("workflow-tools not cloned, run TestCloneWorkflowTools_Integration first")
 	}
 
-	// Run install-plugin.sh
-	if err := InstallPlugins(); err != nil {
+	if err := InstallPlugins(vmName); err != nil {
 		t.Fatalf("InstallPlugins failed: %v", err)
 	}
 
@@ -442,7 +434,7 @@ func TestExecCommand_SIGINT_Integration(t *testing.T) {
 func TestGetVMState_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
-	state := GetVMState()
+	state := GetVMState(vmName)
 	if state != "running" {
 		t.Errorf("expected VM state 'running', got %q", state)
 	}
@@ -468,26 +460,24 @@ func TestOpenShell_Integration(t *testing.T) {
 func ensureVMRunning(t *testing.T) {
 	t.Helper()
 
-	exists, err := VMExists()
+	exists, err := VMExists(vmName)
 	if err != nil {
 		t.Fatalf("failed to check VM status: %v", err)
 	}
 
 	if !exists {
 		t.Log("VM does not exist, creating...")
-		if err := CreateVM(); err != nil {
+		if err := CreateVM(vmName); err != nil {
 			t.Fatalf("failed to create VM: %v", err)
 		}
 		return
 	}
 
-	// VM exists — check if it's running or stopped
-	state := GetVMState()
+	state := GetVMState(vmName)
 	if state == "running" {
 		return
 	}
 
-	// VM is stopped, start it
 	t.Log("VM is stopped, starting...")
 	cmd := exec.Command("limactl", "start", vmName)
 	cmd.Stdout = os.Stdout
@@ -496,8 +486,7 @@ func ensureVMRunning(t *testing.T) {
 		t.Fatalf("failed to start VM: %v", err)
 	}
 
-	// Verify it's now running
-	state = GetVMState()
+	state = GetVMState(vmName)
 	if state != "running" {
 		t.Fatalf("VM is not running after start, state: %s", state)
 	}
@@ -519,7 +508,7 @@ func ensureRepoDirExists(t *testing.T) {
 // vmRepoDir returns the absolute path to ~/repo inside the VM
 func vmRepoDir(t *testing.T) string {
 	t.Helper()
-	homeDir, err := GetVMHomeDir()
+	homeDir, err := GetVMHomeDir(vmName)
 	if err != nil {
 		t.Fatalf("failed to get VM home directory: %v", err)
 	}

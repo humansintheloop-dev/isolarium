@@ -27,32 +27,29 @@ func BuildCloneURL(remoteURL, token string) string {
 	return url
 }
 
-// BuildCloneCommand constructs the limactl command to clone a repo inside the VM
-func BuildCloneCommand(cloneURL, branch string) []string {
+func BuildCloneCommand(name, cloneURL, branch string) []string {
 	return []string{
-		"limactl", "shell", vmName, "--",
+		"limactl", "shell", name, "--",
 		"git", "clone", "--branch", branch, cloneURL, "repo",
 	}
 }
 
 const workflowToolsRepo = "https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git"
 
-// BuildWorkflowToolsCloneCommand constructs the limactl command to clone workflow tools into the VM
-func BuildWorkflowToolsCloneCommand(token string) []string {
+func BuildWorkflowToolsCloneCommand(name, token string) []string {
 	cloneURL := workflowToolsRepo
 	if token != "" {
 		cloneURL = strings.Replace(cloneURL, "https://github.com/", "https://x-access-token:"+token+"@github.com/", 1)
 	}
 	return []string{
-		"limactl", "shell", vmName, "--",
+		"limactl", "shell", name, "--",
 		"git", "clone", cloneURL, "workflow-tools",
 	}
 }
 
-// CloneRepo clones a repository inside the Lima VM
-func CloneRepo(remoteURL, branch, token string) error {
+func CloneRepo(name, remoteURL, branch, token string) error {
 	cloneURL := BuildCloneURL(remoteURL, token)
-	args := BuildCloneCommand(cloneURL, branch)
+	args := BuildCloneCommand(name, cloneURL, branch)
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
@@ -65,9 +62,8 @@ func CloneRepo(remoteURL, branch, token string) error {
 	return nil
 }
 
-// CloneWorkflowTools clones the workflow tools repository into the VM
-func CloneWorkflowTools(token string) error {
-	args := BuildWorkflowToolsCloneCommand(token)
+func CloneWorkflowTools(name, token string) error {
+	args := BuildWorkflowToolsCloneCommand(name, token)
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
@@ -80,17 +76,15 @@ func CloneWorkflowTools(token string) error {
 	return nil
 }
 
-// BuildInstallPluginCommand constructs the command to run install-plugin.sh
-func BuildInstallPluginCommand() []string {
+func BuildInstallPluginCommand(name string) []string {
 	return []string{
-		"limactl", "shell", vmName, "--",
+		"limactl", "shell", name, "--",
 		"bash", "-c", "cd ~/workflow-tools && ./install-plugin.sh",
 	}
 }
 
-// InstallPlugins runs the install-plugin.sh script
-func InstallPlugins() error {
-	args := BuildInstallPluginCommand()
+func InstallPlugins(name string) error {
+	args := BuildInstallPluginCommand(name)
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
@@ -103,16 +97,15 @@ func InstallPlugins() error {
 	return nil
 }
 
-// BuildInstallI2CodeCommand constructs the command to install the i2code CLI via uv
-func BuildInstallI2CodeCommand() []string {
+func BuildInstallI2CodeCommand(name string) []string {
 	return []string{
-		"limactl", "shell", vmName, "--",
+		"limactl", "shell", name, "--",
 		"bash", "-lc", "cd ~/workflow-tools && uv tool install -e .",
 	}
 }
 
-func InstallI2Code() error {
-	args := BuildInstallI2CodeCommand()
+func InstallI2Code(name string) error {
+	args := BuildInstallI2CodeCommand(name)
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout

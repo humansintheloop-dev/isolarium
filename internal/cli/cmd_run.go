@@ -29,7 +29,7 @@ func newRunCmd() *cobra.Command {
 				copySession = false
 			}
 
-			exists, err := lima.VMExists()
+			exists, err := lima.VMExists(vmNameFlag)
 			if err != nil {
 				return fmt.Errorf("failed to check VM status: %w", err)
 			}
@@ -38,7 +38,7 @@ func newRunCmd() *cobra.Command {
 			}
 
 			if copySession {
-				if err := copyClaudeCredentialsToVM(); err != nil {
+				if err := copyClaudeCredentialsToVM(vmNameFlag); err != nil {
 					return fmt.Errorf("failed to copy credentials: %w", err)
 				}
 			}
@@ -53,7 +53,7 @@ func newRunCmd() *cobra.Command {
 				envVars["GH_TOKEN"] = token
 			}
 
-			homeDir, homeErr := lima.GetVMHomeDir()
+			homeDir, homeErr := lima.GetVMHomeDir(vmNameFlag)
 			if homeErr != nil {
 				return fmt.Errorf("failed to get VM home directory: %w", homeErr)
 			}
@@ -61,9 +61,9 @@ func newRunCmd() *cobra.Command {
 
 			var exitCode int
 			if interactive {
-				exitCode, err = lima.ExecInteractiveCommand(lima.GetVMName(), workdir, envVars, args)
+				exitCode, err = lima.ExecInteractiveCommand(vmNameFlag, workdir, envVars, args)
 			} else {
-				exitCode, err = lima.ExecCommand(lima.GetVMName(), workdir, envVars, args)
+				exitCode, err = lima.ExecCommand(vmNameFlag, workdir, envVars, args)
 			}
 			if err != nil {
 				return fmt.Errorf("failed to execute command: %w", err)

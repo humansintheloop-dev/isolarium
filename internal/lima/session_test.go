@@ -5,7 +5,7 @@ import (
 )
 
 func TestBuildWriteCredentialsCommand(t *testing.T) {
-	args := BuildWriteCredentialsCommand()
+	args := BuildWriteCredentialsCommand("isolarium")
 
 	expected := []string{"limactl", "shell", "isolarium", "--", "bash", "-c", "cat > ~/.claude/.credentials.json"}
 	if len(args) != len(expected) {
@@ -20,7 +20,7 @@ func TestBuildWriteCredentialsCommand(t *testing.T) {
 }
 
 func TestBuildCreateClaudeDirCommand(t *testing.T) {
-	args := BuildCreateClaudeDirCommand()
+	args := BuildCreateClaudeDirCommand("isolarium")
 
 	expected := []string{"limactl", "shell", "isolarium", "--", "bash", "-c", "mkdir -p ~/.claude"}
 	if len(args) != len(expected) {
@@ -35,7 +35,7 @@ func TestBuildCreateClaudeDirCommand(t *testing.T) {
 }
 
 func TestBuildChmodCredentialsCommand(t *testing.T) {
-	args := BuildChmodCredentialsCommand()
+	args := BuildChmodCredentialsCommand("isolarium")
 
 	expected := []string{"limactl", "shell", "isolarium", "--", "bash", "-c", "chmod 600 ~/.claude/.credentials.json"}
 	if len(args) != len(expected) {

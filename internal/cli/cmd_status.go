@@ -12,7 +12,7 @@ func newStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show current status of isolarium environment",
 		Run: func(cmd *cobra.Command, args []string) {
-			s := status.GetStatus()
+			s := status.GetStatus(vmNameFlag)
 			fmt.Printf("VM: %s\n", s.VMState)
 			if s.Repository != "" {
 				fmt.Printf("Repository: %s\n", s.Repository)

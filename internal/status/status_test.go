@@ -6,7 +6,7 @@ import (
 )
 
 func TestGetStatus_ReturnsValidVMState(t *testing.T) {
-	s := GetStatus()
+	s := GetStatus("isolarium")
 
 	validStates := map[string]bool{"none": true, "running": true, "stopped": true}
 	if !validStates[s.VMState] {
@@ -19,7 +19,7 @@ func TestGetStatus_ReturnsNotConfiguredWhenNoCredentials(t *testing.T) {
 	os.Unsetenv("GITHUB_APP_ID")
 	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 
-	s := GetStatus()
+	s := GetStatus("isolarium")
 
 	if s.GitHubAppConfigured {
 		t.Error("expected GitHubAppConfigured to be false")
@@ -35,7 +35,7 @@ func TestGetStatus_ReturnsConfiguredWhenBothEnvVarsSet(t *testing.T) {
 		os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	}()
 
-	s := GetStatus()
+	s := GetStatus("isolarium")
 
 	if !s.GitHubAppConfigured {
 		t.Error("expected GitHubAppConfigured to be true when both env vars are set")
@@ -47,7 +47,7 @@ func TestGetStatus_ReturnsNotConfiguredWhenOnlyAppIDSet(t *testing.T) {
 	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	defer os.Unsetenv("GITHUB_APP_ID")
 
-	s := GetStatus()
+	s := GetStatus("isolarium")
 
 	if s.GitHubAppConfigured {
 		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_ID is set")
@@ -59,7 +59,7 @@ func TestGetStatus_ReturnsNotConfiguredWhenOnlyPrivateKeySet(t *testing.T) {
 	os.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
 	defer os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 
-	s := GetStatus()
+	s := GetStatus("isolarium")
 
 	if s.GitHubAppConfigured {
 		t.Error("expected GitHubAppConfigured to be false when only GITHUB_APP_PRIVATE_KEY_PATH is set")

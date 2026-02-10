@@ -80,26 +80,22 @@ func (s *MetadataStore) Cleanup() error {
 	return nil
 }
 
-// defaultStore returns a MetadataStore using ~/.isolarium/ as the base directory
-func defaultStore() *MetadataStore {
+func storeFor(name string) *MetadataStore {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = os.Getenv("HOME")
 	}
-	return NewMetadataStore(filepath.Join(home, ".isolarium"), vmName)
+	return NewMetadataStore(filepath.Join(home, ".isolarium"), name)
 }
 
-// WriteRepoMetadata writes repository metadata to the host filesystem
-func WriteRepoMetadata(owner, repo, branch string) error {
-	return defaultStore().Write(owner, repo, branch)
+func WriteRepoMetadata(name, owner, repo, branch string) error {
+	return storeFor(name).Write(owner, repo, branch)
 }
 
-// ReadRepoMetadata reads repository metadata from the host filesystem
-func ReadRepoMetadata() (*RepoMetadata, error) {
-	return defaultStore().Read()
+func ReadRepoMetadata(name string) (*RepoMetadata, error) {
+	return storeFor(name).Read()
 }
 
-// CleanupHostMetadata removes the host-side metadata directory for the VM
-func CleanupHostMetadata() error {
-	return defaultStore().Cleanup()
+func CleanupHostMetadata(name string) error {
+	return storeFor(name).Cleanup()
 }

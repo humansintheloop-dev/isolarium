@@ -8,21 +8,21 @@ import (
 
 // CopyClaudeCredentials writes Claude credentials content into the VM.
 // It creates the ~/.claude directory if needed and sets file permissions to 600.
-func CopyClaudeCredentials(credentials string) error {
-	mkdirArgs := BuildCreateClaudeDirCommand()
+func CopyClaudeCredentials(name, credentials string) error {
+	mkdirArgs := BuildCreateClaudeDirCommand(name)
 	cmd := exec.Command(mkdirArgs[0], mkdirArgs[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to create .claude directory: %w\noutput: %s", err, output)
 	}
 
-	writeArgs := BuildWriteCredentialsCommand()
+	writeArgs := BuildWriteCredentialsCommand(name)
 	cmd = exec.Command(writeArgs[0], writeArgs[1:]...)
 	cmd.Stdin = strings.NewReader(credentials)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to write credentials: %w\noutput: %s", err, output)
 	}
 
-	chmodArgs := BuildChmodCredentialsCommand()
+	chmodArgs := BuildChmodCredentialsCommand(name)
 	cmd = exec.Command(chmodArgs[0], chmodArgs[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to set credentials permissions: %w\noutput: %s", err, output)
@@ -31,13 +31,11 @@ func CopyClaudeCredentials(credentials string) error {
 	return nil
 }
 
-// BuildWriteCredentialsCommand builds the limactl command to write credentials
-// content (piped via stdin) into the VM.
-func BuildWriteCredentialsCommand() []string {
+func BuildWriteCredentialsCommand(name string) []string {
 	return []string{
 		"limactl",
 		"shell",
-		GetVMName(),
+		name,
 		"--",
 		"bash",
 		"-c",
@@ -45,12 +43,11 @@ func BuildWriteCredentialsCommand() []string {
 	}
 }
 
-// BuildCreateClaudeDirCommand builds the command to create the ~/.claude directory in the VM.
-func BuildCreateClaudeDirCommand() []string {
+func BuildCreateClaudeDirCommand(name string) []string {
 	return []string{
 		"limactl",
 		"shell",
-		GetVMName(),
+		name,
 		"--",
 		"bash",
 		"-c",
@@ -58,12 +55,11 @@ func BuildCreateClaudeDirCommand() []string {
 	}
 }
 
-// BuildChmodCredentialsCommand builds the command to set permissions on the credentials file.
-func BuildChmodCredentialsCommand() []string {
+func BuildChmodCredentialsCommand(name string) []string {
 	return []string{
 		"limactl",
 		"shell",
-		GetVMName(),
+		name,
 		"--",
 		"bash",
 		"-c",

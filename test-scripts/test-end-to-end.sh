@@ -9,6 +9,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+echo "=== Cleaning up existing VM ==="
+"$SCRIPT_DIR/clean.sh"
+
+echo ""
 echo "=== Running unit tests ==="
 go test ./...
 

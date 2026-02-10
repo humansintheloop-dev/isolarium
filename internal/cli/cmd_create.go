@@ -34,7 +34,7 @@ func newCreateCmd() *cobra.Command {
 			fmt.Printf("Branch: %s\n", branch)
 
 			fmt.Println("Creating Lima VM...")
-			if err := lima.CreateVM(); err != nil {
+			if err := lima.CreateVM(vmNameFlag); err != nil {
 				return fmt.Errorf("failed to create VM: %w", err)
 			}
 
@@ -63,26 +63,26 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			fmt.Println("Cloning repository...")
-			if err := lima.CloneRepo(remoteURL, branch, token); err != nil {
+			if err := lima.CloneRepo(vmNameFlag, remoteURL, branch, token); err != nil {
 				return fmt.Errorf("failed to clone repository: %w", err)
 			}
 
-			if err := lima.WriteRepoMetadata(owner, repo, branch); err != nil {
+			if err := lima.WriteRepoMetadata(vmNameFlag, owner, repo, branch); err != nil {
 				return fmt.Errorf("failed to write metadata: %w", err)
 			}
 
 			fmt.Println("Cloning workflow tools...")
-			if err := lima.CloneWorkflowTools(""); err != nil {
+			if err := lima.CloneWorkflowTools(vmNameFlag, ""); err != nil {
 				return fmt.Errorf("failed to clone workflow tools: %w", err)
 			}
 
 			fmt.Println("Installing custom plugins...")
-			if err := lima.InstallPlugins(); err != nil {
+			if err := lima.InstallPlugins(vmNameFlag); err != nil {
 				return fmt.Errorf("failed to install custom plugins: %w", err)
 			}
 
 			fmt.Println("Installing i2code CLI...")
-			if err := lima.InstallI2Code(); err != nil {
+			if err := lima.InstallI2Code(vmNameFlag); err != nil {
 				return fmt.Errorf("failed to install i2code CLI: %w", err)
 			}
 

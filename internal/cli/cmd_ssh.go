@@ -15,7 +15,7 @@ func newSshCmd() *cobra.Command {
 		Use:   "ssh",
 		Short: "Open an interactive shell inside the VM",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			exists, err := lima.VMExists()
+			exists, err := lima.VMExists(vmNameFlag)
 			if err != nil {
 				return fmt.Errorf("failed to check VM status: %w", err)
 			}
@@ -24,7 +24,7 @@ func newSshCmd() *cobra.Command {
 			}
 
 			if copySession {
-				if err := copyClaudeCredentialsToVM(); err != nil {
+				if err := copyClaudeCredentialsToVM(vmNameFlag); err != nil {
 					return fmt.Errorf("failed to copy credentials: %w", err)
 				}
 			}
@@ -39,13 +39,13 @@ func newSshCmd() *cobra.Command {
 				envVars["GH_TOKEN"] = token
 			}
 
-			homeDir, homeErr := lima.GetVMHomeDir()
+			homeDir, homeErr := lima.GetVMHomeDir(vmNameFlag)
 			if homeErr != nil {
 				return fmt.Errorf("failed to get VM home directory: %w", homeErr)
 			}
 			workdir := homeDir + "/repo"
 
-			exitCode, err := lima.OpenShell(lima.GetVMName(), workdir, envVars)
+			exitCode, err := lima.OpenShell(vmNameFlag, workdir, envVars)
 			if err != nil {
 				return fmt.Errorf("failed to open shell: %w", err)
 			}

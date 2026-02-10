@@ -14,11 +14,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var vmNameFlag string
+
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
 		Short: "Secure execution environment for coding agents",
 	}
+
+	rootCmd.PersistentFlags().StringVar(&vmNameFlag, "name", lima.GetVMName(), "Name of the VM")
 
 	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newCreateCmd())
@@ -63,13 +67,13 @@ func LoadEnvFile(path string) error {
 	return nil
 }
 
-func copyClaudeCredentialsToVM() error {
+func copyClaudeCredentialsToVM(name string) error {
 	credentials, err := readClaudeCredentials()
 	if err != nil {
 		return err
 	}
 	fmt.Println("Copying Claude credentials to VM...")
-	return lima.CopyClaudeCredentials(credentials)
+	return lima.CopyClaudeCredentials(name, credentials)
 }
 
 func readClaudeCredentials() (string, error) {

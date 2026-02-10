@@ -15,16 +15,14 @@ type Status struct {
 	Branch              string
 }
 
-// GetStatus returns the current status of the isolarium environment
-func GetStatus() Status {
+func GetStatus(name string) Status {
 	s := Status{
-		VMState:             lima.GetVMState(),
+		VMState:             lima.GetVMState(name),
 		GitHubAppConfigured: isGitHubAppConfigured(),
 	}
 
-	// Try to read metadata from VM if VM exists
 	if s.VMState != "none" {
-		meta, err := lima.ReadRepoMetadata()
+		meta, err := lima.ReadRepoMetadata(name)
 		if err == nil && meta != nil {
 			s.Repository = fmt.Sprintf("%s/%s", meta.Owner, meta.Repo)
 			s.Branch = meta.Branch

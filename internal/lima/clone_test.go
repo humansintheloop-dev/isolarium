@@ -37,7 +37,7 @@ func TestBuildCloneURL_SSHConvertsToHTTPS_NoToken(t *testing.T) {
 }
 
 func TestBuildCloneCommand(t *testing.T) {
-	cmd := BuildCloneCommand("https://github.com/cer/isolarium.git", "main")
+	cmd := BuildCloneCommand("isolarium", "https://github.com/cer/isolarium.git", "main")
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"git", "clone", "--branch", "main", "https://github.com/cer/isolarium.git", "repo",
@@ -53,7 +53,7 @@ func TestBuildCloneCommand(t *testing.T) {
 }
 
 func TestBuildWorkflowToolsCloneCommand(t *testing.T) {
-	cmd := BuildWorkflowToolsCloneCommand("ghs_token123")
+	cmd := BuildWorkflowToolsCloneCommand("isolarium", "ghs_token123")
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"git", "clone",
@@ -71,7 +71,7 @@ func TestBuildWorkflowToolsCloneCommand(t *testing.T) {
 }
 
 func TestBuildWorkflowToolsCloneCommand_NoToken(t *testing.T) {
-	cmd := BuildWorkflowToolsCloneCommand("")
+	cmd := BuildWorkflowToolsCloneCommand("isolarium", "")
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"git", "clone",
@@ -89,7 +89,7 @@ func TestBuildWorkflowToolsCloneCommand_NoToken(t *testing.T) {
 }
 
 func TestBuildInstallPluginCommand(t *testing.T) {
-	cmd := BuildInstallPluginCommand()
+	cmd := BuildInstallPluginCommand("isolarium")
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"bash", "-c", "cd ~/workflow-tools && ./install-plugin.sh",
@@ -105,7 +105,7 @@ func TestBuildInstallPluginCommand(t *testing.T) {
 }
 
 func TestBuildInstallI2CodeCommand(t *testing.T) {
-	cmd := BuildInstallI2CodeCommand()
+	cmd := BuildInstallI2CodeCommand("isolarium")
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"bash", "-lc", "cd ~/workflow-tools && uv tool install -e .",
