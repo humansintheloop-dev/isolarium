@@ -193,28 +193,28 @@ func findProjectRoot(t *testing.T) string {
 
 
 func TestCopyClaudeCredentials_Integration(t *testing.T) {
-	// Load .env.local for credentials path
-	loadTestEnvFile(t)
-
-	// Get credentials path from environment
-	credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
-	if credentialsPath == "" {
-		t.Fatal("CLAUDE_CREDENTIALS_PATH not set in .env.local")
+	// Try reading credentials from macOS Keychain first, fall back to file for CI
+	credentials, err := readCredentialsFromKeychain()
+	if err != nil {
+		t.Logf("Keychain read failed (%v), falling back to CLAUDE_CREDENTIALS_PATH", err)
+		loadTestEnvFile(t)
+		credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
+		if credentialsPath == "" {
+			t.Fatal("no credentials available: Keychain failed and CLAUDE_CREDENTIALS_PATH not set")
+		}
+		data, err := os.ReadFile(credentialsPath)
+		if err != nil {
+			t.Fatalf("failed to read credentials file %s: %v", credentialsPath, err)
+		}
+		credentials = string(data)
 	}
 
-	// Verify credentials file exists on host
-	if _, err := os.Stat(credentialsPath); err != nil {
-		t.Fatalf("credentials file not found at %s: %v", credentialsPath, err)
-	}
-
-	// Ensure VM is running
 	ensureVMRunning(t)
 
 	// Remove any existing credentials in VM first
 	vmShell("bash", "-c", "rm -rf ~/.claude").Run()
 
-	// Copy credentials to VM
-	if err := CopyClaudeCredentials(credentialsPath); err != nil {
+	if err := CopyClaudeCredentials(credentials); err != nil {
 		t.Fatalf("CopyClaudeCredentials failed: %v", err)
 	}
 
@@ -524,4 +524,14 @@ func vmRepoDir(t *testing.T) string {
 		t.Fatalf("failed to get VM home directory: %v", err)
 	}
 	return homeDir + "/repo"
+}
+
+func readCredentialsFromKeychain() (string, error) {
+	cmd := exec.Command("security", "find-generic-password",
+		"-s", "Claude Code-credentials", "-a", os.Getenv("USER"), "-w")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }

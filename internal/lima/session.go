@@ -3,26 +3,25 @@ package lima
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
-// CopyClaudeCredentials copies the Claude credentials file from the host to the VM.
+// CopyClaudeCredentials writes Claude credentials content into the VM.
 // It creates the ~/.claude directory if needed and sets file permissions to 600.
-func CopyClaudeCredentials(credentialsPath string) error {
-	// Create the ~/.claude directory in the VM
+func CopyClaudeCredentials(credentials string) error {
 	mkdirArgs := BuildCreateClaudeDirCommand()
 	cmd := exec.Command(mkdirArgs[0], mkdirArgs[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to create .claude directory: %w\noutput: %s", err, output)
 	}
 
-	// Copy the credentials file
-	copyArgs := BuildCopyCredentialsCommand(credentialsPath)
-	cmd = exec.Command(copyArgs[0], copyArgs[1:]...)
+	writeArgs := BuildWriteCredentialsCommand()
+	cmd = exec.Command(writeArgs[0], writeArgs[1:]...)
+	cmd.Stdin = strings.NewReader(credentials)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to copy credentials: %w\ncommand: %v\noutput: %s", err, copyArgs, output)
+		return fmt.Errorf("failed to write credentials: %w\noutput: %s", err, output)
 	}
 
-	// Set permissions to 600
 	chmodArgs := BuildChmodCredentialsCommand()
 	cmd = exec.Command(chmodArgs[0], chmodArgs[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -32,14 +31,17 @@ func CopyClaudeCredentials(credentialsPath string) error {
 	return nil
 }
 
-// BuildCopyCredentialsCommand builds the limactl command to copy Claude credentials to the VM.
-// Uses $HOME instead of ~ because tilde expansion doesn't work in command arguments.
-func BuildCopyCredentialsCommand(credentialsPath string) []string {
+// BuildWriteCredentialsCommand builds the limactl command to write credentials
+// content (piped via stdin) into the VM.
+func BuildWriteCredentialsCommand() []string {
 	return []string{
 		"limactl",
-		"copy",
-		credentialsPath,
-		GetVMName() + ":" + credentialsDestPath(),
+		"shell",
+		GetVMName(),
+		"--",
+		"bash",
+		"-c",
+		"cat > ~/.claude/.credentials.json",
 	}
 }
 
@@ -67,10 +69,4 @@ func BuildChmodCredentialsCommand() []string {
 		"-c",
 		"chmod 600 ~/.claude/.credentials.json",
 	}
-}
-
-// credentialsDestPath returns the destination path for credentials in the VM.
-// Uses .claude/ relative path which limactl resolves to the user's home directory.
-func credentialsDestPath() string {
-	return ".claude/.credentials.json"
 }

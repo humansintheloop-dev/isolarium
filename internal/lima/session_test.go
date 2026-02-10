@@ -4,52 +4,18 @@ import (
 	"testing"
 )
 
-func TestBuildCopyCredentialsCommand(t *testing.T) {
-	tests := []struct {
-		name            string
-		credentialsPath string
-		wantContains    []string
-	}{
-		{
-			name:            "builds command with correct destination path",
-			credentialsPath: "/Users/test/.claude/.credentials.json",
-			wantContains: []string{
-				"limactl",
-				"copy",
-				"/Users/test/.claude/.credentials.json",
-				"isolarium:.claude/.credentials.json",
-			},
-		},
-		{
-			name:            "handles path with spaces",
-			credentialsPath: "/Users/test user/.claude/.credentials.json",
-			wantContains: []string{
-				"limactl",
-				"copy",
-				"/Users/test user/.claude/.credentials.json",
-				"isolarium:.claude/.credentials.json",
-			},
-		},
+func TestBuildWriteCredentialsCommand(t *testing.T) {
+	args := BuildWriteCredentialsCommand()
+
+	expected := []string{"limactl", "shell", "isolarium", "--", "bash", "-c", "cat > ~/.claude/.credentials.json"}
+	if len(args) != len(expected) {
+		t.Errorf("BuildWriteCredentialsCommand() = %v, want %v", args, expected)
+		return
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			args := BuildCopyCredentialsCommand(tt.credentialsPath)
-
-			// Check that all expected strings are present in the command args
-			for _, want := range tt.wantContains {
-				found := false
-				for _, arg := range args {
-					if arg == want {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("BuildCopyCredentialsCommand() = %v, missing %q", args, want)
-				}
-			}
-		})
+	for i, arg := range args {
+		if arg != expected[i] {
+			t.Errorf("BuildWriteCredentialsCommand()[%d] = %q, want %q", i, arg, expected[i])
+		}
 	}
 }
 

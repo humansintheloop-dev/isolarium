@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
+	"os/user"
 	"strings"
 
 	"github.com/cer/isolarium/internal/git"
@@ -62,12 +64,26 @@ func LoadEnvFile(path string) error {
 }
 
 func copyClaudeCredentialsToVM() error {
-	credentialsPath := os.Getenv("CLAUDE_CREDENTIALS_PATH")
-	if credentialsPath == "" {
-		return fmt.Errorf("CLAUDE_CREDENTIALS_PATH environment variable not set")
+	credentials, err := readClaudeCredentials()
+	if err != nil {
+		return err
 	}
 	fmt.Println("Copying Claude credentials to VM...")
-	return lima.CopyClaudeCredentials(credentialsPath)
+	return lima.CopyClaudeCredentials(credentials)
+}
+
+func readClaudeCredentials() (string, error) {
+	u, err := user.Current()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current user: %w", err)
+	}
+	cmd := exec.Command("security", "find-generic-password",
+		"-s", "Claude Code-credentials", "-a", u.Username, "-w")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to read Claude credentials from Keychain: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 // mintGitHubToken mints a GitHub App installation token if the app is configured.
