@@ -452,7 +452,7 @@ func TestGetVMState_Integration(t *testing.T) {
 func TestOpenShell_Integration(t *testing.T) {
 	ensureVMRunning(t)
 
-	cmdArgs := BuildShellCommand("isolarium", nil)
+	cmdArgs := BuildShellCommand("isolarium", "", nil)
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Stdin = strings.NewReader("echo test\nexit\n")
 	output, err := cmd.Output()

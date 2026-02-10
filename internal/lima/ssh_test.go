@@ -5,7 +5,7 @@ import (
 )
 
 func TestBuildShellCommand(t *testing.T) {
-	cmd := BuildShellCommand("isolarium", nil)
+	cmd := BuildShellCommand("isolarium", "", nil)
 	expected := []string{
 		"limactl", "shell", "--tty", "isolarium",
 	}
@@ -24,7 +24,7 @@ func TestBuildShellCommandWithEnvVars(t *testing.T) {
 		"GH_TOKEN":  "tok123",
 		"GIT_TOKEN": "tok123",
 	}
-	cmd := BuildShellCommand("isolarium", envVars)
+	cmd := BuildShellCommand("isolarium", "", envVars)
 	expected := []string{
 		"limactl", "shell", "--tty", "isolarium", "--",
 		"env", "GH_TOKEN=tok123", "GIT_TOKEN=tok123",
@@ -41,7 +41,7 @@ func TestBuildShellCommandWithEnvVars(t *testing.T) {
 }
 
 func TestBuildShellCommandWithEmptyEnvVars(t *testing.T) {
-	cmd := BuildShellCommand("isolarium", map[string]string{})
+	cmd := BuildShellCommand("isolarium", "", map[string]string{})
 	expected := []string{
 		"limactl", "shell", "--tty", "isolarium",
 	}

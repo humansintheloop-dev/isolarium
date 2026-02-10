@@ -39,7 +39,13 @@ func newSshCmd() *cobra.Command {
 				envVars["GH_TOKEN"] = token
 			}
 
-			exitCode, err := lima.OpenShell(lima.GetVMName(), envVars)
+			homeDir, homeErr := lima.GetVMHomeDir()
+			if homeErr != nil {
+				return fmt.Errorf("failed to get VM home directory: %w", homeErr)
+			}
+			workdir := homeDir + "/repo"
+
+			exitCode, err := lima.OpenShell(lima.GetVMName(), workdir, envVars)
 			if err != nil {
 				return fmt.Errorf("failed to open shell: %w", err)
 			}

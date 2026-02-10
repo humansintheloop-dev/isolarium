@@ -9,8 +9,12 @@ import (
 // BuildShellCommand constructs the limactl command to open an interactive shell.
 // When envVars is non-empty, the command injects environment variables via
 // "env KEY=VALUE ... bash -il" so tools like gh and git can authenticate.
-func BuildShellCommand(vm string, envVars map[string]string) []string {
-	cmd := []string{"limactl", "shell", "--tty", vm}
+func BuildShellCommand(vm string, workdir string, envVars map[string]string) []string {
+	cmd := []string{"limactl", "shell", "--tty"}
+	if workdir != "" {
+		cmd = append(cmd, "--workdir", workdir)
+	}
+	cmd = append(cmd, vm)
 	envPrefix := buildEnvPrefix(envVars)
 	if len(envPrefix) > 0 {
 		cmd = append(cmd, "--")
@@ -20,8 +24,8 @@ func BuildShellCommand(vm string, envVars map[string]string) []string {
 	return cmd
 }
 
-func OpenShell(vm string, envVars map[string]string) (int, error) {
-	cmdArgs := BuildShellCommand(vm, envVars)
+func OpenShell(vm string, workdir string, envVars map[string]string) (int, error) {
+	cmdArgs := BuildShellCommand(vm, workdir, envVars)
 
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Stdin = os.Stdin
