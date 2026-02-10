@@ -22,7 +22,7 @@ IMPORTANT: Always invoke the relevant skill before performing these actions:
 
 ## Code Style
 
-- Prefer intention-revealing method names over comments. If you find yourself writing a comment to explain what code does, extract it into a method whose name conveys the intent.
+IMPORTANT: Prefer intention-revealing method names over comments. If you find yourself writing a comment to explain what code does, extract it into a method whose name conveys the intent. This applies to ALL code — production, tests, scripts. Never write comments like `// Verify X is installed` — instead extract a function like `verifyXInstalled()`. Follow this rule even when surrounding code uses inline comments.
 
 ## Tool Selection
 

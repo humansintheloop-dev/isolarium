@@ -152,7 +152,7 @@ func TestCloneRepoWithToken_Integration(t *testing.T) {
 		t.Fatal("GitHub App credentials not configured - set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_PATH in .env.local")
 	}
 
-	if err := CloneRepo(vmName, remoteURL, expectedBranch, token); err != nil {
+	if err := CloneRepo(vmName, findProjectRoot(t), remoteURL, expectedBranch, token); err != nil {
 		t.Fatalf("CloneRepo failed: %v", err)
 	}
 
@@ -306,6 +306,27 @@ func TestInstallI2Code_Integration(t *testing.T) {
 	if err := cmd.Run(); err != nil {
 		t.Error("i2code command not found after installation")
 	}
+}
+
+func TestInstallUsingSDKMAN_Integration(t *testing.T) {
+	ensureVMRunning(t)
+
+	if err := InstallUsingSDKMAN(vmName); err != nil {
+		t.Fatalf("InstallUsingSDKMAN failed: %v", err)
+	}
+
+	verifySDKMANToolInstalled(t, "java")
+	verifySDKMANToolInstalled(t, "gradle")
+}
+
+func verifySDKMANToolInstalled(t *testing.T, tool string) {
+	t.Helper()
+	cmd := vmShell("bash", "-c", "source ~/.sdkman/bin/sdkman-init.sh && "+tool+" --version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s not available after SDKMAN install: %v\noutput: %s", tool, err, output)
+	}
+	t.Logf("%s version: %s", tool, output)
 }
 
 func TestInstallPlugins_Integration(t *testing.T) {

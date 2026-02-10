@@ -1,11 +1,15 @@
 package lima
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 )
+
+//go:embed install-using-sdkman.sh
+var installUsingSDKMANScript string
 
 // BuildCloneURL constructs the git clone URL, embedding token if provided.
 // Only converts SSH URLs to HTTPS when a token is available for authentication.
@@ -191,6 +195,19 @@ func InstallI2Code(name string) error {
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install i2code CLI: %w", err)
+	}
+
+	return nil
+}
+
+func InstallUsingSDKMAN(name string) error {
+	cmd := exec.Command("limactl", "shell", name, "--", "bash", "-s")
+	cmd.Stdin = strings.NewReader(installUsingSDKMANScript)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install Java/Gradle via SDKMAN: %w", err)
 	}
 
 	return nil

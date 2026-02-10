@@ -65,6 +65,11 @@ func createAndSetupVM(name string) error {
 		return fmt.Errorf("failed to write metadata: %w", err)
 	}
 
+	fmt.Println("Installing Java and Gradle via SDKMAN...")
+	if err := lima.InstallUsingSDKMAN(name); err != nil {
+		return fmt.Errorf("failed to install Java/Gradle: %w", err)
+	}
+
 	if err := installWorkflowTools(name); err != nil {
 		return err
 	}

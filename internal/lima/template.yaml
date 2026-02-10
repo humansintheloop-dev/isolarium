@@ -67,21 +67,11 @@ provision:
       # Add current user to docker group (requires logout/login to take effect)
       sudo usermod -aG docker "$USER"
 
-      # Install SDKMAN and JDK 17
+      # Install SDKMAN (Java and Gradle are installed separately via install-using-sdkman.sh)
       # Note: SDKMAN scripts have unbound variables, so disable -u for this section
       set +u
       curl -s "https://get.sdkman.io" | bash
-      export SDKMAN_DIR="$HOME/.sdkman"
-      source "$SDKMAN_DIR/bin/sdkman-init.sh"
-      sdk install java 17.0.10-tem
       set -u
-
-      # Create symlinks for java in /usr/local/bin for non-interactive shell access
-      sudo ln -sf "$HOME/.sdkman/candidates/java/current/bin/java" /usr/local/bin/java
-      sudo ln -sf "$HOME/.sdkman/candidates/java/current/bin/javac" /usr/local/bin/javac
-
-      # Set JAVA_HOME system-wide for tools like Maven/Gradle
-      echo "JAVA_HOME=$HOME/.sdkman/candidates/java/current" | sudo tee -a /etc/environment
 
       # Install Claude Code via npm (requires sudo for global install)
       sudo npm install -g @anthropic-ai/claude-code
