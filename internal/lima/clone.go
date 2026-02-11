@@ -200,6 +200,16 @@ func InstallI2Code(name string) error {
 	return nil
 }
 
+func RemoveRepoDir(name string) error {
+	cmd := exec.Command("limactl", "shell", name, "--", "rm", "-rf", "repo")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove repo directory: %w", err)
+	}
+	return nil
+}
+
 func InstallUsingSDKMAN(name string) error {
 	cmd := exec.Command("limactl", "shell", name, "--", "bash", "-s")
 	cmd.Stdin = strings.NewReader(installUsingSDKMANScript)

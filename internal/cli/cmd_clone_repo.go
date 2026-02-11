@@ -11,7 +11,9 @@ import (
 )
 
 func newCloneRepoCmd() *cobra.Command {
-	return &cobra.Command{
+	var removeFirst bool
+
+	cmd := &cobra.Command{
 		Use:   "clone-repo",
 		Short: "Clone the repository into the VM (retry after a failed create)",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -23,6 +25,12 @@ func newCloneRepoCmd() *cobra.Command {
 				fmt.Println("Starting stopped VM...")
 				if err := lima.StartVM(vmNameFlag); err != nil {
 					return err
+				}
+			}
+
+			if removeFirst {
+				if err := lima.RemoveRepoDir(vmNameFlag); err != nil {
+					return fmt.Errorf("failed to remove repo directory: %w", err)
 				}
 			}
 
@@ -64,4 +72,7 @@ func newCloneRepoCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&removeFirst, "remove", false, "Remove existing repo directory before cloning")
+	return cmd
 }
