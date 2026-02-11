@@ -18,10 +18,10 @@ mounts: []
 
 # Network: use default user-mode networking (no socket_vmnet required)
 
-# Enable containerd/nerdctl for Docker compatibility
+# Disable Lima's built-in containerd since we use rootless Docker
 containerd:
   system: false
-  user: true
+  user: false
 
 # Provisioning script to install required tools
 provision:
@@ -44,8 +44,14 @@ provision:
         unzip \
         zip
 
-      # Install Docker
-      curl -fsSL https://get.docker.com | sh
+      # Install Docker prerequisites for rootless mode
+      apt-get install -y uidmap dbus-user-session
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor,
+      # which prevents rootless Docker from starting
+      sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      echo "kernel.apparmor_restrict_unprivileged_userns=0" > /etc/sysctl.d/99-rootless-docker.conf
+
 
       # Install Node.js LTS
       curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
@@ -64,8 +70,15 @@ provision:
       #!/bin/bash
       set -ex -o pipefail
 
-      # Add current user to docker group (requires logout/login to take effect)
-      sudo usermod -aG docker "$USER"
+      # Install Docker in rootless mode
+      curl -fsSL https://get.docker.com/rootless | sh
+
+      # Keep user services (like rootless Docker) running after logout
+      sudo loginctl enable-linger "$USER"
+
+      # Configure shell for rootless Docker
+      echo 'export PATH=$HOME/bin:$PATH' >> ~/.bashrc
+      echo "export DOCKER_HOST=unix:///run/user/$(id -u)/docker.sock" >> ~/.bashrc
 
       # Install SDKMAN (Java and Gradle are installed separately via install-using-sdkman.sh)
       # Note: SDKMAN scripts have unbound variables, so disable -u for this section

@@ -349,6 +349,54 @@ func TestInstallPlugins_Integration(t *testing.T) {
 	}
 }
 
+func TestDockerRootless_RunContainer_Integration(t *testing.T) {
+	ensureVMRunning(t)
+
+	containerName := "test-docker-rootless"
+	removeContainer(containerName)
+	runDetachedContainer(t, containerName, "18080:80", "nginx:alpine")
+	verifyContainerRunning(t, containerName)
+	verifyPortAccessible(t, "18080")
+	removeContainer(containerName)
+}
+
+func removeContainer(name string) {
+	vmShell("bash", "-lc", "docker rm -f "+name).Run()
+}
+
+func runDetachedContainer(t *testing.T, name, portMapping, image string) {
+	t.Helper()
+	cmd := vmShell("bash", "-lc", "docker run -d --name "+name+" -p "+portMapping+" "+image)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("docker run failed: %v\noutput: %s", err, output)
+	}
+}
+
+func verifyContainerRunning(t *testing.T, name string) {
+	t.Helper()
+	cmd := vmShell("bash", "-lc", "docker ps --filter name="+name+" --format '{{.Status}}'")
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("docker ps failed: %v", err)
+	}
+	if !strings.Contains(string(output), "Up") {
+		t.Errorf("expected container to be running, got: %s", output)
+	}
+}
+
+func verifyPortAccessible(t *testing.T, port string) {
+	t.Helper()
+	cmd := vmShell("bash", "-lc", "curl -sf localhost:"+port)
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("curl localhost:%s failed: %v", port, err)
+	}
+	if !strings.Contains(string(output), "<!DOCTYPE html>") {
+		t.Errorf("expected HTML response, got: %s", output)
+	}
+}
+
 // Task 7.1: Test ExecCommand runs commands inside VM in repo directory
 func TestExecCommand_EchoHello_Integration(t *testing.T) {
 	ensureVMRunning(t)
