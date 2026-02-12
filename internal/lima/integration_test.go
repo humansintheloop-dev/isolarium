@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cer/isolarium/internal/claude"
 	"github.com/cer/isolarium/internal/github"
 )
 
@@ -189,7 +190,7 @@ func findProjectRoot(t *testing.T) string {
 
 func TestCopyClaudeCredentials_Integration(t *testing.T) {
 	// Try reading credentials from macOS Keychain first, fall back to file for CI
-	credentials, err := readCredentialsFromKeychain()
+	credentials, err := claude.ReadCredentialsFromKeychain()
 	if err != nil {
 		t.Logf("Keychain read failed (%v), falling back to CLAUDE_CREDENTIALS_PATH", err)
 		loadTestEnvFile(t)
@@ -584,12 +585,3 @@ func vmRepoDir(t *testing.T) string {
 	return homeDir + "/repo"
 }
 
-func readCredentialsFromKeychain() (string, error) {
-	cmd := exec.Command("security", "find-generic-password",
-		"-s", "Claude Code-credentials", "-a", os.Getenv("USER"), "-w")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
-}

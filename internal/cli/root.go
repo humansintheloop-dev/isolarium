@@ -4,10 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
-	"os/user"
 	"strings"
 
+	"github.com/cer/isolarium/internal/claude"
 	"github.com/cer/isolarium/internal/git"
 	"github.com/cer/isolarium/internal/github"
 	"github.com/cer/isolarium/internal/lima"
@@ -71,26 +70,12 @@ func LoadEnvFile(path string) error {
 }
 
 func copyClaudeCredentialsToVM(name string) error {
-	credentials, err := readClaudeCredentials()
+	credentials, err := claude.ReadCredentialsFromKeychain()
 	if err != nil {
 		return err
 	}
 	fmt.Println("Copying Claude credentials to VM...")
 	return lima.CopyClaudeCredentials(name, credentials)
-}
-
-func readClaudeCredentials() (string, error) {
-	u, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current user: %w", err)
-	}
-	cmd := exec.Command("security", "find-generic-password",
-		"-s", "Claude Code-credentials", "-a", u.Username, "-w")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to read Claude credentials from Keychain: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
 }
 
 func mintGitHubToken() (string, error) {
