@@ -109,14 +109,14 @@ This thread proves the fundamental architecture: a Backend interface abstraction
     - [x] Update `newDestroyCmd()` to resolve backend and call `backend.Destroy()`
     - [x] Add default name logic: "isolarium" for vm, "isolarium-container" for container (when `--name` not explicitly set)
 
-- [ ] **Task 1.5: Update CI to run `go test ./...` including new packages**
+- [x] **Task 1.5: Update CI to run `go test ./...` including new packages**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: CI passes with the new `internal/backend/` and `internal/docker/` packages included in `go test ./...`
   - Evidence: `./test-scripts/test-end-to-end.sh` exits 0 with all unit tests passing
   - Steps:
-    - [ ] Verify `test-scripts/test-end-to-end.sh` already runs `go test ./...` which will pick up new packages
-    - [ ] Run `go test ./...` locally and confirm all tests pass
+    - [x] Verify `test-scripts/test-end-to-end.sh` already runs `go test ./...` which will pick up new packages
+    - [x] Run `go test ./...` locally and confirm all tests pass
 
 ---
 
@@ -269,3 +269,12 @@ Implemented BuildDestroyCommand, Destroyer, and DockerBackend.Destroy delegation
 
 ### 2026-02-13 12:46 - mark-task-complete
 Implemented --type persistent flag on root command with validation (vm/container), --work-directory flag on create command (container mode only, defaults to cwd), backend resolver wiring for create and destroy commands, and default name logic (isolarium for vm, isolarium-container for container). VM paths preserve legacy behavior.
+
+### 2026-02-13 12:48 - mark-step-complete
+Verified test-scripts/test-end-to-end.sh runs 'go test ./...' on line 17, which automatically picks up new packages
+
+### 2026-02-13 12:50 - mark-step-complete
+go test ./... passes all 10 packages including new internal/backend and internal/docker
+
+### 2026-02-13 12:50 - mark-task-complete
+CI already runs go test ./... which picks up new packages; all 10 packages pass including internal/backend and internal/docker
