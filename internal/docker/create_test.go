@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cer/isolarium/internal/command"
@@ -72,6 +73,11 @@ func TestCreateFailsWhenDockerNotAvailable(t *testing.T) {
 	err := creator.Create("my-env", "/home/user/project", metadataDir)
 	if err == nil {
 		t.Fatal("expected error when Docker is not available")
+	}
+
+	expectedMessage := "Docker is not installed or not running. Install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode"
+	if !strings.Contains(err.Error(), expectedMessage) {
+		t.Errorf("expected error message to contain %q, got %q", expectedMessage, err.Error())
 	}
 }
 
