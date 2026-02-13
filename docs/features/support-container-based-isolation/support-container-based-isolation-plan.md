@@ -75,17 +75,17 @@ This thread proves the fundamental architecture: a Backend interface abstraction
     - [x] Create stub `internal/backend/docker_backend.go` with `DockerBackend` struct implementing `Backend` — all methods return `ErrNotImplemented` for now
     - [x] Write unit tests in `internal/backend/resolve_test.go` verifying correct backend resolution and error for unknown type
 
-- [ ] **Task 1.2: `isolarium create --type container` builds image and starts persistent container**
+- [x] **Task 1.2: `isolarium create --type container` builds image and starts persistent container**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: `DockerBackend.Create()` verifies Docker is available, builds an image from an embedded Dockerfile, starts a persistent container with the work directory bind-mounted as `/home/isolarium/repo`, security flags (`--cap-drop=ALL`, `--security-opt=no-new-privileges`), running as non-root user, and writes metadata to `~/.isolarium/<name>/container/metadata.json`.
   - Evidence: Unit tests verify: (1) `BuildImageCommand()` produces correct `docker build` args, (2) `BuildRunCommand()` produces correct `docker run -d` args with security flags, volume mount, and non-root user, (3) `WriteDockerTempfile()` writes embedded Dockerfile content to a temp directory, (4) metadata is written with correct type and work directory.
   - Steps:
-    - [ ] Create embedded Dockerfile at `internal/docker/Dockerfile` with Ubuntu 24.04 base, non-root `isolarium` user (UID 1000), system tools (git, curl, wget, Node.js LTS, GitHub CLI, unzip, zip), user-level tools (Claude Code via npm, uv, SDKMAN, Java 17, Gradle 8.14), `gh auth git-credential` configured as git credential helper, and working directory `/home/isolarium/repo`. Follow Dockerfile guidelines: order instructions from most stable to least stable.
-    - [ ] Create `internal/docker/docker.go` with `//go:embed Dockerfile` and functions: `BuildImageCommand(tag string, contextDir string) []string`, `BuildRunCommand(name, workDir, imageTag string) []string`, `BuildCheckDockerCommand() []string`
-    - [ ] Create `internal/docker/metadata.go` with `DockerMetadata` struct (Type, WorkDirectory, CreatedAt) and `MetadataStore` for `~/.isolarium/<name>/container/metadata.json`
-    - [ ] Create `internal/docker/create.go` with `Create(name string, workDir string)` orchestrating: check Docker available → build image if needed → run container → write metadata
-    - [ ] Update `internal/backend/docker_backend.go` to delegate `Create()` to the new docker package
+    - [x] Create embedded Dockerfile at `internal/docker/Dockerfile` with Ubuntu 24.04 base, non-root `isolarium` user (UID 1000), system tools (git, curl, wget, Node.js LTS, GitHub CLI, unzip, zip), user-level tools (Claude Code via npm, uv, SDKMAN, Java 17, Gradle 8.14), `gh auth git-credential` configured as git credential helper, and working directory `/home/isolarium/repo`. Follow Dockerfile guidelines: order instructions from most stable to least stable.
+    - [x] Create `internal/docker/docker.go` with `//go:embed Dockerfile` and functions: `BuildImageCommand(tag string, contextDir string) []string`, `BuildRunCommand(name, workDir, imageTag string) []string`, `BuildCheckDockerCommand() []string`
+    - [x] Create `internal/docker/metadata.go` with `DockerMetadata` struct (Type, WorkDirectory, CreatedAt) and `MetadataStore` for `~/.isolarium/<name>/container/metadata.json`
+    - [x] Create `internal/docker/create.go` with `Create(name string, workDir string)` orchestrating: check Docker available → build image if needed → run container → write metadata
+    - [x] Update `internal/backend/docker_backend.go` to delegate `Create()` to the new docker package
 
 - [ ] **Task 1.3: `isolarium destroy --type container` removes container and metadata**
   - TaskType: OUTCOME
