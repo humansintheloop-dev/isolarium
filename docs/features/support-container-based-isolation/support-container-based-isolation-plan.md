@@ -144,15 +144,15 @@ This thread implements command execution inside a running container, including G
     - [x] Extract GitHub token extraction into a shared function (works for both VM and container modes — uses `gh auth token` for containers, GitHub App token for VMs)
     - [x] For container mode, inject GH_TOKEN via `docker exec -e` rather than GitHub App token minting
 
-- [ ] **Task 2.3: Container state detection for `run` command**
+- [x] **Task 2.3: Container state detection for `run` command**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: `GetState(name)` returns "running", "stopped", or "none" by inspecting the Docker container. If the container is stopped, `run` provides a clear error message suggesting `isolarium create --type container`.
   - Evidence: Unit tests verify `BuildInspectCommand()` produces correct args and `ParseContainerState()` correctly parses `docker inspect` output for running, stopped (exited), and non-existent containers.
   - Steps:
-    - [ ] Create `internal/docker/state.go` with `BuildInspectCommand(name string) []string` and `ParseContainerState(output string) string`
-    - [ ] Implement `GetState(name string) string` that runs docker inspect and parses the result
-    - [ ] Update `internal/backend/docker_backend.go` to delegate `GetState()`
+    - [x] Create `internal/docker/state.go` with `BuildInspectCommand(name string) []string` and `ParseContainerState(output string) string`
+    - [x] Implement `GetState(name string) string` that runs docker inspect and parses the result
+    - [x] Update `internal/backend/docker_backend.go` to delegate `GetState()`
 
 ---
 
@@ -281,3 +281,6 @@ CI already runs go test ./... which picks up new packages; all 10 packages pass 
 
 ### 2026-02-13 12:57 - mark-task-complete
 Implemented BuildExecCommand, BuildInteractiveExecCommand, ExecCommand, ExecInteractiveCommand in docker package, and wired DockerBackend to delegate via injectable function fields
+
+### 2026-02-13 13:08 - mark-task-complete
+Implemented BuildInspectCommand, ParseContainerState, StateChecker.GetState, and wired DockerBackend.GetState delegation
