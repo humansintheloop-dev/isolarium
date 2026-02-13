@@ -134,15 +134,15 @@ This thread implements command execution inside a running container, including G
     - [x] Implement `ExecCommand()` and `ExecInteractiveCommand()` that build and run the docker exec command, streaming stdout/stderr and propagating exit codes
     - [x] Update `internal/backend/docker_backend.go` to delegate `Exec()` and `ExecInteractive()`
 
-- [ ] **Task 2.2: Wire `run` command to use backend for container mode**
+- [x] **Task 2.2: Wire `run` command to use backend for container mode**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/...`
   - Observable: `isolarium run --type container -- echo hello` resolves the Docker backend and executes via `docker exec`. GitHub token is extracted from `gh auth token` and injected as `GH_TOKEN` env var.
   - Evidence: Unit tests verify the run command routes to the correct backend based on `--type` flag, and constructs the correct environment variables.
   - Steps:
-    - [ ] Refactor `newRunCmd()` to resolve backend from `--type` flag
-    - [ ] Extract GitHub token extraction into a shared function (works for both VM and container modes — uses `gh auth token` for containers, GitHub App token for VMs)
-    - [ ] For container mode, inject GH_TOKEN via `docker exec -e` rather than GitHub App token minting
+    - [x] Refactor `newRunCmd()` to resolve backend from `--type` flag
+    - [x] Extract GitHub token extraction into a shared function (works for both VM and container modes — uses `gh auth token` for containers, GitHub App token for VMs)
+    - [x] For container mode, inject GH_TOKEN via `docker exec -e` rather than GitHub App token minting
 
 - [ ] **Task 2.3: Container state detection for `run` command**
   - TaskType: OUTCOME
