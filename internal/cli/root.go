@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cer/isolarium/internal/backend"
 	"github.com/cer/isolarium/internal/claude"
 	"github.com/cer/isolarium/internal/git"
 	"github.com/cer/isolarium/internal/github"
@@ -14,18 +15,30 @@ import (
 )
 
 var vmNameFlag string
+var envTypeFlag = environmentType("vm")
+
+// BackendResolver resolves a Backend from an environment type string.
+type BackendResolver func(envType string) (backend.Backend, error)
 
 func NewRootCmd() *cobra.Command {
+	return newRootCmdWithResolver(backend.ResolveBackend)
+}
+
+func newRootCmdWithResolver(resolver BackendResolver) *cobra.Command {
+	var nameFlag string
+	var typeFlag environmentType = "vm"
+
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
 		Short: "Secure execution environment for coding agents",
 	}
 
-	rootCmd.PersistentFlags().StringVar(&vmNameFlag, "name", lima.GetVMName(), "Name of the VM")
+	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
+	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm" or "container" (default "vm")`)
 
+	rootCmd.AddCommand(newCreateCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
+	rootCmd.AddCommand(newDestroyCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newStatusCmd())
-	rootCmd.AddCommand(newCreateCmd())
-	rootCmd.AddCommand(newDestroyCmd())
 	rootCmd.AddCommand(newRunCmd())
 	rootCmd.AddCommand(newSshCmd())
 	rootCmd.AddCommand(newCloneRepoCmd())
