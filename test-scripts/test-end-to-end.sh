@@ -17,11 +17,19 @@ echo "=== Running unit tests ==="
 go test ./...
 
 echo ""
-echo "=== Running integration tests ==="
-if command -v limactl &> /dev/null; then
-    go test -tags=integration ./...
+echo "=== Running Docker integration tests ==="
+if docker info &> /dev/null; then
+    go test -tags=integration ./internal/docker/...
 else
-    echo "SKIP: Lima not installed, skipping integration tests"
+    echo "SKIP: Docker not available, skipping Docker integration tests"
+fi
+
+echo ""
+echo "=== Running Lima integration tests ==="
+if command -v limactl &> /dev/null; then
+    go test -tags=integration ./internal/lima/... ./internal/claude/...
+else
+    echo "SKIP: Lima not installed, skipping Lima integration tests"
 fi
 
 echo ""

@@ -249,17 +249,17 @@ This thread expands the metadata system to support (name, type) identity pairs a
 
 ## Steel Thread 8: Integration Tests for Container Mode
 
-- [ ] **Task 8.1: Integration tests for container lifecycle (create, exec, destroy)**
+- [x] **Task 8.1: Integration tests for container lifecycle (create, exec, destroy)**
   - TaskType: INFRA
   - Entrypoint: `go test -tags=integration ./internal/docker/...`
   - Observable: Integration tests create a real Docker container, execute a command inside it, verify the work directory is mounted, and destroy the container. Tests FAIL (not skip) if Docker is not available.
   - Evidence: `go test -tags=integration ./internal/docker/...` passes on a machine with Docker installed.
   - Steps:
-    - [ ] Create `internal/docker/integration_test.go` with `//go:build integration` tag
-    - [ ] Write test: create container with a temp directory as work-directory, verify container is running via `docker inspect`, exec `ls /home/isolarium/repo` and verify mounted files are visible, destroy container and verify it's gone
-    - [ ] Write test: verify security flags are applied (non-root user, capabilities dropped)
-    - [ ] Update `Makefile` to add `test-integration-docker` target: `go test -tags=integration ./internal/docker/...`
-    - [ ] Update `test-scripts/test-end-to-end.sh` to run Docker integration tests when Docker is available (parallel to Lima integration test pattern)
+    - [x] Create `internal/docker/integration_test.go` with `//go:build integration` tag
+    - [x] Write test: create container with a temp directory as work-directory, verify container is running via `docker inspect`, exec `ls /home/isolarium/repo` and verify mounted files are visible, destroy container and verify it's gone
+    - [x] Write test: verify security flags are applied (non-root user, capabilities dropped)
+    - [x] Update `Makefile` to add `test-integration-docker` target: `go test -tags=integration ./internal/docker/...`
+    - [x] Update `test-scripts/test-end-to-end.sh` to run Docker integration tests when Docker is available (parallel to Lima integration test pattern)
 
 ---
 
@@ -323,3 +323,6 @@ Implementation already existed. Added error message content assertion to TestCre
 
 ### 2026-02-13 13:57 - mark-task-complete
 Added ensureContainerRunning check to DockerBackend.Exec and ExecInteractive. Tests verify error message when GetState returns stopped.
+
+### 2026-02-13 14:04 - mark-task-complete
+Created integration tests for container lifecycle and security flags. Fixed Dockerfile UID 1000 conflict and missing sudo. Added Makefile target and updated end-to-end script.
