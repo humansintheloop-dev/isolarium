@@ -105,6 +105,10 @@ var execCommandOutput = func(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).Output()
 }
 
+var readKeychainCredentials = func() (string, error) {
+	return claude.ReadCredentialsFromKeychain()
+}
+
 func mintGitHubToken() (string, error) {
 	appID := os.Getenv("GITHUB_APP_ID")
 	privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")

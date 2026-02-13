@@ -172,15 +172,15 @@ This thread implements command execution inside a running container, including G
 
 ## Steel Thread 4: Copy Claude Credentials to Container
 
-- [ ] **Task 4.1: Copy Claude credentials into container via `docker exec`**
+- [x] **Task 4.1: Copy Claude credentials into container via `docker exec`**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: `CopyCredentials()` creates `~/.claude/` directory in the container, writes credentials to `~/.claude/.credentials.json`, and sets permissions to 600 — all via `docker exec` commands.
   - Evidence: Unit tests verify: (1) `BuildCreateClaudeDirCommand()` produces correct `docker exec` mkdir args, (2) `BuildWriteCredentialsCommand()` produces correct args to write credentials via stdin, (3) `BuildChmodCredentialsCommand()` produces correct chmod args.
   - Steps:
-    - [ ] Create `internal/docker/session.go` with `CopyClaudeCredentials(name, credentials string) error` and command builder functions: `BuildCreateClaudeDirCommand()`, `BuildWriteCredentialsCommand()`, `BuildChmodCredentialsCommand()`
-    - [ ] Update `internal/backend/docker_backend.go` to delegate `CopyCredentials()`
-    - [ ] Wire `--copy-session` flag in `run` and `shell` commands for container mode (read from Keychain, write into container)
+    - [x] Create `internal/docker/session.go` with `CopyClaudeCredentials(name, credentials string) error` and command builder functions: `BuildCreateClaudeDirCommand()`, `BuildWriteCredentialsCommand()`, `BuildChmodCredentialsCommand()`
+    - [x] Update `internal/backend/docker_backend.go` to delegate `CopyCredentials()`
+    - [x] Wire `--copy-session` flag in `run` and `shell` commands for container mode (read from Keychain, write into container)
 
 ---
 
@@ -287,3 +287,6 @@ Implemented BuildInspectCommand, ParseContainerState, StateChecker.GetState, and
 
 ### 2026-02-13 13:17 - mark-task-complete
 Implemented BuildShellCommand, OpenShell in docker package, added OpenShell to Backend interface, created shell CLI command with backend routing and GH_TOKEN injection
+
+### 2026-02-13 13:26 - mark-task-complete
+Implemented docker session credential copying with TDD: BuildCreateClaudeDirCommand, BuildWriteCredentialsCommand, BuildChmodCredentialsCommand, CopyClaudeCredentials, DockerBackend delegation, and --copy-session wiring in run/shell commands

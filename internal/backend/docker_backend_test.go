@@ -121,6 +121,30 @@ func TestDockerBackendDestroyDelegatesToDockerDestroyer(t *testing.T) {
 	runner.VerifyExecuted()
 }
 
+func TestDockerBackendCopyCredentialsDelegatesToCopyCredentialsFunc(t *testing.T) {
+	var capturedName string
+	var capturedCredentials string
+
+	b := &DockerBackend{
+		CopyCredentialsFunc: func(name, credentials string) error {
+			capturedName = name
+			capturedCredentials = credentials
+			return nil
+		},
+	}
+
+	err := b.CopyCredentials("my-container", `{"token":"abc123"}`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedName != "my-container" {
+		t.Errorf("expected name %q, got %q", "my-container", capturedName)
+	}
+	if capturedCredentials != `{"token":"abc123"}` {
+		t.Errorf("expected credentials %q, got %q", `{"token":"abc123"}`, capturedCredentials)
+	}
+}
+
 func TestDockerBackendGetStateDelegatesToDockerStateChecker(t *testing.T) {
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-env").Returns("running\n")

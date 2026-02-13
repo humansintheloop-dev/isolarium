@@ -36,5 +36,6 @@ func newDockerBackend() *DockerBackend {
 		ExecFunc:            docker.ExecCommand,
 		ExecInteractiveFunc: docker.ExecInteractiveCommand,
 		OpenShellFunc:       docker.OpenShell,
+		CopyCredentialsFunc: docker.CopyClaudeCredentials,
 	}
 }

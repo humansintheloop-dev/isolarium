@@ -8,6 +8,8 @@ import (
 )
 
 func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver) *cobra.Command {
+	var copySession bool
+
 	cmd := &cobra.Command{
 		Use:   "shell",
 		Short: "Open an interactive shell inside the environment",
@@ -18,6 +20,16 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 			b, err := resolver(envType)
 			if err != nil {
 				return err
+			}
+
+			if copySession && envType == "container" {
+				credentials, credErr := readKeychainCredentials()
+				if credErr != nil {
+					return fmt.Errorf("failed to read credentials: %w", credErr)
+				}
+				if err := b.CopyCredentials(name, credentials); err != nil {
+					return fmt.Errorf("failed to copy credentials: %w", err)
+				}
 			}
 
 			envVars, err := buildShellEnvVars(envType)
@@ -36,6 +48,8 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to container")
 
 	return cmd
 }

@@ -28,7 +28,7 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				return runInVM(name, args, copySession, freshLogin, interactive, cmd)
 			}
 
-			return runInContainer(name, args, interactive, resolver, envType)
+			return runInContainer(name, args, copySession, interactive, resolver, envType)
 		},
 	}
 
@@ -91,10 +91,20 @@ func runInVM(name string, args []string, copySession bool, freshLogin bool, inte
 	return nil
 }
 
-func runInContainer(name string, args []string, interactive bool, resolver BackendResolver, envType string) error {
+func runInContainer(name string, args []string, copySession bool, interactive bool, resolver BackendResolver, envType string) error {
 	b, err := resolver(envType)
 	if err != nil {
 		return err
+	}
+
+	if copySession {
+		credentials, credErr := readKeychainCredentials()
+		if credErr != nil {
+			return fmt.Errorf("failed to read credentials: %w", credErr)
+		}
+		if err := b.CopyCredentials(name, credentials); err != nil {
+			return fmt.Errorf("failed to copy credentials: %w", err)
+		}
 	}
 
 	envVars := map[string]string{}

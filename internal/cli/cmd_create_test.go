@@ -157,6 +157,10 @@ type backendSpy struct {
 	openShellCalled  bool
 	openShellName    string
 	openShellEnvVars map[string]string
+
+	copyCredentialsCalled      bool
+	copyCredentialsName        string
+	copyCredentialsCredentials string
 }
 
 func (b *backendSpy) Create(name string, opts backend.CreateOptions) error {
@@ -200,5 +204,8 @@ func (b *backendSpy) GetState(name string) string {
 }
 
 func (b *backendSpy) CopyCredentials(name string, credentials string) error {
+	b.copyCredentialsCalled = true
+	b.copyCredentialsName = name
+	b.copyCredentialsCredentials = credentials
 	return nil
 }
