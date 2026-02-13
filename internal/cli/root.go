@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/cer/isolarium/internal/backend"
@@ -39,7 +40,7 @@ func newRootCmdWithResolver(resolver BackendResolver) *cobra.Command {
 	rootCmd.AddCommand(newCreateCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newDestroyCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newStatusCmd())
-	rootCmd.AddCommand(newRunCmd())
+	rootCmd.AddCommand(newRunCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newSshCmd())
 	rootCmd.AddCommand(newCloneRepoCmd())
 	rootCmd.AddCommand(newInstallToolsCmd())
@@ -89,6 +90,18 @@ func copyClaudeCredentialsToVM(name string) error {
 	}
 	fmt.Println("Copying Claude credentials to VM...")
 	return lima.CopyClaudeCredentials(name, credentials)
+}
+
+func extractGitHubToken() (string, error) {
+	out, err := execCommandOutput("gh", "auth", "token")
+	if err != nil {
+		return "", nil
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+var execCommandOutput = func(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).Output()
 }
 
 func mintGitHubToken() (string, error) {

@@ -143,6 +143,16 @@ type backendSpy struct {
 
 	destroyCalled bool
 	destroyName   string
+
+	execCalled  bool
+	execName    string
+	execEnvVars map[string]string
+	execArgs    []string
+
+	execInteractiveCalled  bool
+	execInteractiveName    string
+	execInteractiveEnvVars map[string]string
+	execInteractiveArgs    []string
 }
 
 func (b *backendSpy) Create(name string, opts backend.CreateOptions) error {
@@ -159,10 +169,18 @@ func (b *backendSpy) Destroy(name string) error {
 }
 
 func (b *backendSpy) Exec(name string, envVars map[string]string, args []string) (int, error) {
+	b.execCalled = true
+	b.execName = name
+	b.execEnvVars = envVars
+	b.execArgs = args
 	return 0, nil
 }
 
 func (b *backendSpy) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
+	b.execInteractiveCalled = true
+	b.execInteractiveName = name
+	b.execInteractiveEnvVars = envVars
+	b.execInteractiveArgs = args
 	return 0, nil
 }
 
