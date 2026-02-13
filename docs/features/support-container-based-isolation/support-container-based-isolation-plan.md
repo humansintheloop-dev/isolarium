@@ -198,15 +198,15 @@ This thread expands the metadata system to support (name, type) identity pairs a
     - [x] Update CLI commands (`run`, `shell`, `destroy`) to use `ResolveEnvironmentType()` when `--type` is not explicitly provided
     - [x] Ensure `create` for VM mode writes metadata to `~/.isolarium/<name>/vm/` path (migration from old `~/.isolarium/<name>/repo.json` path)
 
-- [ ] **Task 5.2: VM metadata migration to new (name, type) path structure**
+- [x] **Task 5.2: VM metadata migration to new (name, type) path structure**
   - TaskType: REFACTOR
   - Entrypoint: `go test ./internal/lima/... ./internal/backend/...`
   - Observable: No behavior change — existing VM metadata at `~/.isolarium/<name>/repo.json` continues to work. New VM metadata is written to `~/.isolarium/<name>/vm/metadata.json`. Reading falls back to old path if new path doesn't exist.
   - Evidence: Existing unit tests in `internal/lima/metadata_test.go` continue to pass. New tests verify fallback reading from old path format.
   - Steps:
-    - [ ] Update `internal/lima/metadata.go` to write to new path `~/.isolarium/<name>/vm/metadata.json`
-    - [ ] Add fallback read logic: try new path first, fall back to old `~/.isolarium/<name>/repo.json`
-    - [ ] Update `CleanupHostMetadata()` to clean both old and new paths
+    - [x] Update `internal/lima/metadata.go` to write to new path `~/.isolarium/<name>/vm/metadata.json`
+    - [x] Add fallback read logic: try new path first, fall back to old `~/.isolarium/<name>/repo.json`
+    - [x] Update `CleanupHostMetadata()` to clean both old and new paths
 
 ---
 
@@ -302,3 +302,15 @@ Changed VM MetadataStore.dir() to include vm subdirectory, path is now ~/.isolar
 
 ### 2026-02-13 13:39 - mark-task-complete
 Implemented ResolveEnvironmentType with auto-detection, wired into CLI commands, and migrated VM metadata to vm subdirectory
+
+### 2026-02-13 13:42 - mark-step-complete
+Renamed repo.json to metadata.json in path() method
+
+### 2026-02-13 13:43 - mark-step-complete
+Added legacyPath() and fallback read logic in Read()
+
+### 2026-02-13 13:43 - mark-step-complete
+Cleanup() now also removes legacy repo.json
+
+### 2026-02-13 13:43 - mark-task-complete
+Migrated VM metadata to new path structure with fallback read and dual cleanup
