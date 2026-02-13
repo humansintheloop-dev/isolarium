@@ -11,6 +11,7 @@ type Backend interface {
 	Destroy(name string) error
 	Exec(name string, envVars map[string]string, args []string) (int, error)
 	ExecInteractive(name string, envVars map[string]string, args []string) (int, error)
+	OpenShell(name string, envVars map[string]string) (int, error)
 	GetState(name string) string
 	CopyCredentials(name string, credentials string) error
 }

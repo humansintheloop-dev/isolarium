@@ -35,5 +35,6 @@ func newDockerBackend() *DockerBackend {
 		ContextDirFunc:      docker.WriteDockerTempfile,
 		ExecFunc:            docker.ExecCommand,
 		ExecInteractiveFunc: docker.ExecInteractiveCommand,
+		OpenShellFunc:       docker.OpenShell,
 	}
 }

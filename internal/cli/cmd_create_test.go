@@ -153,6 +153,10 @@ type backendSpy struct {
 	execInteractiveName    string
 	execInteractiveEnvVars map[string]string
 	execInteractiveArgs    []string
+
+	openShellCalled  bool
+	openShellName    string
+	openShellEnvVars map[string]string
 }
 
 func (b *backendSpy) Create(name string, opts backend.CreateOptions) error {
@@ -181,6 +185,13 @@ func (b *backendSpy) ExecInteractive(name string, envVars map[string]string, arg
 	b.execInteractiveName = name
 	b.execInteractiveEnvVars = envVars
 	b.execInteractiveArgs = args
+	return 0, nil
+}
+
+func (b *backendSpy) OpenShell(name string, envVars map[string]string) (int, error) {
+	b.openShellCalled = true
+	b.openShellName = name
+	b.openShellEnvVars = envVars
 	return 0, nil
 }
 
