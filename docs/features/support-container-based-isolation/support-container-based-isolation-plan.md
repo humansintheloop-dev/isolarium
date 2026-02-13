@@ -286,17 +286,17 @@ When the work directory is a git worktree, `.git` is a file containing `gitdir: 
     - [x] Add conditional `RUN` block (as root) that: creates parent directories with `mkdir -p`, creates symlinks from host paths to `/home/isolarium/repo` and `/home/isolarium/main-repo`, walks up the directory hierarchy setting `chmod 555` on each directory
     - [x] Add `mkdir -p /home/isolarium/main-repo` alongside existing `mkdir -p /home/isolarium/repo` (after `USER isolarium`)
 
-- [ ] **Task 9.3: Command builders accept WorktreeConfig for build args and second volume mount**
+- [x] **Task 9.3: Command builders accept WorktreeConfig for build args and second volume mount**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: `BuildImageCommand` accepts an optional `*WorktreeConfig` and adds `--build-arg` flags when non-nil. `BuildRunCommand` accepts an optional `*WorktreeConfig` and adds a second `-v` mount for the main repo when non-nil. When nil, both produce identical output to today.
   - Evidence: Unit tests verify: (1) existing tests pass with nil config (unchanged output), (2) new tests verify `--build-arg` flags in build command, (3) new tests verify second `-v` mount in run command.
   - Steps:
-    - [ ] Add `WorktreeConfig` struct to `internal/docker/docker.go` with fields: `WorktreeHostPath`, `MainRepoHostPath`, `MainRepoDir`
-    - [ ] Change `BuildImageCommand(tag, contextDir string, wt *WorktreeConfig)` — when `wt != nil`, insert `--build-arg WORKTREE_HOST_PATH=...` and `--build-arg MAIN_REPO_HOST_PATH=...` before contextDir
-    - [ ] Change `BuildRunCommand(name, workDir, imageTag string, wt *WorktreeConfig)` — when `wt != nil`, add `-v mainRepoDir:/home/isolarium/main-repo` before imageTag
-    - [ ] Update existing tests in `docker_test.go` to pass nil as the new parameter
-    - [ ] Add `TestBuildImageCommandIncludesBuildArgsForWorktree` and `TestBuildRunCommandIncludesSecondVolumeForWorktree`
+    - [x] Add `WorktreeConfig` struct to `internal/docker/docker.go` with fields: `WorktreeHostPath`, `MainRepoHostPath`, `MainRepoDir`
+    - [x] Change `BuildImageCommand(tag, contextDir string, wt *WorktreeConfig)` — when `wt != nil`, insert `--build-arg WORKTREE_HOST_PATH=...` and `--build-arg MAIN_REPO_HOST_PATH=...` before contextDir
+    - [x] Change `BuildRunCommand(name, workDir, imageTag string, wt *WorktreeConfig)` — when `wt != nil`, add `-v mainRepoDir:/home/isolarium/main-repo` before imageTag
+    - [x] Update existing tests in `docker_test.go` to pass nil as the new parameter
+    - [x] Add `TestBuildImageCommandIncludesBuildArgsForWorktree` and `TestBuildRunCommandIncludesSecondVolumeForWorktree`
 
 - [ ] **Task 9.4: Thread WorktreeConfig through Creator and DockerBackend**
   - TaskType: OUTCOME
@@ -391,3 +391,6 @@ Implemented DetectWorktree with tests for normal repo, worktree, non-git directo
 
 ### 2026-02-13 17:39 - mark-task-complete
 Dockerfile now supports WORKTREE_HOST_PATH and MAIN_REPO_HOST_PATH build args that create symlink hierarchy with 555 permissions. Integration tests verify symlinks and no-op for empty args.
+
+### 2026-02-13 17:46 - mark-task-complete
+Added WorktreeConfig struct, updated BuildImageCommand and BuildRunCommand to accept *WorktreeConfig, added tests for build args and second volume mount, updated existing callers to pass nil
