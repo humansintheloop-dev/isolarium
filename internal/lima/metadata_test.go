@@ -1,9 +1,11 @@
 package lima
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestWriteAndReadMetadata_RoundTrip(t *testing.T) {
@@ -55,7 +57,7 @@ func TestWriteMetadata_CreatesVMSubdirectory(t *testing.T) {
 	}
 }
 
-func TestWriteMetadata_FilePermissions(t *testing.T) {
+func TestWriteMetadata_WritesToMetadataJsonFile(t *testing.T) {
 	baseDir := t.TempDir()
 	store := NewMetadataStore(baseDir, "testvm")
 
@@ -63,15 +65,39 @@ func TestWriteMetadata_FilePermissions(t *testing.T) {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	filePath := filepath.Join(baseDir, "testvm", "vm", "repo.json")
-	info, err := os.Stat(filePath)
+	metadataPath := filepath.Join(baseDir, "testvm", "vm", "metadata.json")
+	info, err := os.Stat(metadataPath)
 	if err != nil {
-		t.Fatalf("expected file to exist: %v", err)
+		t.Fatalf("expected metadata.json to exist: %v", err)
 	}
 
 	perm := info.Mode().Perm()
 	if perm != 0644 {
 		t.Errorf("expected permissions 0644, got %04o", perm)
+	}
+}
+
+func TestReadMetadata_FallsBackToOldPath(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
+
+	oldPath := filepath.Join(baseDir, "testvm", "repo.json")
+	if err := os.MkdirAll(filepath.Dir(oldPath), 0755); err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+	meta := RepoMetadata{Owner: "cer", Repo: "isolarium", Branch: "legacy", ClonedAt: time.Now().UTC()}
+	data, _ := json.Marshal(meta)
+	if err := os.WriteFile(oldPath, data, 0644); err != nil {
+		t.Fatalf("failed to write old metadata: %v", err)
+	}
+
+	result, err := store.Read()
+	if err != nil {
+		t.Fatalf("Read failed: %v", err)
+	}
+
+	if result.Branch != "legacy" {
+		t.Errorf("expected branch 'legacy', got %q", result.Branch)
 	}
 }
 
@@ -100,6 +126,27 @@ func TestCleanup_RemovesVMSubdirectory(t *testing.T) {
 	vmDir := filepath.Join(baseDir, "testvm", "vm")
 	if _, err := os.Stat(vmDir); !os.IsNotExist(err) {
 		t.Error("expected vm directory to be removed after cleanup")
+	}
+}
+
+func TestCleanup_RemovesLegacyRepoJson(t *testing.T) {
+	baseDir := t.TempDir()
+	store := NewMetadataStore(baseDir, "testvm")
+
+	legacyPath := filepath.Join(baseDir, "testvm", "repo.json")
+	if err := os.MkdirAll(filepath.Dir(legacyPath), 0755); err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+	if err := os.WriteFile(legacyPath, []byte(`{}`), 0644); err != nil {
+		t.Fatalf("failed to write legacy file: %v", err)
+	}
+
+	if err := store.Cleanup(); err != nil {
+		t.Fatalf("Cleanup failed: %v", err)
+	}
+
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Error("expected legacy repo.json to be removed after cleanup")
 	}
 }
 

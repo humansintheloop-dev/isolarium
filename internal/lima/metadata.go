@@ -17,7 +17,7 @@ type RepoMetadata struct {
 }
 
 // MetadataStore reads and writes repository metadata on the host filesystem.
-// Metadata is stored at <baseDir>/<vmName>/repo.json.
+// Metadata is stored at <baseDir>/<vmName>/vm/metadata.json.
 type MetadataStore struct {
 	baseDir string
 	vmName  string
@@ -32,7 +32,7 @@ func (s *MetadataStore) dir() string {
 }
 
 func (s *MetadataStore) path() string {
-	return filepath.Join(s.dir(), "repo.json")
+	return filepath.Join(s.dir(), "metadata.json")
 }
 
 func (s *MetadataStore) Write(owner, repo, branch string) error {
@@ -59,10 +59,17 @@ func (s *MetadataStore) Write(owner, repo, branch string) error {
 	return nil
 }
 
+func (s *MetadataStore) legacyPath() string {
+	return filepath.Join(s.baseDir, s.vmName, "repo.json")
+}
+
 func (s *MetadataStore) Read() (*RepoMetadata, error) {
 	data, err := os.ReadFile(s.path())
 	if err != nil {
-		return nil, fmt.Errorf("failed to read metadata: %w", err)
+		data, err = os.ReadFile(s.legacyPath())
+		if err != nil {
+			return nil, fmt.Errorf("failed to read metadata: %w", err)
+		}
 	}
 
 	var meta RepoMetadata
@@ -77,6 +84,7 @@ func (s *MetadataStore) Cleanup() error {
 	if err := os.RemoveAll(s.dir()); err != nil {
 		return fmt.Errorf("failed to cleanup metadata: %w", err)
 	}
+	os.Remove(s.legacyPath())
 	return nil
 }
 
