@@ -7,6 +7,7 @@ import (
 
 	"github.com/cer/isolarium/internal/command"
 	"github.com/cer/isolarium/internal/docker"
+	"github.com/cer/isolarium/internal/git"
 )
 
 // ResolveBackend returns the appropriate Backend implementation for the given
@@ -37,5 +38,6 @@ func newDockerBackend() *DockerBackend {
 		ExecInteractiveFunc: docker.ExecInteractiveCommand,
 		OpenShellFunc:       docker.OpenShell,
 		CopyCredentialsFunc: docker.CopyClaudeCredentials,
+		DetectWorktreeFunc:  git.DetectWorktree,
 	}
 }

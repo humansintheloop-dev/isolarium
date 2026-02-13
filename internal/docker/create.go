@@ -10,6 +10,7 @@ type Creator struct {
 	Runner      command.Runner
 	MetadataDir string
 	ImageTag    string
+	Worktree    *WorktreeConfig
 }
 
 func (c *Creator) Create(name, workDir, contextDir string) error {
@@ -39,13 +40,13 @@ func (c *Creator) checkDockerAvailable() error {
 }
 
 func (c *Creator) buildImage(contextDir string) error {
-	args := BuildImageCommand(c.ImageTag, contextDir, nil)
+	args := BuildImageCommand(c.ImageTag, contextDir, c.Worktree)
 	_, err := c.Runner.Run(args[0], args[1:]...)
 	return err
 }
 
 func (c *Creator) startContainer(name, workDir string) error {
-	args := BuildRunCommand(name, workDir, c.ImageTag, nil)
+	args := BuildRunCommand(name, workDir, c.ImageTag, c.Worktree)
 	_, err := c.Runner.Run(args[0], args[1:]...)
 	return err
 }
