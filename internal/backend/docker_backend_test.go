@@ -120,3 +120,19 @@ func TestDockerBackendDestroyDelegatesToDockerDestroyer(t *testing.T) {
 
 	runner.VerifyExecuted()
 }
+
+func TestDockerBackendGetStateDelegatesToDockerStateChecker(t *testing.T) {
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-env").Returns("running\n")
+
+	b := &DockerBackend{
+		Runner: runner,
+	}
+
+	state := b.GetState("my-env")
+	if state != "running" {
+		t.Errorf("expected %q, got %q", "running", state)
+	}
+
+	runner.VerifyExecuted()
+}

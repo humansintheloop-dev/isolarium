@@ -56,7 +56,8 @@ func (b *DockerBackend) ExecInteractive(name string, envVars map[string]string, 
 }
 
 func (b *DockerBackend) GetState(name string) string {
-	return "not implemented"
+	checker := &docker.StateChecker{Runner: b.Runner}
+	return checker.GetState(name)
 }
 
 func (b *DockerBackend) CopyCredentials(name string, credentials string) error {
