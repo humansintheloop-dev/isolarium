@@ -36,6 +36,72 @@ func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 	runner.VerifyExecuted()
 }
 
+func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
+	var capturedName string
+	var capturedEnvVars map[string]string
+	var capturedArgs []string
+
+	b := &DockerBackend{
+		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+			capturedName = name
+			capturedEnvVars = envVars
+			capturedArgs = args
+			return 42, nil
+		},
+	}
+
+	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
+	exitCode, err := b.Exec("my-container", envVars, []string{"echo", "hello"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 42 {
+		t.Errorf("expected exit code 42, got %d", exitCode)
+	}
+	if capturedName != "my-container" {
+		t.Errorf("expected name %q, got %q", "my-container", capturedName)
+	}
+	if capturedEnvVars["GH_TOKEN"] != "ghs_abc123" {
+		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capturedEnvVars)
+	}
+	if len(capturedArgs) != 2 || capturedArgs[0] != "echo" || capturedArgs[1] != "hello" {
+		t.Errorf("expected args [echo hello], got %v", capturedArgs)
+	}
+}
+
+func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *testing.T) {
+	var capturedName string
+	var capturedEnvVars map[string]string
+	var capturedArgs []string
+
+	b := &DockerBackend{
+		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+			capturedName = name
+			capturedEnvVars = envVars
+			capturedArgs = args
+			return 0, nil
+		},
+	}
+
+	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
+	exitCode, err := b.ExecInteractive("my-container", envVars, []string{"bash"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if capturedName != "my-container" {
+		t.Errorf("expected name %q, got %q", "my-container", capturedName)
+	}
+	if capturedEnvVars["GH_TOKEN"] != "ghs_abc123" {
+		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capturedEnvVars)
+	}
+	if len(capturedArgs) != 1 || capturedArgs[0] != "bash" {
+		t.Errorf("expected args [bash], got %v", capturedArgs)
+	}
+}
+
 func TestDockerBackendDestroyDelegatesToDockerDestroyer(t *testing.T) {
 	metadataDir := t.TempDir()
 
