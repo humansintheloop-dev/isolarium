@@ -263,6 +263,65 @@ This thread expands the metadata system to support (name, type) identity pairs a
 
 ---
 
+## Steel Thread 9: Git Worktree Support for Container Mode
+
+When the work directory is a git worktree, `.git` is a file containing `gitdir: /absolute/host/path`. These absolute paths don't exist inside the container, so git operations fail. This thread adds worktree detection, symlink-based path mapping inside the container, and a second bind mount for the main repo.
+
+- [ ] **Task 9.1: Detect git worktrees and resolve main repo path**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/git/...`
+  - Observable: `DetectWorktree(path)` returns nil for normal repos and non-git directories. For worktrees, it returns a `WorktreeInfo` with the main repo directory and worktree directory paths. It returns an error for malformed `.git` files.
+  - Evidence: Unit tests verify: (1) normal repo returns nil, (2) real worktree returns correct `MainRepoDir` and `WorktreeDir`, (3) non-git directory returns nil, (4) malformed `.git` file returns error.
+  - Steps:
+    - [ ] Create `internal/git/worktree.go` with `WorktreeInfo` struct (`MainRepoDir`, `WorktreeDir` fields) and `DetectWorktree(workDir string) (*WorktreeInfo, error)` — checks if `.git` is a file, parses the `gitdir:` line, resolves relative paths with `filepath.Abs`, derives main repo dir by walking up from the gitdir path (parent of `.git` which is parent of `worktrees/<name>`)
+    - [ ] Create `internal/git/worktree_test.go` with tests using real git repos in temp directories: `TestDetectWorktreeReturnsNilForNormalRepo`, `TestDetectWorktreeReturnsInfoForWorktree` (uses `git worktree add`), `TestDetectWorktreeReturnsNilForNonGitDirectory`, `TestDetectWorktreeReturnsErrorForMalformedGitFile`
+
+- [ ] **Task 9.2: Dockerfile creates host-path symlink hierarchy via build args**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/docker/...`
+  - Observable: When `WORKTREE_HOST_PATH` and `MAIN_REPO_HOST_PATH` build args are set, the Dockerfile creates a directory hierarchy mirroring the host paths with symlinks to container mount points. The hierarchy is root-owned with 555 permissions. When build args are empty (non-worktree), no changes to the image.
+  - Evidence: Integration test builds an image with build args set, execs into the container, and verifies: (1) the symlinks exist and point to the correct targets, (2) parent directories are mode 555, (3) `git status` succeeds from within the worktree.
+  - Steps:
+    - [ ] Add `ARG WORKTREE_HOST_PATH=""` and `ARG MAIN_REPO_HOST_PATH=""` to Dockerfile before the `USER isolarium` line
+    - [ ] Add conditional `RUN` block (as root) that: creates parent directories with `mkdir -p`, creates symlinks from host paths to `/home/isolarium/repo` and `/home/isolarium/main-repo`, walks up the directory hierarchy setting `chmod 555` on each directory
+    - [ ] Add `mkdir -p /home/isolarium/main-repo` alongside existing `mkdir -p /home/isolarium/repo` (after `USER isolarium`)
+
+- [ ] **Task 9.3: Command builders accept WorktreeConfig for build args and second volume mount**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/docker/...`
+  - Observable: `BuildImageCommand` accepts an optional `*WorktreeConfig` and adds `--build-arg` flags when non-nil. `BuildRunCommand` accepts an optional `*WorktreeConfig` and adds a second `-v` mount for the main repo when non-nil. When nil, both produce identical output to today.
+  - Evidence: Unit tests verify: (1) existing tests pass with nil config (unchanged output), (2) new tests verify `--build-arg` flags in build command, (3) new tests verify second `-v` mount in run command.
+  - Steps:
+    - [ ] Add `WorktreeConfig` struct to `internal/docker/docker.go` with fields: `WorktreeHostPath`, `MainRepoHostPath`, `MainRepoDir`
+    - [ ] Change `BuildImageCommand(tag, contextDir string, wt *WorktreeConfig)` — when `wt != nil`, insert `--build-arg WORKTREE_HOST_PATH=...` and `--build-arg MAIN_REPO_HOST_PATH=...` before contextDir
+    - [ ] Change `BuildRunCommand(name, workDir, imageTag string, wt *WorktreeConfig)` — when `wt != nil`, add `-v mainRepoDir:/home/isolarium/main-repo` before imageTag
+    - [ ] Update existing tests in `docker_test.go` to pass nil as the new parameter
+    - [ ] Add `TestBuildImageCommandIncludesBuildArgsForWorktree` and `TestBuildRunCommandIncludesSecondVolumeForWorktree`
+
+- [ ] **Task 9.4: Thread WorktreeConfig through Creator and DockerBackend**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/docker/... ./internal/backend/...`
+  - Observable: `Creator` has a `Worktree *WorktreeConfig` field that is passed to `BuildImageCommand` and `BuildRunCommand`. `DockerBackend` has a `DetectWorktreeFunc` field; when it returns a `WorktreeInfo`, the backend populates `Creator.Worktree`. Non-worktree behavior unchanged.
+  - Evidence: Unit tests verify: (1) existing create tests pass with nil Worktree, (2) new create test with Worktree set verifies build args and second volume in FakeRunner commands, (3) DockerBackend test with mock DetectWorktreeFunc verifies config propagation.
+  - Steps:
+    - [ ] Add `Worktree *WorktreeConfig` field to `Creator` struct in `create.go`; pass `c.Worktree` to `BuildImageCommand` and `BuildRunCommand` in `buildImage()` and `startContainer()`
+    - [ ] Update existing tests in `create_test.go` (nil Worktree, unchanged commands)
+    - [ ] Add `TestCreateWithWorktreePassesBuildArgsAndSecondVolume` in `create_test.go`
+    - [ ] Add `DetectWorktreeFunc func(string) (*git.WorktreeInfo, error)` field to `DockerBackend` in `docker_backend.go`; in `Create()`, call it and convert result to `WorktreeConfig` on Creator
+    - [ ] Update existing tests in `docker_backend_test.go` (nil DetectWorktreeFunc, unchanged behavior)
+    - [ ] Add `TestDockerBackendCreateDetectsWorktreeAndPassesConfig` and `TestDockerBackendCreateHandlesWorktreeDetectionError` in `docker_backend_test.go`
+    - [ ] Wire `DetectWorktreeFunc: git.DetectWorktree` in `newDockerBackend()` in `resolve.go`
+
+- [ ] **Task 9.5: Integration test for worktree git operations inside container**
+  - TaskType: INFRA
+  - Entrypoint: `go test -tags=integration ./internal/docker/...`
+  - Observable: An integration test creates a real git repo and worktree in temp directories, builds a container with worktree build args and both volume mounts, then verifies `git status` succeeds inside the container.
+  - Evidence: `go test -tags=integration ./internal/docker/...` passes with the new worktree test.
+  - Steps:
+    - [ ] Add `TestWorktreeGitOperationsWork_Integration` to `internal/docker/integration_test.go` that: creates a temp git repo with a commit, creates a worktree via `git worktree add`, builds the Docker image with `WORKTREE_HOST_PATH` and `MAIN_REPO_HOST_PATH` build args, starts a container with both volume mounts, execs `git status` inside the container and asserts success, execs `ls -la <worktree-host-path>` to verify symlink exists, cleans up container
+
+---
+
 ## Change History
 ### 2026-02-13 12:38 - mark-task-complete
 Implemented BuildDestroyCommand, Destroyer, and DockerBackend.Destroy delegation with full test coverage
