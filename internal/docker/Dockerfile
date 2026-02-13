@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     unzip \
     zip \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js LTS (stable - changes with LTS releases)
@@ -29,8 +30,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get update && apt-get install -y gh \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root user (stable)
-RUN useradd -m -s /bin/bash -u 1000 isolarium
+# Non-root user (stable) - remove ubuntu user that claims UID 1000 in Ubuntu 24.04
+RUN userdel -r ubuntu 2>/dev/null || true \
+    && useradd -m -s /bin/bash -u 1000 isolarium \
+    && echo "isolarium ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/isolarium
 
 # Switch to non-root user for remaining installs
 USER isolarium
