@@ -267,14 +267,14 @@ This thread expands the metadata system to support (name, type) identity pairs a
 
 When the work directory is a git worktree, `.git` is a file containing `gitdir: /absolute/host/path`. These absolute paths don't exist inside the container, so git operations fail. This thread adds worktree detection, symlink-based path mapping inside the container, and a second bind mount for the main repo.
 
-- [ ] **Task 9.1: Detect git worktrees and resolve main repo path**
+- [x] **Task 9.1: Detect git worktrees and resolve main repo path**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/git/...`
   - Observable: `DetectWorktree(path)` returns nil for normal repos and non-git directories. For worktrees, it returns a `WorktreeInfo` with the main repo directory and worktree directory paths. It returns an error for malformed `.git` files.
   - Evidence: Unit tests verify: (1) normal repo returns nil, (2) real worktree returns correct `MainRepoDir` and `WorktreeDir`, (3) non-git directory returns nil, (4) malformed `.git` file returns error.
   - Steps:
-    - [ ] Create `internal/git/worktree.go` with `WorktreeInfo` struct (`MainRepoDir`, `WorktreeDir` fields) and `DetectWorktree(workDir string) (*WorktreeInfo, error)` — checks if `.git` is a file, parses the `gitdir:` line, resolves relative paths with `filepath.Abs`, derives main repo dir by walking up from the gitdir path (parent of `.git` which is parent of `worktrees/<name>`)
-    - [ ] Create `internal/git/worktree_test.go` with tests using real git repos in temp directories: `TestDetectWorktreeReturnsNilForNormalRepo`, `TestDetectWorktreeReturnsInfoForWorktree` (uses `git worktree add`), `TestDetectWorktreeReturnsNilForNonGitDirectory`, `TestDetectWorktreeReturnsErrorForMalformedGitFile`
+    - [x] Create `internal/git/worktree.go` with `WorktreeInfo` struct (`MainRepoDir`, `WorktreeDir` fields) and `DetectWorktree(workDir string) (*WorktreeInfo, error)` — checks if `.git` is a file, parses the `gitdir:` line, resolves relative paths with `filepath.Abs`, derives main repo dir by walking up from the gitdir path (parent of `.git` which is parent of `worktrees/<name>`)
+    - [x] Create `internal/git/worktree_test.go` with tests using real git repos in temp directories: `TestDetectWorktreeReturnsNilForNormalRepo`, `TestDetectWorktreeReturnsInfoForWorktree` (uses `git worktree add`), `TestDetectWorktreeReturnsNilForNonGitDirectory`, `TestDetectWorktreeReturnsErrorForMalformedGitFile`
 
 - [ ] **Task 9.2: Dockerfile creates host-path symlink hierarchy via build args**
   - TaskType: OUTCOME
@@ -385,3 +385,6 @@ Added ensureContainerRunning check to DockerBackend.Exec and ExecInteractive. Te
 
 ### 2026-02-13 14:04 - mark-task-complete
 Created integration tests for container lifecycle and security flags. Fixed Dockerfile UID 1000 conflict and missing sudo. Added Makefile target and updated end-to-end script.
+
+### 2026-02-13 17:30 - mark-task-complete
+Implemented DetectWorktree with tests for normal repo, worktree, non-git directory, and malformed .git file
