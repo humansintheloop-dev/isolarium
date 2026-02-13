@@ -63,17 +63,17 @@ This plan implements container-based isolation for isolarium, a Go CLI tool that
 
 This thread proves the fundamental architecture: a Backend interface abstraction, Docker container creation with an embedded Dockerfile, and container destruction. It establishes the pattern all subsequent threads build on.
 
-- [ ] **Task 1.1: Define Backend interface and resolve backend from environment type**
+- [x] **Task 1.1: Define Backend interface and resolve backend from environment type**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/backend/...`
   - Observable: A `Backend` interface exists with `Create()`, `Destroy()`, `Exec()`, `ExecInteractive()`, `GetState()`, `CopyCredentials()` methods. A `ResolveBackend()` function returns the correct backend based on environment type string ("vm" or "container").
   - Evidence: Unit tests in `internal/backend/` verify `ResolveBackend("vm")` returns a Lima backend and `ResolveBackend("container")` returns a Docker backend, and that `ResolveBackend("unknown")` returns an error.
   - Steps:
-    - [ ] Create `internal/backend/backend.go` with the `Backend` interface defining: `Create(name string, opts CreateOptions) error`, `Destroy(name string) error`, `Exec(name string, envVars map[string]string, args []string) (int, error)`, `ExecInteractive(name string, envVars map[string]string, args []string) (int, error)`, `GetState(name string) string`, `CopyCredentials(name string, credentials string) error`. `CreateOptions` includes `WorkDirectory string`.
-    - [ ] Create `internal/backend/resolve.go` with `ResolveBackend(envType string) (Backend, error)` that returns a `LimaBackend` for "vm" and a `DockerBackend` for "container"
-    - [ ] Create stub `internal/backend/lima_backend.go` that wraps existing `internal/lima/` functions to implement the `Backend` interface (methods can delegate to existing lima package functions)
-    - [ ] Create stub `internal/backend/docker_backend.go` with `DockerBackend` struct implementing `Backend` — all methods return `ErrNotImplemented` for now
-    - [ ] Write unit tests in `internal/backend/resolve_test.go` verifying correct backend resolution and error for unknown type
+    - [x] Create `internal/backend/backend.go` with the `Backend` interface defining: `Create(name string, opts CreateOptions) error`, `Destroy(name string) error`, `Exec(name string, envVars map[string]string, args []string) (int, error)`, `ExecInteractive(name string, envVars map[string]string, args []string) (int, error)`, `GetState(name string) string`, `CopyCredentials(name string, credentials string) error`. `CreateOptions` includes `WorkDirectory string`.
+    - [x] Create `internal/backend/resolve.go` with `ResolveBackend(envType string) (Backend, error)` that returns a `LimaBackend` for "vm" and a `DockerBackend` for "container"
+    - [x] Create stub `internal/backend/lima_backend.go` that wraps existing `internal/lima/` functions to implement the `Backend` interface (methods can delegate to existing lima package functions)
+    - [x] Create stub `internal/backend/docker_backend.go` with `DockerBackend` struct implementing `Backend` — all methods return `ErrNotImplemented` for now
+    - [x] Write unit tests in `internal/backend/resolve_test.go` verifying correct backend resolution and error for unknown type
 
 - [ ] **Task 1.2: `isolarium create --type container` builds image and starts persistent container**
   - TaskType: OUTCOME
