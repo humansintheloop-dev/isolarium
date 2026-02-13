@@ -87,15 +87,15 @@ This thread proves the fundamental architecture: a Backend interface abstraction
     - [x] Create `internal/docker/create.go` with `Create(name string, workDir string)` orchestrating: check Docker available → build image if needed → run container → write metadata
     - [x] Update `internal/backend/docker_backend.go` to delegate `Create()` to the new docker package
 
-- [ ] **Task 1.3: `isolarium destroy --type container` removes container and metadata**
+- [x] **Task 1.3: `isolarium destroy --type container` removes container and metadata**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: `Destroy()` runs `docker rm -f <name>`, removes metadata from `~/.isolarium/<name>/container/`, and does NOT remove the Docker image.
   - Evidence: Unit tests verify: (1) `BuildDestroyCommand()` produces correct `docker rm -f` args, (2) metadata cleanup removes the container metadata directory, (3) destroy succeeds even if container doesn't exist (idempotent).
   - Steps:
-    - [ ] Create `internal/docker/destroy.go` with `Destroy(name string)` and `BuildDestroyCommand(name string) []string`
-    - [ ] Add metadata `Cleanup()` method to docker metadata store
-    - [ ] Update `internal/backend/docker_backend.go` to delegate `Destroy()`
+    - [x] Create `internal/docker/destroy.go` with `Destroy(name string)` and `BuildDestroyCommand(name string) []string`
+    - [x] Add metadata `Cleanup()` method to docker metadata store
+    - [x] Update `internal/backend/docker_backend.go` to delegate `Destroy()`
 
 - [ ] **Task 1.4: Wire `--type` flag into CLI `create` and `destroy` commands**
   - TaskType: OUTCOME
@@ -260,3 +260,9 @@ This thread expands the metadata system to support (name, type) identity pairs a
     - [ ] Write test: verify security flags are applied (non-root user, capabilities dropped)
     - [ ] Update `Makefile` to add `test-integration-docker` target: `go test -tags=integration ./internal/docker/...`
     - [ ] Update `test-scripts/test-end-to-end.sh` to run Docker integration tests when Docker is available (parallel to Lima integration test pattern)
+
+---
+
+## Change History
+### 2026-02-13 12:38 - mark-task-complete
+Implemented BuildDestroyCommand, Destroyer, and DockerBackend.Destroy delegation with full test coverage

@@ -35,3 +35,22 @@ func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 
 	runner.VerifyExecuted()
 }
+
+func TestDockerBackendDestroyDelegatesToDockerDestroyer(t *testing.T) {
+	metadataDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "rm", "-f", "my-env").Returns("")
+
+	b := &DockerBackend{
+		Runner:      runner,
+		MetadataDir: metadataDir,
+	}
+
+	err := b.Destroy("my-env")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	runner.VerifyExecuted()
+}
