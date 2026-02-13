@@ -36,17 +36,22 @@ RUN userdel -r ubuntu 2>/dev/null || true \
     && echo "isolarium ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/isolarium
 
 # Git worktree support: create symlinks from host paths to container mount points
+# Only chmod directories we create (not pre-existing system dirs like /tmp)
 ARG WORKTREE_HOST_PATH=""
 ARG MAIN_REPO_HOST_PATH=""
 RUN if [ -n "$WORKTREE_HOST_PATH" ] && [ -n "$MAIN_REPO_HOST_PATH" ]; then \
-        mkdir -p "$(dirname "$WORKTREE_HOST_PATH")" \
+        chmod_new_parents() { \
+            dir="$(dirname "$1")"; \
+            while [ "$dir" != "/" ] && [ ! -d "$dir" ]; do dir="$(dirname "$dir")"; done; \
+            top="$dir"; \
+            mkdir -p "$(dirname "$1")"; \
+            dir="$(dirname "$1")"; \
+            while [ "$dir" != "/" ] && [ "$dir" != "$top" ]; do chmod 555 "$dir"; dir="$(dirname "$dir")"; done; \
+        }; \
+        chmod_new_parents "$WORKTREE_HOST_PATH" \
         && ln -s /home/isolarium/repo "$WORKTREE_HOST_PATH" \
-        && mkdir -p "$(dirname "$MAIN_REPO_HOST_PATH")" \
-        && ln -s /home/isolarium/main-repo "$MAIN_REPO_HOST_PATH" \
-        && dir="$(dirname "$WORKTREE_HOST_PATH")" \
-        && while [ "$dir" != "/" ]; do chmod 555 "$dir"; dir="$(dirname "$dir")"; done \
-        && dir="$(dirname "$MAIN_REPO_HOST_PATH")" \
-        && while [ "$dir" != "/" ]; do chmod 555 "$dir"; dir="$(dirname "$dir")"; done; \
+        && chmod_new_parents "$MAIN_REPO_HOST_PATH" \
+        && ln -s /home/isolarium/main-repo "$MAIN_REPO_HOST_PATH"; \
     fi
 
 # Switch to non-root user for remaining installs
