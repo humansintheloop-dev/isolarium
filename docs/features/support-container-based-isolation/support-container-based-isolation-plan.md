@@ -227,14 +227,14 @@ This thread expands the metadata system to support (name, type) identity pairs a
 
 ## Steel Thread 7: Docker Availability Check and Error Handling
 
-- [ ] **Task 7.1: `create --type container` fails with clear message when Docker is unavailable**
+- [x] **Task 7.1: `create --type container` fails with clear message when Docker is unavailable**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: When `docker info` fails (Docker not installed or not running), `create --type container` exits with error: "Docker is not installed or not running. Install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode."
   - Evidence: Unit tests verify: (1) `BuildCheckDockerCommand()` produces `["docker", "info"]`, (2) `CheckDockerAvailable()` returns the correct error message when the command fails.
   - Steps:
-    - [ ] Implement `CheckDockerAvailable()` in `internal/docker/docker.go` that runs `docker info` and returns a descriptive error if it fails
-    - [ ] Ensure `Create()` calls `CheckDockerAvailable()` before proceeding with image build
+    - [x] Implement `CheckDockerAvailable()` in `internal/docker/docker.go` that runs `docker info` and returns a descriptive error if it fails
+    - [x] Ensure `Create()` calls `CheckDockerAvailable()` before proceeding with image build
 
 - [ ] **Task 7.2: Container commands detect stopped containers and provide guidance**
   - TaskType: OUTCOME
@@ -317,3 +317,6 @@ Migrated VM metadata to new path structure with fallback read and dual cleanup
 
 ### 2026-02-13 13:52 - mark-task-complete
 Implemented EnvironmentStatus struct, ListAllEnvironments with filtering, updated CLI status command with tabular output
+
+### 2026-02-13 13:55 - mark-task-complete
+Implementation already existed. Added error message content assertion to TestCreateFailsWhenDockerNotAvailable to fully satisfy evidence requirement.
