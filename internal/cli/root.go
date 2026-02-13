@@ -41,6 +41,7 @@ func newRootCmdWithResolver(resolver BackendResolver) *cobra.Command {
 	rootCmd.AddCommand(newDestroyCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newRunCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
+	rootCmd.AddCommand(newShellCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newSshCmd())
 	rootCmd.AddCommand(newCloneRepoCmd())
 	rootCmd.AddCommand(newInstallToolsCmd())

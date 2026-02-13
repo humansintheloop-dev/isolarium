@@ -14,6 +14,9 @@ var ErrNotImplemented = errors.New("docker backend not implemented")
 // ExecFunc is the function signature for executing commands in a container.
 type ExecFunc func(name string, envVars map[string]string, args []string) (int, error)
 
+// ShellFunc is the function signature for opening an interactive shell in a container.
+type ShellFunc func(name string, envVars map[string]string) (int, error)
+
 // DockerBackend implements the Backend interface using Docker containers.
 type DockerBackend struct {
 	Runner              command.Runner
@@ -22,6 +25,7 @@ type DockerBackend struct {
 	ContextDirFunc      func() (string, error)
 	ExecFunc            ExecFunc
 	ExecInteractiveFunc ExecFunc
+	OpenShellFunc       ShellFunc
 }
 
 func (b *DockerBackend) Create(name string, opts CreateOptions) error {
@@ -53,6 +57,10 @@ func (b *DockerBackend) Exec(name string, envVars map[string]string, args []stri
 
 func (b *DockerBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
 	return b.ExecInteractiveFunc(name, envVars, args)
+}
+
+func (b *DockerBackend) OpenShell(name string, envVars map[string]string) (int, error) {
+	return b.OpenShellFunc(name, envVars)
 }
 
 func (b *DockerBackend) GetState(name string) string {
