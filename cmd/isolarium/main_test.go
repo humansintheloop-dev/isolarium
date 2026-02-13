@@ -10,15 +10,13 @@ import (
 	"time"
 )
 
-func TestStatusCommand_OutputsValidVMState(t *testing.T) {
-	// Build the binary first
+func TestStatusCommand_ShowsNoEnvironmentsWhenNoneExist(t *testing.T) {
 	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
 	buildCmd.Dir = "."
 	if err := buildCmd.Run(); err != nil {
 		t.Fatalf("failed to build binary: %v", err)
 	}
 
-	// Run the status command
 	cmd := exec.Command("./isolarium", "status")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -26,22 +24,28 @@ func TestStatusCommand_OutputsValidVMState(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "VM: none") &&
-		!strings.Contains(outputStr, "VM: running") &&
-		!strings.Contains(outputStr, "VM: stopped") {
-		t.Errorf("expected output to contain valid VM state, got: %s", outputStr)
+	if !strings.Contains(outputStr, "No environments found") &&
+		!strings.Contains(outputStr, "NAME") {
+		t.Errorf("expected output to contain 'No environments found' or table header, got: %s", outputStr)
 	}
 }
 
-func TestStatusCommand_OutputsGitHubAppNotConfigured(t *testing.T) {
-	// Build the binary first
+func TestStatusCommand_ShowsTableHeaderWhenEnvironmentsExist(t *testing.T) {
+	baseDir := filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env", "vm")
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		t.Fatalf("failed to create test metadata dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(baseDir, "metadata.json"), []byte(`{"owner":"","repo":"","branch":""}`), 0644); err != nil {
+		t.Fatalf("failed to write test metadata: %v", err)
+	}
+	defer os.RemoveAll(filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env"))
+
 	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
 	buildCmd.Dir = "."
 	if err := buildCmd.Run(); err != nil {
 		t.Fatalf("failed to build binary: %v", err)
 	}
 
-	// Run the status command
 	cmd := exec.Command("./isolarium", "status")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -49,8 +53,11 @@ func TestStatusCommand_OutputsGitHubAppNotConfigured(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "GitHub App: not configured") {
-		t.Errorf("expected output to contain 'GitHub App: not configured', got: %s", outputStr)
+	if !strings.Contains(outputStr, "NAME") || !strings.Contains(outputStr, "TYPE") || !strings.Contains(outputStr, "STATE") {
+		t.Errorf("expected output to contain table headers (NAME, TYPE, STATE), got: %s", outputStr)
+	}
+	if !strings.Contains(outputStr, "test-status-env") {
+		t.Errorf("expected output to contain 'test-status-env', got: %s", outputStr)
 	}
 }
 

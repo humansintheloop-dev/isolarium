@@ -47,15 +47,33 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
 	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm" or "container" (default "vm")`)
 
+	lister := newDefaultEnvironmentLister(resolver)
 	rootCmd.AddCommand(newCreateCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
 	rootCmd.AddCommand(newDestroyCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
-	rootCmd.AddCommand(newStatusCmd())
+	rootCmd.AddCommand(newStatusCmdWithLister(rootCmd, &nameFlag, &typeFlag, lister))
 	rootCmd.AddCommand(newRunCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
 	rootCmd.AddCommand(newShellCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
 	rootCmd.AddCommand(newSshCmd())
 	rootCmd.AddCommand(newCloneRepoCmd())
 	rootCmd.AddCommand(newInstallToolsCmd())
 	rootCmd.AddCommand(newInstallWorkflowToolsFromSourceCmd())
+
+	return rootCmd
+}
+
+func newRootCmdWithStatusLister(lister EnvironmentLister) *cobra.Command {
+	var nameFlag string
+	var typeFlag environmentType = "vm"
+
+	rootCmd := &cobra.Command{
+		Use:   "isolarium",
+		Short: "Secure execution environment for coding agents",
+	}
+
+	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
+	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm" or "container" (default "vm")`)
+
+	rootCmd.AddCommand(newStatusCmdWithLister(rootCmd, &nameFlag, &typeFlag, lister))
 
 	return rootCmd
 }
