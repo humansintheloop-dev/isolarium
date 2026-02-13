@@ -276,15 +276,15 @@ When the work directory is a git worktree, `.git` is a file containing `gitdir: 
     - [x] Create `internal/git/worktree.go` with `WorktreeInfo` struct (`MainRepoDir`, `WorktreeDir` fields) and `DetectWorktree(workDir string) (*WorktreeInfo, error)` — checks if `.git` is a file, parses the `gitdir:` line, resolves relative paths with `filepath.Abs`, derives main repo dir by walking up from the gitdir path (parent of `.git` which is parent of `worktrees/<name>`)
     - [x] Create `internal/git/worktree_test.go` with tests using real git repos in temp directories: `TestDetectWorktreeReturnsNilForNormalRepo`, `TestDetectWorktreeReturnsInfoForWorktree` (uses `git worktree add`), `TestDetectWorktreeReturnsNilForNonGitDirectory`, `TestDetectWorktreeReturnsErrorForMalformedGitFile`
 
-- [ ] **Task 9.2: Dockerfile creates host-path symlink hierarchy via build args**
+- [x] **Task 9.2: Dockerfile creates host-path symlink hierarchy via build args**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: When `WORKTREE_HOST_PATH` and `MAIN_REPO_HOST_PATH` build args are set, the Dockerfile creates a directory hierarchy mirroring the host paths with symlinks to container mount points. The hierarchy is root-owned with 555 permissions. When build args are empty (non-worktree), no changes to the image.
   - Evidence: Integration test builds an image with build args set, execs into the container, and verifies: (1) the symlinks exist and point to the correct targets, (2) parent directories are mode 555, (3) `git status` succeeds from within the worktree.
   - Steps:
-    - [ ] Add `ARG WORKTREE_HOST_PATH=""` and `ARG MAIN_REPO_HOST_PATH=""` to Dockerfile before the `USER isolarium` line
-    - [ ] Add conditional `RUN` block (as root) that: creates parent directories with `mkdir -p`, creates symlinks from host paths to `/home/isolarium/repo` and `/home/isolarium/main-repo`, walks up the directory hierarchy setting `chmod 555` on each directory
-    - [ ] Add `mkdir -p /home/isolarium/main-repo` alongside existing `mkdir -p /home/isolarium/repo` (after `USER isolarium`)
+    - [x] Add `ARG WORKTREE_HOST_PATH=""` and `ARG MAIN_REPO_HOST_PATH=""` to Dockerfile before the `USER isolarium` line
+    - [x] Add conditional `RUN` block (as root) that: creates parent directories with `mkdir -p`, creates symlinks from host paths to `/home/isolarium/repo` and `/home/isolarium/main-repo`, walks up the directory hierarchy setting `chmod 555` on each directory
+    - [x] Add `mkdir -p /home/isolarium/main-repo` alongside existing `mkdir -p /home/isolarium/repo` (after `USER isolarium`)
 
 - [ ] **Task 9.3: Command builders accept WorktreeConfig for build args and second volume mount**
   - TaskType: OUTCOME
@@ -388,3 +388,6 @@ Created integration tests for container lifecycle and security flags. Fixed Dock
 
 ### 2026-02-13 17:30 - mark-task-complete
 Implemented DetectWorktree with tests for normal repo, worktree, non-git directory, and malformed .git file
+
+### 2026-02-13 17:39 - mark-task-complete
+Dockerfile now supports WORKTREE_HOST_PATH and MAIN_REPO_HOST_PATH build args that create symlink hierarchy with 555 permissions. Integration tests verify symlinks and no-op for empty args.
