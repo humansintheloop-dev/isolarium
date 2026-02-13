@@ -1,0 +1,56 @@
+package docker
+
+import (
+	"fmt"
+
+	"github.com/cer/isolarium/internal/command"
+)
+
+type Creator struct {
+	Runner      command.Runner
+	MetadataDir string
+	ImageTag    string
+}
+
+func (c *Creator) Create(name, workDir, contextDir string) error {
+	if err := c.checkDockerAvailable(); err != nil {
+		return fmt.Errorf("Docker is not installed or not running. Install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode: %w", err)
+	}
+
+	if err := c.buildImage(contextDir); err != nil {
+		return fmt.Errorf("failed to build Docker image: %w", err)
+	}
+
+	if err := c.startContainer(name, workDir); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	if err := c.writeMetadata(name, workDir); err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Creator) checkDockerAvailable() error {
+	args := BuildCheckDockerCommand()
+	_, err := c.Runner.Run(args[0], args[1:]...)
+	return err
+}
+
+func (c *Creator) buildImage(contextDir string) error {
+	args := BuildImageCommand(c.ImageTag, contextDir)
+	_, err := c.Runner.Run(args[0], args[1:]...)
+	return err
+}
+
+func (c *Creator) startContainer(name, workDir string) error {
+	args := BuildRunCommand(name, workDir, c.ImageTag)
+	_, err := c.Runner.Run(args[0], args[1:]...)
+	return err
+}
+
+func (c *Creator) writeMetadata(name, workDir string) error {
+	store := NewMetadataStore(c.MetadataDir, name)
+	return store.Write("container", workDir)
+}
