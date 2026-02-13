@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/cer/isolarium/internal/command"
@@ -52,11 +53,25 @@ func (b *DockerBackend) Destroy(name string) error {
 }
 
 func (b *DockerBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {
+	if err := b.ensureContainerRunning(name); err != nil {
+		return 1, err
+	}
 	return b.ExecFunc(name, envVars, args)
 }
 
 func (b *DockerBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
+	if err := b.ensureContainerRunning(name); err != nil {
+		return 1, err
+	}
 	return b.ExecInteractiveFunc(name, envVars, args)
+}
+
+func (b *DockerBackend) ensureContainerRunning(name string) error {
+	state := b.GetState(name)
+	if state == "stopped" {
+		return fmt.Errorf("Container '%s' is stopped. Run 'isolarium create --type container' to recreate it.", name)
+	}
+	return nil
 }
 
 func (b *DockerBackend) OpenShell(name string, envVars map[string]string) (int, error) {

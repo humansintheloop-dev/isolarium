@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cer/isolarium/internal/command"
@@ -41,7 +42,11 @@ func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
 	var capturedEnvVars map[string]string
 	var capturedArgs []string
 
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("running\n")
+
 	b := &DockerBackend{
+		Runner: runner,
 		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
 			capturedName = name
 			capturedEnvVars = envVars
@@ -74,7 +79,11 @@ func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *
 	var capturedEnvVars map[string]string
 	var capturedArgs []string
 
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("running\n")
+
 	b := &DockerBackend{
+		Runner: runner,
 		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string) (int, error) {
 			capturedName = name
 			capturedEnvVars = envVars
@@ -142,6 +151,52 @@ func TestDockerBackendCopyCredentialsDelegatesToCopyCredentialsFunc(t *testing.T
 	}
 	if capturedCredentials != `{"token":"abc123"}` {
 		t.Errorf("expected credentials %q, got %q", `{"token":"abc123"}`, capturedCredentials)
+	}
+}
+
+func TestDockerBackendExecReturnsErrorWhenContainerStopped(t *testing.T) {
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("exited\n")
+
+	b := &DockerBackend{
+		Runner: runner,
+		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+			t.Fatal("ExecFunc should not be called when container is stopped")
+			return 0, nil
+		},
+	}
+
+	_, err := b.Exec("my-container", nil, []string{"echo", "hello"})
+	if err == nil {
+		t.Fatal("expected error when container is stopped")
+	}
+
+	expectedMessage := "Container 'my-container' is stopped. Run 'isolarium create --type container' to recreate it."
+	if !strings.Contains(err.Error(), expectedMessage) {
+		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
+	}
+}
+
+func TestDockerBackendExecInteractiveReturnsErrorWhenContainerStopped(t *testing.T) {
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("exited\n")
+
+	b := &DockerBackend{
+		Runner: runner,
+		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+			t.Fatal("ExecInteractiveFunc should not be called when container is stopped")
+			return 0, nil
+		},
+	}
+
+	_, err := b.ExecInteractive("my-container", nil, []string{"bash"})
+	if err == nil {
+		t.Fatal("expected error when container is stopped")
+	}
+
+	expectedMessage := "Container 'my-container' is stopped. Run 'isolarium create --type container' to recreate it."
+	if !strings.Contains(err.Error(), expectedMessage) {
+		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
 	}
 }
 

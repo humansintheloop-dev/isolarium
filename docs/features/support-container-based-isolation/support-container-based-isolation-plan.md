@@ -236,14 +236,14 @@ This thread expands the metadata system to support (name, type) identity pairs a
     - [x] Implement `CheckDockerAvailable()` in `internal/docker/docker.go` that runs `docker info` and returns a descriptive error if it fails
     - [x] Ensure `Create()` calls `CheckDockerAvailable()` before proceeding with image build
 
-- [ ] **Task 7.2: Container commands detect stopped containers and provide guidance**
+- [x] **Task 7.2: Container commands detect stopped containers and provide guidance**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: When a container exists but is stopped, `run` and `shell` commands error with: "Container '<name>' is stopped. Run 'isolarium create --type container' to recreate it."
   - Evidence: Unit tests verify the error message is produced when `GetState()` returns "stopped".
   - Steps:
-    - [ ] Add stopped-state detection logic in `Exec()` and `ExecInteractive()` in the docker package
-    - [ ] Return a clear, actionable error message guiding the user to recreate
+    - [x] Add stopped-state detection logic in `Exec()` and `ExecInteractive()` in the docker package
+    - [x] Return a clear, actionable error message guiding the user to recreate
 
 ---
 
@@ -320,3 +320,6 @@ Implemented EnvironmentStatus struct, ListAllEnvironments with filtering, update
 
 ### 2026-02-13 13:55 - mark-task-complete
 Implementation already existed. Added error message content assertion to TestCreateFailsWhenDockerNotAvailable to fully satisfy evidence requirement.
+
+### 2026-02-13 13:57 - mark-task-complete
+Added ensureContainerRunning check to DockerBackend.Exec and ExecInteractive. Tests verify error message when GetState returns stopped.
