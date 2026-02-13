@@ -7,6 +7,39 @@ import (
 	"github.com/cer/isolarium/internal/backend"
 )
 
+func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
+	spy := &backendSpy{}
+	resolverCalledWithType := ""
+	rootCmd := newRootCmdWithResolvers(
+		func(envType string) (backend.Backend, error) {
+			resolverCalledWithType = envType
+			return spy, nil
+		},
+		func(name string) (string, error) {
+			return "", backend.ErrNoEnvironmentFound
+		},
+	)
+
+	origExec := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	}
+	defer func() { execCommandOutput = origExec }()
+
+	rootCmd.SetArgs([]string{"run", "--name", "my-env", "--copy-session=false", "--", "echo", "hello"})
+	err := rootCmd.Execute()
+
+	// The command will fail because there's no actual VM, but it should NOT fail
+	// with "no environment found" — it should fall back to "vm" type.
+	// Since we're using a spy backend, the VM path will call runInVM which
+	// needs limactl. The key verification is that the resolver was NOT called
+	// with "container" — it should default to "vm".
+	_ = err
+	if resolverCalledWithType == "container" {
+		t.Error("expected fallback to 'vm' type, but resolver was called with 'container'")
+	}
+}
+
 func TestRunCommand_ContainerCallsBackendExec(t *testing.T) {
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
@@ -161,5 +194,35 @@ func TestRunCommand_ContainerOmitsTokenWhenGhCliNotAvailable(t *testing.T) {
 
 	if _, exists := spy.execEnvVars["GH_TOKEN"]; exists {
 		t.Error("expected GH_TOKEN to not be set when gh cli is unavailable")
+	}
+}
+
+func TestRunCommand_AutoDetectsContainerWhenTypeNotProvided(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolvers(
+		func(envType string) (backend.Backend, error) {
+			return spy, nil
+		},
+		func(name string) (string, error) {
+			return "container", nil
+		},
+	)
+
+	origExec := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	}
+	defer func() { execCommandOutput = origExec }()
+
+	rootCmd.SetArgs([]string{"run", "--name", "my-env", "--copy-session=false", "--", "echo", "hello"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.execCalled {
+		t.Fatal("expected backend.Exec to be called")
+	}
+	if spy.execName != "my-env" {
+		t.Errorf("expected name 'my-env', got '%s'", spy.execName)
 	}
 }

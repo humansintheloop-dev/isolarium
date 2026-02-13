@@ -188,15 +188,15 @@ This thread implements command execution inside a running container, including G
 
 This thread expands the metadata system to support (name, type) identity pairs and auto-detection.
 
-- [ ] **Task 5.1: Metadata system supports (name, type) identity pairs**
+- [x] **Task 5.1: Metadata system supports (name, type) identity pairs**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/...`
   - Observable: Metadata is stored at `~/.isolarium/<name>/<type>/metadata.json`. When `--name` is provided without `--type`, the system scans for subdirectories (`vm/`, `container/`). If exactly one exists, it auto-detects. If both exist, it errors with "Multiple environments found". If none exists, it errors with "No environment found".
   - Evidence: Unit tests verify: (1) scanning logic finds single type, (2) scanning logic detects ambiguity and returns correct error, (3) scanning logic returns "not found" error when no environment exists.
   - Steps:
-    - [ ] Create `internal/backend/resolve_env.go` with `ResolveEnvironmentType(baseDir, name string) (string, error)` that scans `~/.isolarium/<name>/` for `vm/` and `container/` subdirectories
-    - [ ] Update CLI commands (`run`, `shell`, `destroy`) to use `ResolveEnvironmentType()` when `--type` is not explicitly provided
-    - [ ] Ensure `create` for VM mode writes metadata to `~/.isolarium/<name>/vm/` path (migration from old `~/.isolarium/<name>/repo.json` path)
+    - [x] Create `internal/backend/resolve_env.go` with `ResolveEnvironmentType(baseDir, name string) (string, error)` that scans `~/.isolarium/<name>/` for `vm/` and `container/` subdirectories
+    - [x] Update CLI commands (`run`, `shell`, `destroy`) to use `ResolveEnvironmentType()` when `--type` is not explicitly provided
+    - [x] Ensure `create` for VM mode writes metadata to `~/.isolarium/<name>/vm/` path (migration from old `~/.isolarium/<name>/repo.json` path)
 
 - [ ] **Task 5.2: VM metadata migration to new (name, type) path structure**
   - TaskType: REFACTOR
@@ -290,3 +290,15 @@ Implemented BuildShellCommand, OpenShell in docker package, added OpenShell to B
 
 ### 2026-02-13 13:26 - mark-task-complete
 Implemented docker session credential copying with TDD: BuildCreateClaudeDirCommand, BuildWriteCredentialsCommand, BuildChmodCredentialsCommand, CopyClaudeCredentials, DockerBackend delegation, and --copy-session wiring in run/shell commands
+
+### 2026-02-13 13:38 - mark-step-complete
+Created internal/backend/resolve_env.go with ResolveEnvironmentType function and tests
+
+### 2026-02-13 13:39 - mark-step-complete
+Updated run, shell, destroy commands with EnvironmentTypeResolver injection and auto-detection when --type not provided
+
+### 2026-02-13 13:39 - mark-step-complete
+Changed VM MetadataStore.dir() to include vm subdirectory, path is now ~/.isolarium/<name>/vm/repo.json
+
+### 2026-02-13 13:39 - mark-task-complete
+Implemented ResolveEnvironmentType with auto-detection, wired into CLI commands, and migrated VM metadata to vm subdirectory

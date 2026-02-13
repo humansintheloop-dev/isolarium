@@ -7,13 +7,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDestroyCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver) *cobra.Command {
+func newDestroyCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	return &cobra.Command{
 		Use:   "destroy",
 		Short: "Destroy an isolated environment",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			envType := string(*typeFlag)
-			name := resolveDefaultName(*nameFlag, envType, rootCmd)
+			name := resolveDefaultName(*nameFlag, string(*typeFlag), rootCmd)
+
+			envType, err := resolveEnvType(rootCmd, typeFlag, name, envTypeResolver)
+			if err != nil {
+				return err
+			}
 
 			if envType == "vm" {
 				return destroyVM(name)
