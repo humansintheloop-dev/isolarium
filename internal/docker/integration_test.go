@@ -3,7 +3,9 @@
 package docker
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -260,4 +262,100 @@ func verifyNoSymlinkAt(t *testing.T, runner command.ExecRunner, containerName, p
 
 func cleanupContainer(runner command.ExecRunner) {
 	runner.Run("docker", "rm", "-f", testContainerName)
+}
+
+func TestWorktreeGitOperationsWork_Integration(t *testing.T) {
+	runner := command.ExecRunner{}
+	containerName := "isolarium-worktree-git-ops-test"
+	imageTag := "isolarium-worktree-git-ops-test:latest"
+	runner.Run("docker", "rm", "-f", containerName)
+
+	repoDir := createTempGitRepoForIntegration(t)
+	worktreeDir := createWorktreeForIntegration(t, repoDir)
+
+	contextDir := buildDockerContext(t)
+	defer os.RemoveAll(contextDir)
+
+	buildImageWithWorktreeArgs(t, runner, imageTag, contextDir, worktreeDir, repoDir)
+	defer runner.Run("docker", "rmi", "-f", imageTag)
+
+	startContainerWithWorktreeMounts(t, runner, containerName, imageTag, worktreeDir, repoDir)
+	defer runner.Run("docker", "rm", "-f", containerName)
+
+	verifyGitStatusSucceeds(t, runner, containerName, worktreeDir)
+	verifySymlinkExistsAtHostPath(t, runner, containerName, worktreeDir)
+}
+
+func createTempGitRepoForIntegration(t *testing.T) string {
+	t.Helper()
+	dir := resolveSymlinks(t, t.TempDir())
+	runGitOrFail(t, dir, "init")
+	runGitOrFail(t, dir, "config", "user.email", "test@test.com")
+	runGitOrFail(t, dir, "config", "user.name", "Test User")
+	testFile := filepath.Join(dir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test content"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	runGitOrFail(t, dir, "add", "test.txt")
+	runGitOrFail(t, dir, "commit", "-m", "initial commit")
+	return dir
+}
+
+func createWorktreeForIntegration(t *testing.T, repoDir string) string {
+	t.Helper()
+	worktreeDir := filepath.Join(resolveSymlinks(t, t.TempDir()), "my-worktree")
+	runGitOrFail(t, repoDir, "worktree", "add", worktreeDir, "-b", "worktree-branch")
+	return worktreeDir
+}
+
+func runGitOrFail(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v failed: %v\n%s", args, err, output)
+	}
+}
+
+func resolveSymlinks(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("failed to resolve symlinks for %q: %v", path, err)
+	}
+	return resolved
+}
+
+func startContainerWithWorktreeMounts(t *testing.T, runner command.ExecRunner, containerName, imageTag, worktreeDir, mainRepoDir string) {
+	t.Helper()
+	_, err := runner.Run("docker", "run", "-d",
+		"--name", containerName,
+		"-v", fmt.Sprintf("%s:/home/isolarium/repo", worktreeDir),
+		"-v", fmt.Sprintf("%s:/home/isolarium/main-repo", mainRepoDir),
+		imageTag)
+	if err != nil {
+		t.Fatalf("failed to start container with worktree mounts: %v", err)
+	}
+}
+
+func verifyGitStatusSucceeds(t *testing.T, runner command.ExecRunner, containerName, worktreeDir string) {
+	t.Helper()
+	args := BuildExecCommand(containerName, nil, []string{"git", "-C", worktreeDir, "status"})
+	output, err := runner.Run(args[0], args[1:]...)
+	if err != nil {
+		t.Fatalf("git status failed inside container at worktree path %s: %v\noutput: %s", worktreeDir, err, output)
+	}
+}
+
+func verifySymlinkExistsAtHostPath(t *testing.T, runner command.ExecRunner, containerName, worktreeDir string) {
+	t.Helper()
+	args := BuildExecCommand(containerName, nil, []string{"ls", "-la", worktreeDir})
+	output, err := runner.Run(args[0], args[1:]...)
+	if err != nil {
+		t.Fatalf("ls -la %s failed inside container: %v", worktreeDir, err)
+	}
+	if !strings.Contains(string(output), "->") {
+		t.Errorf("expected symlink at %s, ls output: %s", worktreeDir, output)
+	}
 }

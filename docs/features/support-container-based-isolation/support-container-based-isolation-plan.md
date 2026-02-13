@@ -312,13 +312,13 @@ When the work directory is a git worktree, `.git` is a file containing `gitdir: 
     - [x] Add `TestDockerBackendCreateDetectsWorktreeAndPassesConfig` and `TestDockerBackendCreateHandlesWorktreeDetectionError` in `docker_backend_test.go`
     - [x] Wire `DetectWorktreeFunc: git.DetectWorktree` in `newDockerBackend()` in `resolve.go`
 
-- [ ] **Task 9.5: Integration test for worktree git operations inside container**
+- [x] **Task 9.5: Integration test for worktree git operations inside container**
   - TaskType: INFRA
   - Entrypoint: `go test -tags=integration ./internal/docker/...`
   - Observable: An integration test creates a real git repo and worktree in temp directories, builds a container with worktree build args and both volume mounts, then verifies `git status` succeeds inside the container.
   - Evidence: `go test -tags=integration ./internal/docker/...` passes with the new worktree test.
   - Steps:
-    - [ ] Add `TestWorktreeGitOperationsWork_Integration` to `internal/docker/integration_test.go` that: creates a temp git repo with a commit, creates a worktree via `git worktree add`, builds the Docker image with `WORKTREE_HOST_PATH` and `MAIN_REPO_HOST_PATH` build args, starts a container with both volume mounts, execs `git status` inside the container and asserts success, execs `ls -la <worktree-host-path>` to verify symlink exists, cleans up container
+    - [x] Add `TestWorktreeGitOperationsWork_Integration` to `internal/docker/integration_test.go` that: creates a temp git repo with a commit, creates a worktree via `git worktree add`, builds the Docker image with `WORKTREE_HOST_PATH` and `MAIN_REPO_HOST_PATH` build args, starts a container with both volume mounts, execs `git status` inside the container and asserts success, execs `ls -la <worktree-host-path>` to verify symlink exists, cleans up container
 
 ---
 
