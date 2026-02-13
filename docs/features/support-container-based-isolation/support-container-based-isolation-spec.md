@@ -138,7 +138,17 @@ Developers currently must wait minutes for VM provisioning before an agent can s
 - Clone and install workflow tools (humansintheloop-dev-workflow-and-tools repo), including plugins and i2code CLI.
 - Working directory set to `~/repo`.
 
-### FR9: Default names
+### FR9: Git worktree support
+
+When the `--work-directory` is a git worktree (`.git` is a file containing a `gitdir:` pointer rather than a directory):
+
+- Detect the worktree by checking if `.git` is a file and parsing the `gitdir:` line to resolve the main repo directory.
+- Pass the worktree host path and main repo host path as Docker build args (`WORKTREE_HOST_PATH`, `MAIN_REPO_HOST_PATH`).
+- The Dockerfile conditionally creates a directory hierarchy mirroring the host paths, ending with symlinks: the worktree host path symlinks to `/home/isolarium/repo` and the main repo host path symlinks to `/home/isolarium/main-repo`. The directory hierarchy is root-owned with 555 permissions so the container user can read/traverse but not modify it.
+- Mount the main repo directory as a second bind mount at `/home/isolarium/main-repo` (in addition to the worktree at `/home/isolarium/repo`).
+- For non-worktree repos (`.git` is a directory), behavior is unchanged — no build args, no symlinks, single mount.
+
+### FR10: Default names
 
 - VM mode: `--name` defaults to `isolarium` (unchanged).
 - Container mode: `--name` defaults to `isolarium-container`.
@@ -291,7 +301,17 @@ These scenarios define the primary end-to-end workflows and are suitable for def
 3. Developer runs `isolarium shell --name myenv` — gets an error: "Multiple environments found for 'myenv'. Specify --type vm or --type container."
 4. Developer runs `isolarium shell --name myenv --type container` — succeeds.
 
-### Scenario 5: Docker not available
+### Scenario 5: Create container from a git worktree
+
+1. Developer has a git worktree at `/Users/dev/src/myproject-wt-feature` whose `.git` file points to the main repo at `/Users/dev/src/myproject/.git/worktrees/feature`.
+2. Developer runs `isolarium create --type container --work-directory .` from the worktree directory.
+3. Isolarium detects that `.git` is a file (not a directory), parses the `gitdir:` line, and resolves the main repo directory.
+4. Isolarium builds the Docker image with build args that create a symlink hierarchy inside the container mapping the host absolute paths to container mount points: `/Users/dev/src/myproject-wt-feature` -> `/home/isolarium/repo` and `/Users/dev/src/myproject` -> `/home/isolarium/main-repo`. The directory hierarchy is root-owned with 555 permissions (read+traverse only).
+5. Isolarium starts the container with two bind mounts: the worktree directory at `/home/isolarium/repo` and the main repo directory at `/home/isolarium/main-repo`.
+6. Developer runs `isolarium shell` and executes `git status` — succeeds because the absolute host paths in the worktree's `.git` file resolve via symlinks to the mounted directories.
+7. Developer verifies `git log`, `git diff`, and other git operations work normally.
+
+### Scenario 6: Docker not available
 
 1. Developer runs `isolarium create --type container` on a machine without Docker.
 2. Isolarium runs `docker info`, detects Docker is not available, and errors with: "Docker is not installed or not running. Install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode."
