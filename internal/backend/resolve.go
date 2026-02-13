@@ -29,9 +29,11 @@ func newDockerBackend() *DockerBackend {
 		home = os.Getenv("HOME")
 	}
 	return &DockerBackend{
-		Runner:         command.ExecRunner{},
-		MetadataDir:    filepath.Join(home, ".isolarium"),
-		ImageTag:       "isolarium:latest",
-		ContextDirFunc: docker.WriteDockerTempfile,
+		Runner:              command.ExecRunner{},
+		MetadataDir:         filepath.Join(home, ".isolarium"),
+		ImageTag:            "isolarium:latest",
+		ContextDirFunc:      docker.WriteDockerTempfile,
+		ExecFunc:            docker.ExecCommand,
+		ExecInteractiveFunc: docker.ExecInteractiveCommand,
 	}
 }

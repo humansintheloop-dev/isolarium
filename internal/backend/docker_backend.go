@@ -11,12 +11,17 @@ import (
 // ErrNotImplemented is returned by DockerBackend methods that are not yet implemented.
 var ErrNotImplemented = errors.New("docker backend not implemented")
 
+// ExecFunc is the function signature for executing commands in a container.
+type ExecFunc func(name string, envVars map[string]string, args []string) (int, error)
+
 // DockerBackend implements the Backend interface using Docker containers.
 type DockerBackend struct {
-	Runner         command.Runner
-	MetadataDir    string
-	ImageTag       string
-	ContextDirFunc func() (string, error)
+	Runner              command.Runner
+	MetadataDir         string
+	ImageTag            string
+	ContextDirFunc      func() (string, error)
+	ExecFunc            ExecFunc
+	ExecInteractiveFunc ExecFunc
 }
 
 func (b *DockerBackend) Create(name string, opts CreateOptions) error {
@@ -43,11 +48,11 @@ func (b *DockerBackend) Destroy(name string) error {
 }
 
 func (b *DockerBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {
-	return 0, ErrNotImplemented
+	return b.ExecFunc(name, envVars, args)
 }
 
 func (b *DockerBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
-	return 0, ErrNotImplemented
+	return b.ExecInteractiveFunc(name, envVars, args)
 }
 
 func (b *DockerBackend) GetState(name string) string {

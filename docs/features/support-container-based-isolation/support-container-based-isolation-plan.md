@@ -124,15 +124,15 @@ This thread proves the fundamental architecture: a Backend interface abstraction
 
 This thread implements command execution inside a running container, including GitHub token injection via `docker exec -e`.
 
-- [ ] **Task 2.1: `docker exec` command builder with environment variable injection**
+- [x] **Task 2.1: `docker exec` command builder with environment variable injection**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: `BuildExecCommand()` produces correct `docker exec` args with `-e GH_TOKEN=<token>` and working directory. `BuildInteractiveExecCommand()` adds `-it` flags.
   - Evidence: Unit tests verify command construction with and without env vars, with and without interactive flags, verifying correct argument ordering.
   - Steps:
-    - [ ] Create `internal/docker/exec.go` with `BuildExecCommand(name string, envVars map[string]string, args []string) []string` and `BuildInteractiveExecCommand(name string, envVars map[string]string, args []string) []string`
-    - [ ] Implement `ExecCommand()` and `ExecInteractiveCommand()` that build and run the docker exec command, streaming stdout/stderr and propagating exit codes
-    - [ ] Update `internal/backend/docker_backend.go` to delegate `Exec()` and `ExecInteractive()`
+    - [x] Create `internal/docker/exec.go` with `BuildExecCommand(name string, envVars map[string]string, args []string) []string` and `BuildInteractiveExecCommand(name string, envVars map[string]string, args []string) []string`
+    - [x] Implement `ExecCommand()` and `ExecInteractiveCommand()` that build and run the docker exec command, streaming stdout/stderr and propagating exit codes
+    - [x] Update `internal/backend/docker_backend.go` to delegate `Exec()` and `ExecInteractive()`
 
 - [ ] **Task 2.2: Wire `run` command to use backend for container mode**
   - TaskType: OUTCOME
@@ -278,3 +278,6 @@ go test ./... passes all 10 packages including new internal/backend and internal
 
 ### 2026-02-13 12:50 - mark-task-complete
 CI already runs go test ./... which picks up new packages; all 10 packages pass including internal/backend and internal/docker
+
+### 2026-02-13 12:57 - mark-task-complete
+Implemented BuildExecCommand, BuildInteractiveExecCommand, ExecCommand, ExecInteractiveCommand in docker package, and wired DockerBackend to delegate via injectable function fields
