@@ -7,15 +7,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver) *cobra.Command {
+func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	var copySession bool
 
 	cmd := &cobra.Command{
 		Use:   "shell",
 		Short: "Open an interactive shell inside the environment",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			envType := string(*typeFlag)
-			name := resolveDefaultName(*nameFlag, envType, rootCmd)
+			name := resolveDefaultName(*nameFlag, string(*typeFlag), rootCmd)
+
+			envType, err := resolveEnvType(rootCmd, typeFlag, name, envTypeResolver)
+			if err != nil {
+				return err
+			}
 
 			b, err := resolver(envType)
 			if err != nil {

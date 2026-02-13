@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver) *cobra.Command {
+func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	var copySession bool
 	var freshLogin bool
 	var interactive bool
@@ -21,8 +21,12 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				return fmt.Errorf("no command specified; use: isolarium run -- <command> [args...]")
 			}
 
-			envType := string(*typeFlag)
-			name := resolveDefaultName(*nameFlag, envType, rootCmd)
+			name := resolveDefaultName(*nameFlag, string(*typeFlag), rootCmd)
+
+			envType, err := resolveEnvType(rootCmd, typeFlag, name, envTypeResolver)
+			if err != nil {
+				return err
+			}
 
 			if envType == "vm" {
 				return runInVM(name, args, copySession, freshLogin, interactive, cmd)

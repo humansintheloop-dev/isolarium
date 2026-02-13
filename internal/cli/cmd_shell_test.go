@@ -120,3 +120,33 @@ func TestShellCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
 		t.Fatal("expected backend.CopyCredentials NOT to be called when --copy-session=false")
 	}
 }
+
+func TestShellCommand_AutoDetectsContainerWhenTypeNotProvided(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolvers(
+		func(envType string) (backend.Backend, error) {
+			return spy, nil
+		},
+		func(name string) (string, error) {
+			return "container", nil
+		},
+	)
+
+	origExec := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	}
+	defer func() { execCommandOutput = origExec }()
+
+	rootCmd.SetArgs([]string{"shell", "--name", "my-env", "--copy-session=false"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.openShellCalled {
+		t.Fatal("expected backend.OpenShell to be called")
+	}
+	if spy.openShellName != "my-env" {
+		t.Errorf("expected name 'my-env', got '%s'", spy.openShellName)
+	}
+}

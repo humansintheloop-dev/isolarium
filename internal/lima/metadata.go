@@ -28,7 +28,7 @@ func NewMetadataStore(baseDir, vmName string) *MetadataStore {
 }
 
 func (s *MetadataStore) dir() string {
-	return filepath.Join(s.baseDir, s.vmName)
+	return filepath.Join(s.baseDir, s.vmName, "vm")
 }
 
 func (s *MetadataStore) path() string {

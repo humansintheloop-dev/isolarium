@@ -33,24 +33,22 @@ func TestWriteAndReadMetadata_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestWriteMetadata_CreatesDirectoryAutomatically(t *testing.T) {
+func TestWriteMetadata_CreatesVMSubdirectory(t *testing.T) {
 	baseDir := t.TempDir()
 	store := NewMetadataStore(baseDir, "testvm")
 
-	// Directory shouldn't exist yet
-	dir := filepath.Join(baseDir, "testvm")
-	if _, err := os.Stat(dir); !os.IsNotExist(err) {
-		t.Fatalf("expected directory to not exist yet")
+	vmDir := filepath.Join(baseDir, "testvm", "vm")
+	if _, err := os.Stat(vmDir); !os.IsNotExist(err) {
+		t.Fatalf("expected vm directory to not exist yet")
 	}
 
 	if err := store.Write("cer", "isolarium", "main"); err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	// Directory should now exist
-	info, err := os.Stat(dir)
+	info, err := os.Stat(vmDir)
 	if err != nil {
-		t.Fatalf("expected directory to exist: %v", err)
+		t.Fatalf("expected vm directory to exist: %v", err)
 	}
 	if !info.IsDir() {
 		t.Error("expected a directory")
@@ -65,7 +63,7 @@ func TestWriteMetadata_FilePermissions(t *testing.T) {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	filePath := filepath.Join(baseDir, "testvm", "repo.json")
+	filePath := filepath.Join(baseDir, "testvm", "vm", "repo.json")
 	info, err := os.Stat(filePath)
 	if err != nil {
 		t.Fatalf("expected file to exist: %v", err)
@@ -87,24 +85,21 @@ func TestReadMetadata_FileNotFound(t *testing.T) {
 	}
 }
 
-func TestCleanup_RemovesDirectory(t *testing.T) {
+func TestCleanup_RemovesVMSubdirectory(t *testing.T) {
 	baseDir := t.TempDir()
 	store := NewMetadataStore(baseDir, "testvm")
 
-	// Write metadata first
 	if err := store.Write("cer", "isolarium", "main"); err != nil {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	// Clean up
 	if err := store.Cleanup(); err != nil {
 		t.Fatalf("Cleanup failed: %v", err)
 	}
 
-	// Directory should be gone
-	dir := filepath.Join(baseDir, "testvm")
-	if _, err := os.Stat(dir); !os.IsNotExist(err) {
-		t.Error("expected directory to be removed after cleanup")
+	vmDir := filepath.Join(baseDir, "testvm", "vm")
+	if _, err := os.Stat(vmDir); !os.IsNotExist(err) {
+		t.Error("expected vm directory to be removed after cleanup")
 	}
 }
 

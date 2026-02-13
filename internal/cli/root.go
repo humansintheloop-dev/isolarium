@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/cer/isolarium/internal/backend"
@@ -21,11 +23,19 @@ var envTypeFlag = environmentType("vm")
 // BackendResolver resolves a Backend from an environment type string.
 type BackendResolver func(envType string) (backend.Backend, error)
 
+// EnvironmentTypeResolver auto-detects the environment type for a given name
+// by scanning metadata directories.
+type EnvironmentTypeResolver func(name string) (string, error)
+
 func NewRootCmd() *cobra.Command {
-	return newRootCmdWithResolver(backend.ResolveBackend)
+	return newRootCmdWithResolvers(backend.ResolveBackend, defaultEnvironmentTypeResolver())
 }
 
 func newRootCmdWithResolver(resolver BackendResolver) *cobra.Command {
+	return newRootCmdWithResolvers(resolver, nil)
+}
+
+func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	var nameFlag string
 	var typeFlag environmentType = "vm"
 
@@ -38,16 +48,41 @@ func newRootCmdWithResolver(resolver BackendResolver) *cobra.Command {
 	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm" or "container" (default "vm")`)
 
 	rootCmd.AddCommand(newCreateCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
-	rootCmd.AddCommand(newDestroyCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
+	rootCmd.AddCommand(newDestroyCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
 	rootCmd.AddCommand(newStatusCmd())
-	rootCmd.AddCommand(newRunCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
-	rootCmd.AddCommand(newShellCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
+	rootCmd.AddCommand(newRunCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
+	rootCmd.AddCommand(newShellCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
 	rootCmd.AddCommand(newSshCmd())
 	rootCmd.AddCommand(newCloneRepoCmd())
 	rootCmd.AddCommand(newInstallToolsCmd())
 	rootCmd.AddCommand(newInstallWorkflowToolsFromSourceCmd())
 
 	return rootCmd
+}
+
+func defaultEnvironmentTypeResolver() EnvironmentTypeResolver {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	baseDir := filepath.Join(home, ".isolarium")
+	return func(name string) (string, error) {
+		return backend.ResolveEnvironmentType(baseDir, name)
+	}
+}
+
+func resolveEnvType(rootCmd *cobra.Command, typeFlag *environmentType, name string, envTypeResolver EnvironmentTypeResolver) (string, error) {
+	if rootCmd.PersistentFlags().Changed("type") || envTypeResolver == nil {
+		return string(*typeFlag), nil
+	}
+	resolved, err := envTypeResolver(name)
+	if err != nil {
+		if errors.Is(err, backend.ErrNoEnvironmentFound) {
+			return string(*typeFlag), nil
+		}
+		return "", err
+	}
+	return resolved, nil
 }
 
 func LoadEnvFile(path string) error {
