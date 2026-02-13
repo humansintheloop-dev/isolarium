@@ -20,7 +20,7 @@ func TestBuildCheckDockerCommandProducesDockerInfoArgs(t *testing.T) {
 }
 
 func TestBuildImageCommandProducesCorrectDockerBuildArgs(t *testing.T) {
-	args := BuildImageCommand("isolarium:latest", "/tmp/context")
+	args := BuildImageCommand("isolarium:latest", "/tmp/context", nil)
 	expected := []string{"docker", "build", "-t", "isolarium:latest", "/tmp/context"}
 	if len(args) != len(expected) {
 		t.Fatalf("expected %v, got %v", expected, args)
@@ -33,13 +33,61 @@ func TestBuildImageCommandProducesCorrectDockerBuildArgs(t *testing.T) {
 }
 
 func TestBuildRunCommandProducesCorrectDockerRunArgs(t *testing.T) {
-	args := BuildRunCommand("my-container", "/home/user/project", "isolarium:latest")
+	args := BuildRunCommand("my-container", "/home/user/project", "isolarium:latest", nil)
 	expected := []string{
 		"docker", "run", "-d",
 		"--name", "my-container",
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/project:/home/isolarium/repo",
+		"isolarium:latest",
+	}
+	if len(args) != len(expected) {
+		t.Fatalf("expected %d args, got %d: %v", len(expected), len(args), args)
+	}
+	for i, v := range expected {
+		if args[i] != v {
+			t.Fatalf("expected args[%d] = %q, got %q", i, v, args[i])
+		}
+	}
+}
+
+func TestBuildImageCommandIncludesBuildArgsForWorktree(t *testing.T) {
+	wt := &WorktreeConfig{
+		WorktreeHostPath: "/home/user/repos/myproject/worktrees/feature-branch",
+		MainRepoHostPath: "/home/user/repos/myproject",
+	}
+	args := BuildImageCommand("isolarium:latest", "/tmp/context", wt)
+	expected := []string{
+		"docker", "build", "-t", "isolarium:latest",
+		"--build-arg", "WORKTREE_HOST_PATH=/home/user/repos/myproject/worktrees/feature-branch",
+		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/repos/myproject",
+		"/tmp/context",
+	}
+	if len(args) != len(expected) {
+		t.Fatalf("expected %d args, got %d: %v", len(expected), len(args), args)
+	}
+	for i, v := range expected {
+		if args[i] != v {
+			t.Fatalf("expected args[%d] = %q, got %q", i, v, args[i])
+		}
+	}
+}
+
+func TestBuildRunCommandIncludesSecondVolumeForWorktree(t *testing.T) {
+	wt := &WorktreeConfig{
+		WorktreeHostPath: "/home/user/repos/myproject/worktrees/feature-branch",
+		MainRepoHostPath: "/home/user/repos/myproject",
+		MainRepoDir:      "/home/user/repos/myproject",
+	}
+	args := BuildRunCommand("my-container", "/home/user/project", "isolarium:latest", wt)
+	expected := []string{
+		"docker", "run", "-d",
+		"--name", "my-container",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", "/home/user/repos/myproject:/home/isolarium/main-repo",
 		"isolarium:latest",
 	}
 	if len(args) != len(expected) {

@@ -14,19 +14,35 @@ func BuildCheckDockerCommand() []string {
 	return []string{"docker", "info"}
 }
 
-func BuildImageCommand(tag string, contextDir string) []string {
-	return []string{"docker", "build", "-t", tag, contextDir}
+type WorktreeConfig struct {
+	WorktreeHostPath string
+	MainRepoHostPath string
+	MainRepoDir      string
 }
 
-func BuildRunCommand(name, workDir, imageTag string) []string {
-	return []string{
+func BuildImageCommand(tag string, contextDir string, wt *WorktreeConfig) []string {
+	args := []string{"docker", "build", "-t", tag}
+	if wt != nil {
+		args = append(args, "--build-arg", "WORKTREE_HOST_PATH="+wt.WorktreeHostPath)
+		args = append(args, "--build-arg", "MAIN_REPO_HOST_PATH="+wt.MainRepoHostPath)
+	}
+	args = append(args, contextDir)
+	return args
+}
+
+func BuildRunCommand(name, workDir, imageTag string, wt *WorktreeConfig) []string {
+	args := []string{
 		"docker", "run", "-d",
 		"--name", name,
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", fmt.Sprintf("%s:/home/isolarium/repo", workDir),
-		imageTag,
 	}
+	if wt != nil {
+		args = append(args, "-v", fmt.Sprintf("%s:/home/isolarium/main-repo", wt.MainRepoDir))
+	}
+	args = append(args, imageTag)
+	return args
 }
 
 func WriteDockerTempfile() (string, error) {

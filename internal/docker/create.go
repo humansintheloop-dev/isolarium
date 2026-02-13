@@ -39,13 +39,13 @@ func (c *Creator) checkDockerAvailable() error {
 }
 
 func (c *Creator) buildImage(contextDir string) error {
-	args := BuildImageCommand(c.ImageTag, contextDir)
+	args := BuildImageCommand(c.ImageTag, contextDir, nil)
 	_, err := c.Runner.Run(args[0], args[1:]...)
 	return err
 }
 
 func (c *Creator) startContainer(name, workDir string) error {
-	args := BuildRunCommand(name, workDir, c.ImageTag)
+	args := BuildRunCommand(name, workDir, c.ImageTag, nil)
 	_, err := c.Runner.Run(args[0], args[1:]...)
 	return err
 }
