@@ -97,17 +97,17 @@ This thread proves the fundamental architecture: a Backend interface abstraction
     - [x] Add metadata `Cleanup()` method to docker metadata store
     - [x] Update `internal/backend/docker_backend.go` to delegate `Destroy()`
 
-- [ ] **Task 1.4: Wire `--type` flag into CLI `create` and `destroy` commands**
+- [x] **Task 1.4: Wire `--type` flag into CLI `create` and `destroy` commands**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/... ./internal/backend/...`
   - Observable: `isolarium create --type container` calls `DockerBackend.Create()`. `isolarium create` (no flag) calls `LimaBackend.Create()` (default is "vm"). `isolarium destroy --type container` calls `DockerBackend.Destroy()`. The `--work-directory` flag is accepted for container mode and defaults to cwd.
   - Evidence: Unit tests verify: (1) `--type` flag parsing and default to "vm", (2) `--work-directory` flag parsing and default to cwd, (3) `--work-directory` rejected when `--type vm`
   - Steps:
-    - [ ] Add `--type` persistent flag to root command (default "vm", valid values "vm" and "container")
-    - [ ] Add `--work-directory` flag to `create` command (default to cwd, container mode only)
-    - [ ] Update `newCreateCmd()` to resolve backend via `ResolveBackend(typeFlag)` and call `backend.Create()`
-    - [ ] Update `newDestroyCmd()` to resolve backend and call `backend.Destroy()`
-    - [ ] Add default name logic: "isolarium" for vm, "isolarium-container" for container (when `--name` not explicitly set)
+    - [x] Add `--type` persistent flag to root command (default "vm", valid values "vm" and "container")
+    - [x] Add `--work-directory` flag to `create` command (default to cwd, container mode only)
+    - [x] Update `newCreateCmd()` to resolve backend via `ResolveBackend(typeFlag)` and call `backend.Create()`
+    - [x] Update `newDestroyCmd()` to resolve backend and call `backend.Destroy()`
+    - [x] Add default name logic: "isolarium" for vm, "isolarium-container" for container (when `--name` not explicitly set)
 
 - [ ] **Task 1.5: Update CI to run `go test ./...` including new packages**
   - TaskType: INFRA
@@ -266,3 +266,6 @@ This thread expands the metadata system to support (name, type) identity pairs a
 ## Change History
 ### 2026-02-13 12:38 - mark-task-complete
 Implemented BuildDestroyCommand, Destroyer, and DockerBackend.Destroy delegation with full test coverage
+
+### 2026-02-13 12:46 - mark-task-complete
+Implemented --type persistent flag on root command with validation (vm/container), --work-directory flag on create command (container mode only, defaults to cwd), backend resolver wiring for create and destroy commands, and default name logic (isolarium for vm, isolarium-container for container). VM paths preserve legacy behavior.

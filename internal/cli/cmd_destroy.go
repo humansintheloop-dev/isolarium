@@ -7,26 +7,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDestroyCmd() *cobra.Command {
+func newDestroyCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver) *cobra.Command {
 	return &cobra.Command{
 		Use:   "destroy",
-		Short: "Delete the Lima VM and all its contents",
+		Short: "Destroy an isolated environment",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			exists, err := lima.VMExists(vmNameFlag)
-			if err != nil {
-				return fmt.Errorf("failed to check VM status: %w", err)
-			}
-			if !exists {
-				fmt.Println("no VM to destroy")
-				return nil
+			envType := string(*typeFlag)
+			name := resolveDefaultName(*nameFlag, envType, rootCmd)
+
+			if envType == "vm" {
+				return destroyVM(name)
 			}
 
-			fmt.Println("Destroying Lima VM...")
-			if err := lima.DestroyVM(vmNameFlag); err != nil {
-				return fmt.Errorf("failed to destroy VM: %w", err)
+			b, err := resolver(envType)
+			if err != nil {
+				return err
 			}
-			fmt.Println("VM destroyed successfully")
-			return nil
+
+			return b.Destroy(name)
 		},
 	}
+}
+
+func destroyVM(name string) error {
+	exists, err := lima.VMExists(name)
+	if err != nil {
+		return fmt.Errorf("failed to check VM status: %w", err)
+	}
+	if !exists {
+		fmt.Println("no VM to destroy")
+		return nil
+	}
+
+	fmt.Println("Destroying Lima VM...")
+	if err := lima.DestroyVM(name); err != nil {
+		return fmt.Errorf("failed to destroy VM: %w", err)
+	}
+	fmt.Println("VM destroyed successfully")
+	return nil
 }
