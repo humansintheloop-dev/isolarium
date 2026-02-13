@@ -1,21 +1,20 @@
 package backend
 
 import (
-	"errors"
 	"os"
 
 	"github.com/cer/isolarium/internal/command"
 	"github.com/cer/isolarium/internal/docker"
 )
 
-// ErrNotImplemented is returned by DockerBackend methods that are not yet implemented.
-var ErrNotImplemented = errors.New("docker backend not implemented")
-
 // ExecFunc is the function signature for executing commands in a container.
 type ExecFunc func(name string, envVars map[string]string, args []string) (int, error)
 
 // ShellFunc is the function signature for opening an interactive shell in a container.
 type ShellFunc func(name string, envVars map[string]string) (int, error)
+
+// CopyCredentialsFunc is the function signature for copying credentials into a container.
+type CopyCredentialsFunc func(name, credentials string) error
 
 // DockerBackend implements the Backend interface using Docker containers.
 type DockerBackend struct {
@@ -26,6 +25,7 @@ type DockerBackend struct {
 	ExecFunc            ExecFunc
 	ExecInteractiveFunc ExecFunc
 	OpenShellFunc       ShellFunc
+	CopyCredentialsFunc CopyCredentialsFunc
 }
 
 func (b *DockerBackend) Create(name string, opts CreateOptions) error {
@@ -69,5 +69,5 @@ func (b *DockerBackend) GetState(name string) string {
 }
 
 func (b *DockerBackend) CopyCredentials(name string, credentials string) error {
-	return ErrNotImplemented
+	return b.CopyCredentialsFunc(name, credentials)
 }
