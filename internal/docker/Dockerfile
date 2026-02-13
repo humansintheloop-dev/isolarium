@@ -73,8 +73,9 @@ RUN bash -c '\
     && sdk install java 17.0.13-tem \
     && sdk install gradle 8.14'
 
-# Configure git credential helper for GitHub (uses GH_TOKEN injected at runtime)
-RUN git config --global credential.https://github.com.helper '!gh auth git-credential'
+# Configure git for container environment
+RUN git config --global credential.https://github.com.helper '!gh auth git-credential' \
+    && git config --global --add safe.directory '*'
 
 # Working directory for mounted project
 RUN mkdir -p /home/isolarium/repo /home/isolarium/main-repo
