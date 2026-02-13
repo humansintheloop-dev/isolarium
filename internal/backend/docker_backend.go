@@ -35,7 +35,11 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 }
 
 func (b *DockerBackend) Destroy(name string) error {
-	return ErrNotImplemented
+	destroyer := &docker.Destroyer{
+		Runner:      b.Runner,
+		MetadataDir: b.MetadataDir,
+	}
+	return destroyer.Destroy(name)
 }
 
 func (b *DockerBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {
