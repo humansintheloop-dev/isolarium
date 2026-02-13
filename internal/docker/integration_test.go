@@ -150,6 +150,114 @@ func verifyCapabilitiesDropped(t *testing.T, runner command.ExecRunner) {
 	t.Error("CapEff line not found in /proc/1/status")
 }
 
+func TestDockerfileCreatesSymlinkHierarchyForWorktreeBuildArgs_Integration(t *testing.T) {
+	runner := command.ExecRunner{}
+	containerName := "isolarium-worktree-test"
+	imageTag := "isolarium-worktree-test:latest"
+	runner.Run("docker", "rm", "-f", containerName)
+
+	worktreeHostPath := "/Users/dev/src/myproject-wt-feature"
+	mainRepoHostPath := "/Users/dev/src/myproject"
+
+	contextDir := buildDockerContext(t)
+	defer os.RemoveAll(contextDir)
+
+	buildImageWithWorktreeArgs(t, runner, imageTag, contextDir, worktreeHostPath, mainRepoHostPath)
+	defer runner.Run("docker", "rmi", "-f", imageTag)
+
+	startMinimalContainer(t, runner, containerName, imageTag)
+	defer runner.Run("docker", "rm", "-f", containerName)
+
+	verifySymlinkTarget(t, runner, containerName, worktreeHostPath, "/home/isolarium/repo")
+	verifySymlinkTarget(t, runner, containerName, mainRepoHostPath, "/home/isolarium/main-repo")
+	verifyParentDirectoriesAreMode555(t, runner, containerName, worktreeHostPath)
+	verifyParentDirectoriesAreMode555(t, runner, containerName, mainRepoHostPath)
+}
+
+func TestDockerfileCreatesNoSymlinksWithoutBuildArgs_Integration(t *testing.T) {
+	runner := command.ExecRunner{}
+	containerName := "isolarium-no-worktree-test"
+	imageTag := "isolarium-no-worktree-test:latest"
+	runner.Run("docker", "rm", "-f", containerName)
+
+	contextDir := buildDockerContext(t)
+	defer os.RemoveAll(contextDir)
+
+	buildImageWithoutWorktreeArgs(t, runner, imageTag, contextDir)
+	defer runner.Run("docker", "rmi", "-f", imageTag)
+
+	startMinimalContainer(t, runner, containerName, imageTag)
+	defer runner.Run("docker", "rm", "-f", containerName)
+
+	verifyNoSymlinkAt(t, runner, containerName, "/Users")
+}
+
+func buildImageWithWorktreeArgs(t *testing.T, runner command.ExecRunner, imageTag, contextDir, worktreeHostPath, mainRepoHostPath string) {
+	t.Helper()
+	_, err := runner.Run("docker", "build", "-t", imageTag,
+		"--build-arg", "WORKTREE_HOST_PATH="+worktreeHostPath,
+		"--build-arg", "MAIN_REPO_HOST_PATH="+mainRepoHostPath,
+		contextDir)
+	if err != nil {
+		t.Fatalf("failed to build image with worktree args: %v", err)
+	}
+}
+
+func buildImageWithoutWorktreeArgs(t *testing.T, runner command.ExecRunner, imageTag, contextDir string) {
+	t.Helper()
+	_, err := runner.Run("docker", "build", "-t", imageTag, contextDir)
+	if err != nil {
+		t.Fatalf("failed to build image without worktree args: %v", err)
+	}
+}
+
+func startMinimalContainer(t *testing.T, runner command.ExecRunner, containerName, imageTag string) {
+	t.Helper()
+	_, err := runner.Run("docker", "run", "-d", "--name", containerName, imageTag)
+	if err != nil {
+		t.Fatalf("failed to start container: %v", err)
+	}
+}
+
+func verifySymlinkTarget(t *testing.T, runner command.ExecRunner, containerName, symlinkPath, expectedTarget string) {
+	t.Helper()
+	args := BuildExecCommand(containerName, nil, []string{"readlink", symlinkPath})
+	output, err := runner.Run(args[0], args[1:]...)
+	if err != nil {
+		t.Fatalf("readlink %s failed: %v", symlinkPath, err)
+	}
+	actual := strings.TrimSpace(string(output))
+	if actual != expectedTarget {
+		t.Errorf("expected symlink %s -> %s, got -> %s", symlinkPath, expectedTarget, actual)
+	}
+}
+
+func verifyParentDirectoriesAreMode555(t *testing.T, runner command.ExecRunner, containerName, path string) {
+	t.Helper()
+	parent := filepath.Dir(path)
+	for parent != "/" {
+		args := BuildExecCommand(containerName, nil, []string{"stat", "-c", "%a", parent})
+		output, err := runner.Run(args[0], args[1:]...)
+		if err != nil {
+			t.Fatalf("stat %s failed: %v", parent, err)
+		}
+		mode := strings.TrimSpace(string(output))
+		if mode != "555" {
+			t.Errorf("expected directory %s to have mode 555, got %s", parent, mode)
+		}
+		parent = filepath.Dir(parent)
+	}
+}
+
+func verifyNoSymlinkAt(t *testing.T, runner command.ExecRunner, containerName, path string) {
+	t.Helper()
+	args := BuildExecCommand(containerName, nil, []string{"test", "-e", path})
+	_, err := runner.Run(args[0], args[1:]...)
+	if err == nil {
+		t.Errorf("expected %s to not exist in container without worktree args", path)
+	}
+}
+
 func cleanupContainer(runner command.ExecRunner) {
 	runner.Run("docker", "rm", "-f", testContainerName)
 }
