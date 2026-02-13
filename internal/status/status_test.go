@@ -2,6 +2,7 @@ package status
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -80,4 +81,205 @@ func TestStatus_HasRepositoryFields(t *testing.T) {
 	if s.Branch != "main" {
 		t.Errorf("expected Branch 'main', got '%s'", s.Branch)
 	}
+}
+
+func TestListAllEnvironments_ReturnsBothVMAndContainer(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadata(t, baseDir, "my-vm")
+	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
+
+	stateProvider := func(name, envType string) string {
+		return "running"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	if len(envs) != 2 {
+		t.Fatalf("expected 2 environments, got %d", len(envs))
+	}
+
+	assertContainsEnvironment(t, envs, "my-vm", "vm", "running")
+	assertContainsEnvironment(t, envs, "my-container", "container", "running")
+}
+
+func TestListAllEnvironments_VMStatusIncludesRepositoryAndBranch(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadataWithRepo(t, baseDir, "my-vm", "cer", "isolarium", "main")
+
+	stateProvider := func(name, envType string) string {
+		return "running"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	if len(envs) != 1 {
+		t.Fatalf("expected 1 environment, got %d", len(envs))
+	}
+
+	env := envs[0]
+	if env.Repository != "cer/isolarium" {
+		t.Errorf("expected Repository 'cer/isolarium', got %q", env.Repository)
+	}
+	if env.Branch != "main" {
+		t.Errorf("expected Branch 'main', got %q", env.Branch)
+	}
+}
+
+func TestListAllEnvironments_ContainerStatusIncludesWorkDirectory(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
+
+	stateProvider := func(name, envType string) string {
+		return "running"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	if len(envs) != 1 {
+		t.Fatalf("expected 1 environment, got %d", len(envs))
+	}
+
+	env := envs[0]
+	if env.WorkDirectory != "/home/user/repo" {
+		t.Errorf("expected WorkDirectory '/home/user/repo', got %q", env.WorkDirectory)
+	}
+}
+
+func TestListAllEnvironments_FilterByName(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadata(t, baseDir, "vm-one")
+	createVMMetadata(t, baseDir, "vm-two")
+
+	stateProvider := func(name, envType string) string {
+		return "running"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider, WithName("vm-one"))
+
+	if len(envs) != 1 {
+		t.Fatalf("expected 1 environment, got %d", len(envs))
+	}
+	if envs[0].Name != "vm-one" {
+		t.Errorf("expected name 'vm-one', got %q", envs[0].Name)
+	}
+}
+
+func TestListAllEnvironments_FilterByType(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadata(t, baseDir, "my-vm")
+	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
+
+	stateProvider := func(name, envType string) string {
+		return "running"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider, WithType("container"))
+
+	if len(envs) != 1 {
+		t.Fatalf("expected 1 environment, got %d", len(envs))
+	}
+	if envs[0].Type != "container" {
+		t.Errorf("expected type 'container', got %q", envs[0].Type)
+	}
+}
+
+func TestListAllEnvironments_FilterByNameAndType(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadata(t, baseDir, "shared-name")
+	createContainerMetadata(t, baseDir, "shared-name", "/home/user/repo")
+
+	stateProvider := func(name, envType string) string {
+		return "running"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider, WithName("shared-name"), WithType("container"))
+
+	if len(envs) != 1 {
+		t.Fatalf("expected 1 environment, got %d", len(envs))
+	}
+	if envs[0].Name != "shared-name" || envs[0].Type != "container" {
+		t.Errorf("expected shared-name/container, got %s/%s", envs[0].Name, envs[0].Type)
+	}
+}
+
+func TestListAllEnvironments_EmptyWhenNoEnvironments(t *testing.T) {
+	baseDir := t.TempDir()
+
+	stateProvider := func(name, envType string) string {
+		return "none"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	if len(envs) != 0 {
+		t.Fatalf("expected 0 environments, got %d", len(envs))
+	}
+}
+
+func TestListAllEnvironments_UsesStateProviderForEachEnvironment(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadata(t, baseDir, "running-vm")
+	createContainerMetadata(t, baseDir, "stopped-container", "/work")
+
+	stateProvider := func(name, envType string) string {
+		if name == "running-vm" {
+			return "running"
+		}
+		return "stopped"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	assertContainsEnvironment(t, envs, "running-vm", "vm", "running")
+	assertContainsEnvironment(t, envs, "stopped-container", "container", "stopped")
+}
+
+// --- helpers ---
+
+func createVMMetadata(t *testing.T, baseDir, name string) {
+	t.Helper()
+	createVMMetadataWithRepo(t, baseDir, name, "", "", "")
+}
+
+func createVMMetadataWithRepo(t *testing.T, baseDir, name, owner, repo, branch string) {
+	t.Helper()
+	dir := filepath.Join(baseDir, name, "vm")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("failed to create vm dir: %v", err)
+	}
+
+	metadata := `{"owner":"` + owner + `","repo":"` + repo + `","branch":"` + branch + `"}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
+		t.Fatalf("failed to write vm metadata: %v", err)
+	}
+}
+
+func createContainerMetadata(t *testing.T, baseDir, name, workDir string) {
+	t.Helper()
+	dir := filepath.Join(baseDir, name, "container")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("failed to create container dir: %v", err)
+	}
+
+	metadata := `{"type":"container","work_directory":"` + workDir + `"}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
+		t.Fatalf("failed to write container metadata: %v", err)
+	}
+}
+
+func assertContainsEnvironment(t *testing.T, envs []EnvironmentStatus, name, envType, state string) {
+	t.Helper()
+	for _, env := range envs {
+		if env.Name == name && env.Type == envType && env.State == state {
+			return
+		}
+	}
+	t.Errorf("expected environment (name=%q, type=%q, state=%q) not found in %+v", name, envType, state, envs)
 }

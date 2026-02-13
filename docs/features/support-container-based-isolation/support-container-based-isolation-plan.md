@@ -212,16 +212,16 @@ This thread expands the metadata system to support (name, type) identity pairs a
 
 ## Steel Thread 6: Status Command Lists All Environments
 
-- [ ] **Task 6.1: `isolarium status` lists both VMs and containers**
+- [x] **Task 6.1: `isolarium status` lists both VMs and containers**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/status/...`
   - Observable: `isolarium status` with no flags lists all environments (VMs and containers) showing name, type, state, and type-specific details (repository/branch for VMs, work directory for containers). `--name` and `--type` flags filter the output.
   - Evidence: Unit tests verify: (1) status output includes both VM and container environments, (2) container status shows work directory from metadata, (3) `--name` filtering works, (4) `--type` filtering works.
   - Steps:
-    - [ ] Refactor `internal/status/status.go` to support multiple environment types. Create an `EnvironmentStatus` struct with Name, Type, State, and type-specific fields (Repository/Branch for VMs, WorkDirectory for containers).
-    - [ ] Add `ListAllEnvironments()` that scans `~/.isolarium/` directory for all environments and queries their state via the appropriate backend
-    - [ ] Update `newStatusCmd()` to accept `--type` flag and display the expanded status format
-    - [ ] For container status, read work directory from docker metadata and query container state via `docker inspect`
+    - [x] Refactor `internal/status/status.go` to support multiple environment types. Create an `EnvironmentStatus` struct with Name, Type, State, and type-specific fields (Repository/Branch for VMs, WorkDirectory for containers).
+    - [x] Add `ListAllEnvironments()` that scans `~/.isolarium/` directory for all environments and queries their state via the appropriate backend
+    - [x] Update `newStatusCmd()` to accept `--type` flag and display the expanded status format
+    - [x] For container status, read work directory from docker metadata and query container state via `docker inspect`
 
 ---
 
@@ -314,3 +314,6 @@ Cleanup() now also removes legacy repo.json
 
 ### 2026-02-13 13:43 - mark-task-complete
 Migrated VM metadata to new path structure with fallback read and dual cleanup
+
+### 2026-02-13 13:52 - mark-task-complete
+Implemented EnvironmentStatus struct, ListAllEnvironments with filtering, updated CLI status command with tabular output
