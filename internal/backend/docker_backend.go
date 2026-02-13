@@ -6,6 +6,7 @@ import (
 
 	"github.com/cer/isolarium/internal/command"
 	"github.com/cer/isolarium/internal/docker"
+	"github.com/cer/isolarium/internal/git"
 )
 
 // ExecFunc is the function signature for executing commands in a container.
@@ -27,6 +28,7 @@ type DockerBackend struct {
 	ExecInteractiveFunc ExecFunc
 	OpenShellFunc       ShellFunc
 	CopyCredentialsFunc CopyCredentialsFunc
+	DetectWorktreeFunc  func(string) (*git.WorktreeInfo, error)
 }
 
 func (b *DockerBackend) Create(name string, opts CreateOptions) error {
@@ -41,6 +43,21 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 		MetadataDir: b.MetadataDir,
 		ImageTag:    b.ImageTag,
 	}
+
+	if b.DetectWorktreeFunc != nil {
+		wt, err := b.DetectWorktreeFunc(opts.WorkDirectory)
+		if err != nil {
+			return fmt.Errorf("failed to detect git worktree: %w", err)
+		}
+		if wt != nil {
+			creator.Worktree = &docker.WorktreeConfig{
+				WorktreeHostPath: wt.WorktreeDir,
+				MainRepoHostPath: wt.MainRepoDir,
+				MainRepoDir:      wt.MainRepoDir,
+			}
+		}
+	}
+
 	return creator.Create(name, opts.WorkDirectory, contextDir)
 }
 

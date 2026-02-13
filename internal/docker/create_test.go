@@ -56,6 +56,44 @@ func TestCreateChecksDockerAndBuildsImageAndStartsContainerAndWritesMetadata(t *
 	}
 }
 
+func TestCreateWithWorktreePassesBuildArgsAndSecondVolume(t *testing.T) {
+	metadataDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "info").Returns("")
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", "WORKTREE_HOST_PATH=/home/user/worktree",
+		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/main-repo",
+		metadataDir,
+	).Returns("")
+	runner.OnCommand("docker", "run", "-d",
+		"--name", "my-env",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"-v", "/home/user/worktree:/home/isolarium/repo",
+		"-v", "/home/user/main-repo:/home/isolarium/main-repo",
+		"isolarium:latest",
+	).Returns("container-id-abc123\n")
+
+	creator := &Creator{
+		Runner:      runner,
+		MetadataDir: metadataDir,
+		ImageTag:    "isolarium:latest",
+		Worktree: &WorktreeConfig{
+			WorktreeHostPath: "/home/user/worktree",
+			MainRepoHostPath: "/home/user/main-repo",
+			MainRepoDir:      "/home/user/main-repo",
+		},
+	}
+
+	err := creator.Create("my-env", "/home/user/worktree", metadataDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	runner.VerifyExecuted()
+}
+
 func TestCreateFailsWhenDockerNotAvailable(t *testing.T) {
 	metadataDir := t.TempDir()
 

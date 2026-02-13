@@ -298,19 +298,19 @@ When the work directory is a git worktree, `.git` is a file containing `gitdir: 
     - [x] Update existing tests in `docker_test.go` to pass nil as the new parameter
     - [x] Add `TestBuildImageCommandIncludesBuildArgsForWorktree` and `TestBuildRunCommandIncludesSecondVolumeForWorktree`
 
-- [ ] **Task 9.4: Thread WorktreeConfig through Creator and DockerBackend**
+- [x] **Task 9.4: Thread WorktreeConfig through Creator and DockerBackend**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/... ./internal/backend/...`
   - Observable: `Creator` has a `Worktree *WorktreeConfig` field that is passed to `BuildImageCommand` and `BuildRunCommand`. `DockerBackend` has a `DetectWorktreeFunc` field; when it returns a `WorktreeInfo`, the backend populates `Creator.Worktree`. Non-worktree behavior unchanged.
   - Evidence: Unit tests verify: (1) existing create tests pass with nil Worktree, (2) new create test with Worktree set verifies build args and second volume in FakeRunner commands, (3) DockerBackend test with mock DetectWorktreeFunc verifies config propagation.
   - Steps:
-    - [ ] Add `Worktree *WorktreeConfig` field to `Creator` struct in `create.go`; pass `c.Worktree` to `BuildImageCommand` and `BuildRunCommand` in `buildImage()` and `startContainer()`
-    - [ ] Update existing tests in `create_test.go` (nil Worktree, unchanged commands)
-    - [ ] Add `TestCreateWithWorktreePassesBuildArgsAndSecondVolume` in `create_test.go`
-    - [ ] Add `DetectWorktreeFunc func(string) (*git.WorktreeInfo, error)` field to `DockerBackend` in `docker_backend.go`; in `Create()`, call it and convert result to `WorktreeConfig` on Creator
-    - [ ] Update existing tests in `docker_backend_test.go` (nil DetectWorktreeFunc, unchanged behavior)
-    - [ ] Add `TestDockerBackendCreateDetectsWorktreeAndPassesConfig` and `TestDockerBackendCreateHandlesWorktreeDetectionError` in `docker_backend_test.go`
-    - [ ] Wire `DetectWorktreeFunc: git.DetectWorktree` in `newDockerBackend()` in `resolve.go`
+    - [x] Add `Worktree *WorktreeConfig` field to `Creator` struct in `create.go`; pass `c.Worktree` to `BuildImageCommand` and `BuildRunCommand` in `buildImage()` and `startContainer()`
+    - [x] Update existing tests in `create_test.go` (nil Worktree, unchanged commands)
+    - [x] Add `TestCreateWithWorktreePassesBuildArgsAndSecondVolume` in `create_test.go`
+    - [x] Add `DetectWorktreeFunc func(string) (*git.WorktreeInfo, error)` field to `DockerBackend` in `docker_backend.go`; in `Create()`, call it and convert result to `WorktreeConfig` on Creator
+    - [x] Update existing tests in `docker_backend_test.go` (nil DetectWorktreeFunc, unchanged behavior)
+    - [x] Add `TestDockerBackendCreateDetectsWorktreeAndPassesConfig` and `TestDockerBackendCreateHandlesWorktreeDetectionError` in `docker_backend_test.go`
+    - [x] Wire `DetectWorktreeFunc: git.DetectWorktree` in `newDockerBackend()` in `resolve.go`
 
 - [ ] **Task 9.5: Integration test for worktree git operations inside container**
   - TaskType: INFRA
@@ -394,3 +394,27 @@ Dockerfile now supports WORKTREE_HOST_PATH and MAIN_REPO_HOST_PATH build args th
 
 ### 2026-02-13 17:46 - mark-task-complete
 Added WorktreeConfig struct, updated BuildImageCommand and BuildRunCommand to accept *WorktreeConfig, added tests for build args and second volume mount, updated existing callers to pass nil
+
+### 2026-02-14 07:29 - mark-step-complete
+Added Worktree *WorktreeConfig field to Creator and passed c.Worktree to BuildImageCommand and BuildRunCommand
+
+### 2026-02-14 07:29 - mark-step-complete
+Existing tests pass unchanged with nil Worktree zero value
+
+### 2026-02-14 07:29 - mark-step-complete
+Added TestCreateWithWorktreePassesBuildArgsAndSecondVolume verifying build args and second volume mount
+
+### 2026-02-14 07:29 - mark-step-complete
+Added DetectWorktreeFunc field to DockerBackend and conversion logic in Create() from WorktreeInfo to WorktreeConfig
+
+### 2026-02-14 07:29 - mark-step-complete
+Existing DockerBackend tests pass with nil DetectWorktreeFunc
+
+### 2026-02-14 07:29 - mark-step-complete
+Added TestDockerBackendCreateDetectsWorktreeAndPassesConfig and TestDockerBackendCreateHandlesWorktreeDetectionError
+
+### 2026-02-14 07:29 - mark-step-complete
+Wired DetectWorktreeFunc: git.DetectWorktree in newDockerBackend()
+
+### 2026-02-14 07:29 - mark-task-complete
+WorktreeConfig threaded through Creator and DockerBackend with full test coverage

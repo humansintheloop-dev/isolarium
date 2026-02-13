@@ -1,10 +1,12 @@
 package backend
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/cer/isolarium/internal/command"
+	"github.com/cer/isolarium/internal/git"
 )
 
 func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
@@ -35,6 +37,72 @@ func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 	}
 
 	runner.VerifyExecuted()
+}
+
+func TestDockerBackendCreateDetectsWorktreeAndPassesConfig(t *testing.T) {
+	metadataDir := t.TempDir()
+	contextDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "info").Returns("")
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", "WORKTREE_HOST_PATH=/home/user/worktree",
+		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/main-repo",
+		contextDir,
+	).Returns("")
+	runner.OnCommand("docker", "run", "-d",
+		"--name", "my-env",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"-v", "/home/user/worktree:/home/isolarium/repo",
+		"-v", "/home/user/main-repo:/home/isolarium/main-repo",
+		"isolarium:latest",
+	).Returns("container-id\n")
+
+	b := &DockerBackend{
+		Runner:         runner,
+		MetadataDir:    metadataDir,
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+		DetectWorktreeFunc: func(workDir string) (*git.WorktreeInfo, error) {
+			return &git.WorktreeInfo{
+				MainRepoDir: "/home/user/main-repo",
+				WorktreeDir: "/home/user/worktree",
+			}, nil
+		},
+	}
+
+	err := b.Create("my-env", CreateOptions{WorkDirectory: "/home/user/worktree"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	runner.VerifyExecuted()
+}
+
+func TestDockerBackendCreateHandlesWorktreeDetectionError(t *testing.T) {
+	contextDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+
+	b := &DockerBackend{
+		Runner:         runner,
+		MetadataDir:    t.TempDir(),
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+		DetectWorktreeFunc: func(workDir string) (*git.WorktreeInfo, error) {
+			return nil, fmt.Errorf("permission denied")
+		},
+	}
+
+	err := b.Create("my-env", CreateOptions{WorkDirectory: "/home/user/project"})
+	if err == nil {
+		t.Fatal("expected error when worktree detection fails")
+	}
+
+	if !strings.Contains(err.Error(), "failed to detect git worktree") {
+		t.Errorf("expected error to contain %q, got %q", "failed to detect git worktree", err.Error())
+	}
 }
 
 func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
