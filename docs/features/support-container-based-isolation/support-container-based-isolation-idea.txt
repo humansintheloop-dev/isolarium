@@ -1,0 +1,56 @@
+Currently, Isolarium supports VM-based isolation via Lima.
+
+It should also support container-based isolation using Docker, motivated by:
+- Speed/convenience: containers start in seconds vs. minutes for VMs
+- Linux/CI support: Lima is macOS-only; containers work everywhere
+- Local development workflow: edit files on the host, run agents in the container
+
+## Container mode overview
+
+isolarium create --type container [--work-directory <somedir>] [--name <name>]
+
+- --type: "vm" (default) or "container"
+- --work-directory: host directory mounted as ~/repo inside the container (defaults to cwd; container mode only)
+- --name: environment name (defaults to "isolarium" for VMs, "isolarium-container" for containers)
+
+## Commands supported in container mode
+
+- create: build Docker image (embedded Dockerfile, like template.yaml) + start persistent container
+- run: docker exec with credential injection
+- shell: docker exec -it bash
+- destroy: docker rm -f (image kept for fast re-creation)
+- status: list all environments (VMs and containers) with name, type, state, work directory/repo info
+
+## Dockerfile (embedded in binary)
+
+Pre-installed tools (same as VM, except no Docker-in-Docker):
+- git, curl, wget, Node.js LTS, GitHub CLI, Claude Code (npm), uv
+- SDKMAN, Java 17, Gradle 8.14
+- Workflow tools (i2code, plugins) baked in at build time
+
+## Security model: best-effort hardening
+
+Container mode provides environment isolation, not security isolation. For untrusted workloads, use VM mode.
+- Run as non-root user
+- --security-opt=no-new-privileges
+- --cap-drop=ALL
+- Documented trade-off vs. VM mode
+
+## Credentials
+
+- Git/GitHub: extract token from host via `gh auth token`, inject as GH_TOKEN env var. Dockerfile configures `gh auth git-credential` as git credential helper.
+- Claude: read from macOS Keychain, write into container (same as VM mode, --copy-session flag)
+
+## Identity and lifecycle
+
+- Environment keyed by (name, type) pair — VM and container can coexist with the same name
+- Type stored in metadata (~/.isolarium/{name}/{type}/); auto-detected on subsequent commands
+- Container lifecycle: build image + start persistent container (sleep infinity); run/shell use docker exec
+- Docker must be pre-installed; create verifies with `docker info`
+
+## Code structure
+
+- Backend interface with Create(), Destroy(), Exec(), ExecInteractive(), Status(), CopyCredentials()
+- internal/lima/ implements for VMs
+- internal/docker/ implements for containers
+- CLI resolves backend from type and delegates
