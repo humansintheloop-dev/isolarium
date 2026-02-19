@@ -1,6 +1,7 @@
 package nono
 
 import (
+	"path/filepath"
 	"testing"
 )
 
@@ -15,12 +16,13 @@ func TestBuildRunCommandStartsWithNonoRun(t *testing.T) {
 func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
 	cmd := BuildRunCommand([]string{"echo", "hello"})
 
+	home := homeDir()
 	assertContainsSequence(t, cmd, "--allow", ".")
-	assertContainsSequence(t, cmd, "--allow", "~/.claude/")
-	assertContainsSequence(t, cmd, "--allow-file", "~/.claude.json")
-	assertContainsSequence(t, cmd, "--read-file", "~/Library/Keychains/login.keychain-db")
-	assertContainsSequence(t, cmd, "--allow", "~/.cache/uv")
-	assertContainsSequence(t, cmd, "--read", "~/.local/share/uv")
+	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".claude")+"/")
+	assertContainsSequence(t, cmd, "--allow-file", filepath.Join(home, ".claude.json"))
+	assertContainsSequence(t, cmd, "--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"))
+	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".cache", "uv"))
+	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".local", "share", "uv"))
 }
 
 func TestBuildRunCommandEndsWithSeparatorAndUserArgs(t *testing.T) {
@@ -126,12 +128,13 @@ func TestBuildShellCommandStartsWithNonoShell(t *testing.T) {
 func TestBuildShellCommandIncludesPermissionFlags(t *testing.T) {
 	cmd := BuildShellCommand()
 
+	home := homeDir()
 	assertContainsSequence(t, cmd, "--allow", ".")
-	assertContainsSequence(t, cmd, "--allow", "~/.claude/")
-	assertContainsSequence(t, cmd, "--allow-file", "~/.claude.json")
-	assertContainsSequence(t, cmd, "--read-file", "~/Library/Keychains/login.keychain-db")
-	assertContainsSequence(t, cmd, "--allow", "~/.cache/uv")
-	assertContainsSequence(t, cmd, "--read", "~/.local/share/uv")
+	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".claude")+"/")
+	assertContainsSequence(t, cmd, "--allow-file", filepath.Join(home, ".claude.json"))
+	assertContainsSequence(t, cmd, "--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"))
+	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".cache", "uv"))
+	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".local", "share", "uv"))
 }
 
 func TestBuildShellCommandDoesNotContainSeparatorOrExecFlag(t *testing.T) {
@@ -158,13 +161,20 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 		}
 	}
 
+	knownFlags := map[string]bool{
+		"--allow": true, "--allow-file": true, "--read-file": true, "--read": true,
+	}
+	knownValues := map[string]bool{
+		".": true,
+		filepath.Join(homeDir(), ".claude") + "/":                                  true,
+		filepath.Join(homeDir(), ".claude.json"):                                   true,
+		filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"):      true,
+		filepath.Join(homeDir(), ".cache", "uv"):                                   true,
+		filepath.Join(homeDir(), ".local", "share", "uv"):                          true,
+	}
 	for i := 2; i < separatorIdx; i++ {
 		flag := cmd[i]
-		if flag != "--allow" && flag != "--allow-file" && flag != "--read-file" && flag != "--read" &&
-			flag != "." && flag != "~/.claude/" && flag != "~/.claude.json" &&
-			flag != "~/.claude.json.lock" && flag != "~/.claude.json.tmp.*" &&
-			flag != "~/Library/Keychains/login.keychain-db" &&
-			flag != "~/.cache/uv" && flag != "~/.local/share/uv" {
+		if !knownFlags[flag] && !knownValues[flag] {
 			t.Errorf("unexpected flag before separator: %s", flag)
 		}
 	}
