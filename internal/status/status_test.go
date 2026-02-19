@@ -241,6 +241,50 @@ func TestListAllEnvironments_UsesStateProviderForEachEnvironment(t *testing.T) {
 	assertContainsEnvironment(t, envs, "stopped-container", "container", "stopped")
 }
 
+func TestListAllEnvironments_NonoAppearsWithConfiguredState(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createNonoMetadata(t, baseDir, "my-nono", "/Users/dev/project")
+
+	stateProvider := func(name, envType string) string {
+		return "configured"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	if len(envs) != 1 {
+		t.Fatalf("expected 1 environment, got %d", len(envs))
+	}
+
+	env := envs[0]
+	assertContainsEnvironment(t, envs, "my-nono", "nono", "configured")
+	if env.WorkDirectory != "/Users/dev/project" {
+		t.Errorf("expected WorkDirectory '/Users/dev/project', got %q", env.WorkDirectory)
+	}
+}
+
+func TestListAllEnvironments_NonoAppearsAlongsideVMAndContainer(t *testing.T) {
+	baseDir := t.TempDir()
+
+	createVMMetadata(t, baseDir, "my-vm")
+	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
+	createNonoMetadata(t, baseDir, "my-nono", "/Users/dev/project")
+
+	stateProvider := func(name, envType string) string {
+		return "configured"
+	}
+
+	envs := ListAllEnvironments(baseDir, stateProvider)
+
+	if len(envs) != 3 {
+		t.Fatalf("expected 3 environments, got %d", len(envs))
+	}
+
+	assertContainsEnvironment(t, envs, "my-vm", "vm", "configured")
+	assertContainsEnvironment(t, envs, "my-container", "container", "configured")
+	assertContainsEnvironment(t, envs, "my-nono", "nono", "configured")
+}
+
 // --- helpers ---
 
 func createVMMetadata(t *testing.T, baseDir, name string) {
@@ -271,6 +315,19 @@ func createContainerMetadata(t *testing.T, baseDir, name, workDir string) {
 	metadata := `{"type":"container","work_directory":"` + workDir + `"}`
 	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
 		t.Fatalf("failed to write container metadata: %v", err)
+	}
+}
+
+func createNonoMetadata(t *testing.T, baseDir, name, workDir string) {
+	t.Helper()
+	dir := filepath.Join(baseDir, name, "nono")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("failed to create nono dir: %v", err)
+	}
+
+	metadata := `{"type":"nono","work_directory":"` + workDir + `"}`
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
+		t.Fatalf("failed to write nono metadata: %v", err)
 	}
 }
 

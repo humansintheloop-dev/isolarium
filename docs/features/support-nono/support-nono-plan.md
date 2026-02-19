@@ -177,15 +177,15 @@ Adds interactive execution modes: `--exec` flag for TTY preservation in `nono ru
 
 Adds environment lifecycle operations: status listing shows nono environments, destroy removes metadata.
 
-- [ ] **Task 3.1: `isolarium status` shows nono environments with "configured" state**
+- [x] **Task 3.1: `isolarium status` shows nono environments with "configured" state**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `isolarium status` lists nono environments alongside VM and container environments; nono environments show state `"configured"` and the work directory in the details column
   - Evidence: Go tests verify nono appears in `ListAllEnvironments` output, state is `"configured"`, work directory is populated from metadata, and `formatDetails` returns the work directory for nono; `go test ./...` exits 0
   - Steps:
-    - [ ] Add `"nono"` to `knownTypes` in `internal/status/environment.go`
-    - [ ] Add `case "nono"` to `populateTypeSpecificFields()` in `internal/status/environment.go` that reads `work_directory` from `metadata.json` (same pattern as `case "container"`)
-    - [ ] Add `case "nono"` to `formatDetails()` in `internal/cli/cmd_status.go` that returns `env.WorkDirectory`
+    - [x] Add `"nono"` to `knownTypes` in `internal/status/environment.go`
+    - [x] Add `case "nono"` to `populateTypeSpecificFields()` in `internal/status/environment.go` that reads `work_directory` from `metadata.json` (same pattern as `case "container"`)
+    - [x] Add `case "nono"` to `formatDetails()` in `internal/cli/cmd_status.go` that returns `env.WorkDirectory`
 
 - [ ] **Task 3.2: `isolarium destroy --type nono` removes nono metadata**
   - TaskType: OUTCOME
