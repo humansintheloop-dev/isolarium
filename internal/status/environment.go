@@ -110,14 +110,7 @@ func populateTypeSpecificFields(baseDir, name, envType string, env *EnvironmentS
 			env.Repository = fmt.Sprintf("%s/%s", meta.Owner, meta.Repo)
 			env.Branch = meta.Branch
 		}
-	case "container":
-		var meta struct {
-			WorkDirectory string `json:"work_directory"`
-		}
-		if err := json.Unmarshal(data, &meta); err == nil {
-			env.WorkDirectory = meta.WorkDirectory
-		}
-	case "nono":
+	case "container", "nono":
 		var meta struct {
 			WorkDirectory string `json:"work_directory"`
 		}

@@ -52,7 +52,7 @@ func formatDetails(env status.EnvironmentStatus) string {
 			return fmt.Sprintf("%s (%s)", env.Repository, env.Branch)
 		}
 		return ""
-	case "container":
+	case "container", "nono":
 		return env.WorkDirectory
 	default:
 		return ""

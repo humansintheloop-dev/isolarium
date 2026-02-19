@@ -113,6 +113,44 @@ func TestStatusCommand_EmptyListShowsNoEnvironments(t *testing.T) {
 	assertOutputContains(t, buf.String(), "No environments found")
 }
 
+func TestStatusCommand_NonoShowsWorkDirectory(t *testing.T) {
+	lister := &stubEnvironmentLister{
+		environments: []status.EnvironmentStatus{
+			{Name: "my-nono", Type: "nono", State: "configured", WorkDirectory: "/Users/dev/project"},
+		},
+	}
+
+	rootCmd := newRootCmdWithStatusLister(lister)
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetArgs([]string{"status"})
+
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := buf.String()
+	assertOutputContains(t, output, "my-nono")
+	assertOutputContains(t, output, "nono")
+	assertOutputContains(t, output, "configured")
+	assertOutputContains(t, output, "/Users/dev/project")
+}
+
+func TestFormatDetails_NonoReturnsWorkDirectory(t *testing.T) {
+	env := status.EnvironmentStatus{
+		Name:          "my-nono",
+		Type:          "nono",
+		State:         "configured",
+		WorkDirectory: "/Users/dev/project",
+	}
+
+	details := formatDetails(env)
+
+	if details != "/Users/dev/project" {
+		t.Errorf("expected formatDetails to return '/Users/dev/project', got %q", details)
+	}
+}
+
 // --- helpers ---
 
 type stubEnvironmentLister struct {
