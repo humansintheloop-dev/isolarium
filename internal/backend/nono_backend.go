@@ -1,21 +1,12 @@
 package backend
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/cer/isolarium/internal/command"
 	"github.com/cer/isolarium/internal/nono"
 )
-
-type UnsupportedOperationError struct {
-	Operation string
-}
-
-func (e *UnsupportedOperationError) Error() string {
-	return fmt.Sprintf("%s is not yet supported for nono backend", e.Operation)
-}
 
 type NonoBackend struct {
 	Runner              command.Runner
@@ -34,7 +25,10 @@ func (b *NonoBackend) Create(name string, opts CreateOptions) error {
 }
 
 func (b *NonoBackend) Destroy(name string) error {
-	return &UnsupportedOperationError{Operation: "destroy"}
+	destroyer := &nono.Destroyer{
+		MetadataDir: b.MetadataDir,
+	}
+	return destroyer.Destroy(name)
 }
 
 func (b *NonoBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {

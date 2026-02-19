@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,17 +94,29 @@ func TestNonoBackendCopyCredentialsReturnsNil(t *testing.T) {
 	}
 }
 
-func TestNonoBackendDestroyReturnsUnsupportedOperationError(t *testing.T) {
-	b := &NonoBackend{}
+func TestNonoBackendDestroyDelegatesToNonoDestroyer(t *testing.T) {
+	metadataDir := t.TempDir()
 
-	err := b.Destroy("my-sandbox")
-	if err == nil {
-		t.Fatal("expected error from Destroy")
+	nonoDir := filepath.Join(metadataDir, "my-sandbox", "nono")
+	if err := os.MkdirAll(nonoDir, 0755); err != nil {
+		t.Fatalf("failed to create nono dir: %v", err)
+	}
+	metadataFile := filepath.Join(nonoDir, "metadata.json")
+	if err := os.WriteFile(metadataFile, []byte(`{"type":"nono"}`), 0644); err != nil {
+		t.Fatalf("failed to write metadata: %v", err)
 	}
 
-	var unsupported *UnsupportedOperationError
-	if !errors.As(err, &unsupported) {
-		t.Errorf("expected UnsupportedOperationError, got %T: %v", err, err)
+	b := &NonoBackend{
+		MetadataDir: metadataDir,
+	}
+
+	err := b.Destroy("my-sandbox")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := os.Stat(nonoDir); !os.IsNotExist(err) {
+		t.Error("expected nono metadata directory to be removed after destroy")
 	}
 }
 
