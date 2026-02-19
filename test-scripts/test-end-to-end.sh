@@ -10,14 +10,17 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "=== Cleaning up existing VM ==="
+
 "$SCRIPT_DIR/clean.sh"
 
 echo ""
 echo "=== Running unit tests ==="
+
 go test ./...
 
 echo ""
 echo "=== Running Docker integration tests ==="
+
 if docker info &> /dev/null; then
     go test -tags=integration ./internal/docker/...
 else
@@ -26,14 +29,25 @@ fi
 
 echo ""
 echo "=== Running Lima integration tests ==="
+
 if command -v limactl &> /dev/null; then
-    go test -tags=integration ./internal/lima/... ./internal/claude/...
+    go test -tags=integration ./internal/lima/...
 else
     echo "SKIP: Lima not installed, skipping Lima integration tests"
 fi
 
 echo ""
+echo "=== Running Claude integration tests ==="
+
+if command -v limactl &> /dev/null; then
+    go test -tags=integration ./internal/claude/...
+else
+    echo "SKIP: Lima not installed, skipping Claude integration tests"
+fi
+
+echo ""
 echo "=== Running security verification tests ==="
+
 if command -v limactl &> /dev/null; then
     if limactl list --json | grep -q '"name":"isolarium"'; then
         "$SCRIPT_DIR/test-no-host-mounts.sh"
@@ -48,6 +62,7 @@ fi
 
 echo ""
 echo "=== Running cleanup ==="
+
 if command -v limactl &> /dev/null; then
     go test -tags=cleanup -run TestDestroyCommand ./...
 else
