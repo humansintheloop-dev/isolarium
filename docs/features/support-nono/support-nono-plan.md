@@ -134,18 +134,18 @@ This thread proves the end-to-end architecture: CLI type validation -> backend r
     - [x] Add nono routing in `cmd_create.go` `RunE`: reject `--work-directory` when explicitly set for nono; route nono through Backend interface (same as container path)
     - [x] Update `--type` flag description in `internal/cli/root.go` to include `"nono"`
 
-- [ ] **Task 1.2: `isolarium run --type nono -- <cmd>` wraps with nono run and hardcoded permission set**
+- [x] **Task 1.2: `isolarium run --type nono -- <cmd>` wraps with nono run and hardcoded permission set**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `isolarium run --type nono -- echo hello` builds and executes `nono run --allow . --allow ~/.claude/ --allow-file ~/.claude.json --allow ~/.claude.json.lock --allow '~/.claude.json.tmp.*' --read-file ~/Library/Keychains/login.keychain-db --allow ~/.cache/uv --read ~/.local/share/uv -- echo hello`; exit code from the command is propagated; `--copy-session` rejected when explicitly set with `--copy-session is not supported with --type nono`; `--fresh-login` rejected when explicitly set with `--fresh-login is not supported with --type nono`; no credential copy or GitHub token injection for nono
   - Evidence: Go tests verify command building produces correct nono args with all permission flags, CLI routing calls `backend.Exec` with correct name and args, exit code propagation, --copy-session rejection, --fresh-login rejection, and that no CopyCredentials call is made; `go test ./...` exits 0
   - Steps:
-    - [ ] Create `internal/nono/permissions.go` with a function that returns the hardcoded permission flag slice (`[]string{"--allow", ".", "--allow", "~/.claude/", ...}`)
-    - [ ] Create `internal/nono/command.go` with `BuildRunCommand(args []string) []string` that returns `["nono", "run", <permission-flags>, "--", <args>...]`
-    - [ ] Create `internal/nono/exec.go` with `ExecCommand(name string, envVars map[string]string, args []string) (int, error)` that builds the nono run command, creates an `os/exec.Cmd` with inherited env + envVars, streams stdin/stdout/stderr, and returns the exit code
-    - [ ] Wire `NonoBackend.Exec` to delegate to `nono.ExecCommand` via the injected `ExecFunc`
-    - [ ] Add `runInNono(name string, args []string, interactive bool, resolver BackendResolver) error` function in `internal/cli/cmd_run.go` that resolves the backend, calls `b.Exec` with empty envVars, and propagates exit codes
-    - [ ] Add nono routing in `cmd_run.go` `RunE`: before calling `runInNono`, reject `--copy-session` if `cmd.Flags().Changed("copy-session")` and reject `--fresh-login` if `cmd.Flags().Changed("fresh-login")`; otherwise route to `runInNono`
+    - [x] Create `internal/nono/permissions.go` with a function that returns the hardcoded permission flag slice (`[]string{"--allow", ".", "--allow", "~/.claude/", ...}`)
+    - [x] Create `internal/nono/command.go` with `BuildRunCommand(args []string) []string` that returns `["nono", "run", <permission-flags>, "--", <args>...]`
+    - [x] Create `internal/nono/exec.go` with `ExecCommand(name string, envVars map[string]string, args []string) (int, error)` that builds the nono run command, creates an `os/exec.Cmd` with inherited env + envVars, streams stdin/stdout/stderr, and returns the exit code
+    - [x] Wire `NonoBackend.Exec` to delegate to `nono.ExecCommand` via the injected `ExecFunc`
+    - [x] Add `runInNono(name string, args []string, interactive bool, resolver BackendResolver) error` function in `internal/cli/cmd_run.go` that resolves the backend, calls `b.Exec` with empty envVars, and propagates exit codes
+    - [x] Add nono routing in `cmd_run.go` `RunE`: before calling `runInNono`, reject `--copy-session` if `cmd.Flags().Changed("copy-session")` and reject `--fresh-login` if `cmd.Flags().Changed("fresh-login")`; otherwise route to `runInNono`
 
 ## Thread 2: Interactive Run and Shell
 
@@ -218,3 +218,6 @@ Ensures VM-only commands error with clear messages when used with `--type nono`.
 
 ### 2026-02-19 17:16 - mark-task-complete
 All 9 steps implemented with TDD. go test ./... passes.
+
+### 2026-02-19 17:30 - mark-task-complete
+Implemented nono run command: permissions.go with hardcoded permission flags, command.go with BuildRunCommand, exec.go with ExecCommand, wired NonoBackend.Exec via ExecFunc, added runInNono with flag rejection in cmd_run.go. All tests pass.
