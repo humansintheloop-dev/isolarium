@@ -201,16 +201,16 @@ Adds environment lifecycle operations: status listing shows nono environments, d
 
 Ensures VM-only commands error with clear messages when used with `--type nono`.
 
-- [ ] **Task 4.1: VM-only commands reject --type nono with clear error messages**
+- [x] **Task 4.1: VM-only commands reject --type nono with clear error messages**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `isolarium clone-repo --type nono` errors with `clone-repo is not supported with --type nono`; `isolarium install-tools --type nono` errors with `install-tools is not supported with --type nono`; `isolarium install-workflow-tools-from-source --type nono` errors with `install-workflow-tools-from-source is not supported with --type nono`
   - Evidence: Go tests verify each command produces the specified error message when `--type nono` is set; `go test ./...` exits 0
   - Steps:
-    - [ ] Add type check at the start of `cmd_clone_repo.go` `RunE`: if `--type` flag is set to `"nono"`, return the error message; requires passing `typeFlag` to the command constructor (update signature to match other commands)
-    - [ ] Add type check at the start of `cmd_install_tools.go` `RunE`: same pattern
-    - [ ] Add type check at the start of `cmd_install_workflow_tools_from_source.go` `RunE`: same pattern
-    - [ ] Update `root.go` to pass `typeFlag` to the VM-only command constructors
+    - [x] Add type check at the start of `cmd_clone_repo.go` `RunE`: if `--type` flag is set to `"nono"`, return the error message; requires passing `typeFlag` to the command constructor (update signature to match other commands)
+    - [x] Add type check at the start of `cmd_install_tools.go` `RunE`: same pattern
+    - [x] Add type check at the start of `cmd_install_workflow_tools_from_source.go` `RunE`: same pattern
+    - [x] Update `root.go` to pass `typeFlag` to the VM-only command constructors
 
 ## Change History
 
@@ -242,3 +242,18 @@ All tests pass: BuildShellCommand produces nono shell with permission flags, Non
 
 ### 2026-02-19 18:10 - mark-task-complete
 Implemented nono Destroyer, wired NonoBackend.Destroy delegation, verified CLI routing
+
+### 2026-02-19 18:20 - mark-step-complete
+Added type check in cmd_clone_repo.go RunE
+
+### 2026-02-19 18:20 - mark-step-complete
+Added type check in cmd_install_tools.go RunE
+
+### 2026-02-19 18:20 - mark-step-complete
+Added type check in cmd_install_workflow_tools_from_source.go RunE
+
+### 2026-02-19 18:20 - mark-step-complete
+Updated root.go to pass typeFlag to VM-only command constructors
+
+### 2026-02-19 18:20 - mark-task-complete
+All VM-only commands reject --type nono with clear error messages; tests pass
