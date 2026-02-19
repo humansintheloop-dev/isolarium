@@ -45,7 +45,7 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	}
 
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
-	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm" or "container" (default "vm")`)
+	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", or "nono" (default "vm")`)
 
 	lister := newDefaultEnvironmentLister(resolver)
 	rootCmd.AddCommand(newCreateCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
@@ -71,7 +71,7 @@ func newRootCmdWithStatusLister(lister EnvironmentLister) *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
-	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm" or "container" (default "vm")`)
+	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", or "nono" (default "vm")`)
 
 	rootCmd.AddCommand(newStatusCmdWithLister(rootCmd, &nameFlag, &typeFlag, lister))
 

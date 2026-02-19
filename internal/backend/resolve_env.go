@@ -9,7 +9,7 @@ import (
 
 var ErrNoEnvironmentFound = errors.New("no environment found")
 
-var knownEnvironmentTypes = []string{"vm", "container"}
+var knownEnvironmentTypes = []string{"vm", "container", "nono"}
 
 func ResolveEnvironmentType(baseDir, name string) (string, error) {
 	envDir := filepath.Join(baseDir, name)

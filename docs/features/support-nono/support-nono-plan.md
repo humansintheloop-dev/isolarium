@@ -118,21 +118,21 @@ Steps should be implemented using TDD.
 
 This thread proves the end-to-end architecture: CLI type validation -> backend resolution -> NonoBackend -> nono package -> metadata storage -> command execution. CI already exists (`.github/workflows/ci.yml` runs `go test ./...` via `test-scripts/test-end-to-end.sh`), so all new Go tests are automatically validated on every commit.
 
-- [ ] **Task 1.1: `isolarium create --type nono` registers type, validates nono, and writes metadata**
+- [x] **Task 1.1: `isolarium create --type nono` registers type, validates nono, and writes metadata**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `--type nono` accepted as valid type, resolves to `NonoBackend`; `isolarium create --type nono` validates nono is installed (via `nono --version`), writes metadata to `~/.isolarium/isolarium-nono/nono/metadata.json` with type `"nono"`, work_directory (CWD), and created_at timestamp; `GetState` returns `"configured"` when metadata dir exists and `"none"` otherwise; default name is `isolarium-nono`; `CopyCredentials` is a no-op returning nil; `--work-directory` rejected with `--work-directory is not supported with --type nono`; nono not installed produces `nono is not installed. Install nono to use sandbox mode.`
   - Evidence: Go tests verify type validation, backend resolution, create flow, metadata content, state, default name, CopyCredentials no-op, --work-directory rejection, and nono-not-installed error; `go test ./...` exits 0
   - Steps:
-    - [ ] Add `"nono"` to `environmentType.Set()` validation in `internal/cli/environment_type.go` (update error message to include nono)
-    - [ ] Create `internal/nono/metadata.go` with `NonoMetadata` struct (`Type`, `WorkDirectory`, `CreatedAt`) and `MetadataStore` (following `internal/docker/metadata.go` pattern with dir path `{name}/nono/`)
-    - [ ] Create `internal/nono/create.go` with `Creator` struct (fields: `Runner command.Runner`, `MetadataDir string`) and `Create(name, workDir string) error` that checks nono availability via Runner and writes metadata
-    - [ ] Create `internal/backend/nono_backend.go` with `NonoBackend` struct (fields: `Runner`, `MetadataDir`, `ExecFunc`, `ExecInteractiveFunc`, `OpenShellFunc`) implementing all 7 `Backend` methods; `Create` delegates to `nono.Creator`; `GetState` checks metadata dir existence; `CopyCredentials` returns nil; `Exec`/`ExecInteractive`/`OpenShell`/`Destroy` can initially return `UnsupportedOperationError` (to be implemented in later tasks)
-    - [ ] Add `case "nono"` to `ResolveBackend()` in `internal/backend/resolve.go` with `newNonoBackend()` factory function
-    - [ ] Add `"nono"` to `knownEnvironmentTypes` in `internal/backend/resolve_env.go`
-    - [ ] Add `defaultNonoName = "isolarium-nono"` constant and `case "nono"` to `resolveDefaultName()` in `internal/cli/cmd_create.go`
-    - [ ] Add nono routing in `cmd_create.go` `RunE`: reject `--work-directory` when explicitly set for nono; route nono through Backend interface (same as container path)
-    - [ ] Update `--type` flag description in `internal/cli/root.go` to include `"nono"`
+    - [x] Add `"nono"` to `environmentType.Set()` validation in `internal/cli/environment_type.go` (update error message to include nono)
+    - [x] Create `internal/nono/metadata.go` with `NonoMetadata` struct (`Type`, `WorkDirectory`, `CreatedAt`) and `MetadataStore` (following `internal/docker/metadata.go` pattern with dir path `{name}/nono/`)
+    - [x] Create `internal/nono/create.go` with `Creator` struct (fields: `Runner command.Runner`, `MetadataDir string`) and `Create(name, workDir string) error` that checks nono availability via Runner and writes metadata
+    - [x] Create `internal/backend/nono_backend.go` with `NonoBackend` struct (fields: `Runner`, `MetadataDir`, `ExecFunc`, `ExecInteractiveFunc`, `OpenShellFunc`) implementing all 7 `Backend` methods; `Create` delegates to `nono.Creator`; `GetState` checks metadata dir existence; `CopyCredentials` returns nil; `Exec`/`ExecInteractive`/`OpenShell`/`Destroy` can initially return `UnsupportedOperationError` (to be implemented in later tasks)
+    - [x] Add `case "nono"` to `ResolveBackend()` in `internal/backend/resolve.go` with `newNonoBackend()` factory function
+    - [x] Add `"nono"` to `knownEnvironmentTypes` in `internal/backend/resolve_env.go`
+    - [x] Add `defaultNonoName = "isolarium-nono"` constant and `case "nono"` to `resolveDefaultName()` in `internal/cli/cmd_create.go`
+    - [x] Add nono routing in `cmd_create.go` `RunE`: reject `--work-directory` when explicitly set for nono; route nono through Backend interface (same as container path)
+    - [x] Update `--type` flag description in `internal/cli/root.go` to include `"nono"`
 
 - [ ] **Task 1.2: `isolarium run --type nono -- <cmd>` wraps with nono run and hardcoded permission set**
   - TaskType: OUTCOME
@@ -215,3 +215,6 @@ Ensures VM-only commands error with clear messages when used with `--type nono`.
 ## Change History
 
 (No changes yet)
+
+### 2026-02-19 17:16 - mark-task-complete
+All 9 steps implemented with TDD. go test ./... passes.
