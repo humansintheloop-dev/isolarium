@@ -151,16 +151,16 @@ This thread proves the end-to-end architecture: CLI type validation -> backend r
 
 Adds interactive execution modes: `--exec` flag for TTY preservation in `nono run`, and `nono shell` for sandboxed interactive shells.
 
-- [ ] **Task 2.1: `isolarium run -i --type nono -- claude` adds --exec for TTY preservation**
+- [x] **Task 2.1: `isolarium run -i --type nono -- claude` adds --exec for TTY preservation**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `isolarium run -i --type nono -- claude` builds `nono run --allow . ... --exec -- claude` (with `--exec` before `--`); non-interactive run does NOT include `--exec`
   - Evidence: Go tests verify `BuildRunCommandInteractive` includes `--exec` in the command, `BuildRunCommand` does not include `--exec`, CLI routing calls `backend.ExecInteractive` when `-i` is set; `go test ./...` exits 0
   - Steps:
-    - [ ] Add `BuildRunCommandInteractive(args []string) []string` to `internal/nono/command.go` that includes `--exec` flag before `--`
-    - [ ] Add `ExecInteractiveCommand(name string, envVars map[string]string, args []string) (int, error)` to `internal/nono/exec.go` using the interactive command builder
-    - [ ] Wire `NonoBackend.ExecInteractive` to delegate to `nono.ExecInteractiveCommand` via the injected `ExecInteractiveFunc`
-    - [ ] Update `runInNono` in `cmd_run.go` to call `b.ExecInteractive` when `interactive` is true
+    - [x] Add `BuildRunCommandInteractive(args []string) []string` to `internal/nono/command.go` that includes `--exec` flag before `--`
+    - [x] Add `ExecInteractiveCommand(name string, envVars map[string]string, args []string) (int, error)` to `internal/nono/exec.go` using the interactive command builder
+    - [x] Wire `NonoBackend.ExecInteractive` to delegate to `nono.ExecInteractiveCommand` via the injected `ExecInteractiveFunc`
+    - [x] Update `runInNono` in `cmd_run.go` to call `b.ExecInteractive` when `interactive` is true
 
 - [ ] **Task 2.2: `isolarium shell --type nono` opens sandboxed interactive shell**
   - TaskType: OUTCOME
@@ -221,3 +221,6 @@ All 9 steps implemented with TDD. go test ./... passes.
 
 ### 2026-02-19 17:30 - mark-task-complete
 Implemented nono run command: permissions.go with hardcoded permission flags, command.go with BuildRunCommand, exec.go with ExecCommand, wired NonoBackend.Exec via ExecFunc, added runInNono with flag rejection in cmd_run.go. All tests pass.
+
+### 2026-02-19 17:39 - mark-task-complete
+All 4 steps implemented with TDD. Tests verify BuildRunCommandInteractive includes --exec, BuildRunCommand does not, backend delegates to ExecInteractiveFunc, and CLI routes to ExecInteractive when -i is set.

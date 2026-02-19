@@ -18,9 +18,10 @@ func (e *UnsupportedOperationError) Error() string {
 }
 
 type NonoBackend struct {
-	Runner      command.Runner
-	MetadataDir string
-	ExecFunc    ExecFunc
+	Runner              command.Runner
+	MetadataDir         string
+	ExecFunc            ExecFunc
+	ExecInteractiveFunc ExecFunc
 }
 
 func (b *NonoBackend) Create(name string, opts CreateOptions) error {
@@ -40,7 +41,7 @@ func (b *NonoBackend) Exec(name string, envVars map[string]string, args []string
 }
 
 func (b *NonoBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
-	return 1, &UnsupportedOperationError{Operation: "exec-interactive"}
+	return b.ExecInteractiveFunc(name, envVars, args)
 }
 
 func (b *NonoBackend) OpenShell(name string, envVars map[string]string) (int, error) {

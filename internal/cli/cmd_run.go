@@ -39,7 +39,7 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				if cmd.Flags().Changed("fresh-login") {
 					return fmt.Errorf("--fresh-login is not supported with --type nono")
 				}
-				return runInNono(name, args, resolver)
+				return runInNono(name, args, interactive, resolver)
 			}
 
 			return runInContainer(name, args, copySession, interactive, resolver, envType)
@@ -105,13 +105,19 @@ func runInVM(name string, args []string, copySession bool, freshLogin bool, inte
 	return nil
 }
 
-func runInNono(name string, args []string, resolver BackendResolver) error {
+func runInNono(name string, args []string, interactive bool, resolver BackendResolver) error {
 	b, err := resolver("nono")
 	if err != nil {
 		return err
 	}
 
-	exitCode, execErr := b.Exec(name, map[string]string{}, args)
+	var exitCode int
+	var execErr error
+	if interactive {
+		exitCode, execErr = b.ExecInteractive(name, map[string]string{}, args)
+	} else {
+		exitCode, execErr = b.Exec(name, map[string]string{}, args)
+	}
 	if execErr != nil {
 		return fmt.Errorf("failed to execute command: %w", execErr)
 	}
