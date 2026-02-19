@@ -7,8 +7,14 @@ import (
 )
 
 func ExecCommand(name string, envVars map[string]string, args []string) (int, error) {
-	cmdArgs := BuildRunCommand(args)
+	return runWithCommand(BuildRunCommand(args), envVars)
+}
 
+func ExecInteractiveCommand(name string, envVars map[string]string, args []string) (int, error) {
+	return runWithCommand(BuildRunCommandInteractive(args), envVars)
+}
+
+func runWithCommand(cmdArgs []string, envVars map[string]string) (int, error) {
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Env = buildEnv(envVars)
 	cmd.Stdin = os.Stdin

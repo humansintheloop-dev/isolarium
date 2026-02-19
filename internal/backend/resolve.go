@@ -33,9 +33,10 @@ func newNonoBackend() *NonoBackend {
 		home = os.Getenv("HOME")
 	}
 	return &NonoBackend{
-		Runner:      command.ExecRunner{},
-		MetadataDir: filepath.Join(home, ".isolarium"),
-		ExecFunc:    nono.ExecCommand,
+		Runner:              command.ExecRunner{},
+		MetadataDir:         filepath.Join(home, ".isolarium"),
+		ExecFunc:            nono.ExecCommand,
+		ExecInteractiveFunc: nono.ExecInteractiveCommand,
 	}
 }
 

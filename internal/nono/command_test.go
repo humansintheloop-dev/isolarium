@@ -44,6 +44,77 @@ func TestBuildRunCommandEndsWithSeparatorAndUserArgs(t *testing.T) {
 	}
 }
 
+func TestBuildRunCommandDoesNotIncludeExecFlag(t *testing.T) {
+	cmd := BuildRunCommand([]string{"claude"})
+
+	for _, v := range cmd {
+		if v == "--exec" {
+			t.Fatal("expected BuildRunCommand NOT to include --exec flag")
+		}
+	}
+}
+
+func TestBuildRunCommandInteractiveStartsWithNonoRun(t *testing.T) {
+	cmd := BuildRunCommandInteractive([]string{"claude"})
+
+	if cmd[0] != "nono" || cmd[1] != "run" {
+		t.Errorf("expected command to start with [nono run], got %v", cmd[:2])
+	}
+}
+
+func TestBuildRunCommandInteractiveIncludesExecBeforeSeparator(t *testing.T) {
+	cmd := BuildRunCommandInteractive([]string{"claude"})
+
+	execIdx := -1
+	separatorIdx := -1
+	for i, v := range cmd {
+		if v == "--exec" && execIdx == -1 {
+			execIdx = i
+		}
+		if v == "--" {
+			separatorIdx = i
+			break
+		}
+	}
+
+	if execIdx == -1 {
+		t.Fatal("expected command to contain --exec flag")
+	}
+	if separatorIdx == -1 {
+		t.Fatal("expected command to contain -- separator")
+	}
+	if execIdx >= separatorIdx {
+		t.Errorf("expected --exec (index %d) to appear before -- (index %d)", execIdx, separatorIdx)
+	}
+}
+
+func TestBuildRunCommandInteractiveIncludesPermissionFlags(t *testing.T) {
+	cmd := BuildRunCommandInteractive([]string{"claude"})
+
+	assertContainsSequence(t, cmd, "--allow", ".")
+}
+
+func TestBuildRunCommandInteractiveEndsWithUserArgs(t *testing.T) {
+	cmd := BuildRunCommandInteractive([]string{"claude", "--verbose"})
+
+	separatorIdx := -1
+	for i, v := range cmd {
+		if v == "--" {
+			separatorIdx = i
+			break
+		}
+	}
+
+	if separatorIdx == -1 {
+		t.Fatal("expected command to contain '--' separator")
+	}
+
+	userArgs := cmd[separatorIdx+1:]
+	if len(userArgs) != 2 || userArgs[0] != "claude" || userArgs[1] != "--verbose" {
+		t.Errorf("expected user args [claude --verbose], got %v", userArgs)
+	}
+}
+
 func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 	cmd := BuildRunCommand([]string{"ls"})
 

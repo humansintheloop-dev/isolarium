@@ -294,6 +294,45 @@ func TestRunCommand_NonoRejectsFreshLoginWhenExplicitlySet(t *testing.T) {
 	}
 }
 
+func TestRunCommand_NonoInteractiveCallsBackendExecInteractive(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "nono", "-i", "--", "claude"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.execInteractiveCalled {
+		t.Fatal("expected backend.ExecInteractive to be called")
+	}
+	if spy.execInteractiveName != "isolarium-nono" {
+		t.Errorf("expected name 'isolarium-nono', got '%s'", spy.execInteractiveName)
+	}
+	if len(spy.execInteractiveArgs) != 1 || spy.execInteractiveArgs[0] != "claude" {
+		t.Errorf("expected args [claude], got %v", spy.execInteractiveArgs)
+	}
+}
+
+func TestRunCommand_NonoNonInteractiveCallsBackendExec(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "echo", "hello"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.execCalled {
+		t.Fatal("expected backend.Exec to be called")
+	}
+	if spy.execInteractiveCalled {
+		t.Fatal("expected backend.ExecInteractive NOT to be called for non-interactive nono run")
+	}
+}
+
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
