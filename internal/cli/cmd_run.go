@@ -32,6 +32,16 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				return runInVM(name, args, copySession, freshLogin, interactive, cmd)
 			}
 
+			if envType == "nono" {
+				if cmd.Flags().Changed("copy-session") {
+					return fmt.Errorf("--copy-session is not supported with --type nono")
+				}
+				if cmd.Flags().Changed("fresh-login") {
+					return fmt.Errorf("--fresh-login is not supported with --type nono")
+				}
+				return runInNono(name, args, resolver)
+			}
+
 			return runInContainer(name, args, copySession, interactive, resolver, envType)
 		},
 	}
@@ -85,6 +95,23 @@ func runInVM(name string, args []string, copySession bool, freshLogin bool, inte
 	} else {
 		exitCode, execErr = lima.ExecCommand(name, workdir, envVars, args)
 	}
+	if execErr != nil {
+		return fmt.Errorf("failed to execute command: %w", execErr)
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
+
+	return nil
+}
+
+func runInNono(name string, args []string, resolver BackendResolver) error {
+	b, err := resolver("nono")
+	if err != nil {
+		return err
+	}
+
+	exitCode, execErr := b.Exec(name, map[string]string{}, args)
 	if execErr != nil {
 		return fmt.Errorf("failed to execute command: %w", execErr)
 	}

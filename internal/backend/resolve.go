@@ -8,6 +8,7 @@ import (
 	"github.com/cer/isolarium/internal/command"
 	"github.com/cer/isolarium/internal/docker"
 	"github.com/cer/isolarium/internal/git"
+	"github.com/cer/isolarium/internal/nono"
 )
 
 // ResolveBackend returns the appropriate Backend implementation for the given
@@ -34,6 +35,7 @@ func newNonoBackend() *NonoBackend {
 	return &NonoBackend{
 		Runner:      command.ExecRunner{},
 		MetadataDir: filepath.Join(home, ".isolarium"),
+		ExecFunc:    nono.ExecCommand,
 	}
 }
 

@@ -109,17 +109,51 @@ func TestNonoBackendDestroyReturnsUnsupportedOperationError(t *testing.T) {
 	}
 }
 
-func TestNonoBackendExecReturnsUnsupportedOperationError(t *testing.T) {
-	b := &NonoBackend{}
+func TestNonoBackendExecDelegatesToExecFunc(t *testing.T) {
+	var calledName string
+	var calledEnvVars map[string]string
+	var calledArgs []string
 
-	_, err := b.Exec("my-sandbox", nil, []string{"echo", "hello"})
-	if err == nil {
-		t.Fatal("expected error from Exec")
+	b := &NonoBackend{
+		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+			calledName = name
+			calledEnvVars = envVars
+			calledArgs = args
+			return 0, nil
+		},
 	}
 
-	var unsupported *UnsupportedOperationError
-	if !errors.As(err, &unsupported) {
-		t.Errorf("expected UnsupportedOperationError, got %T: %v", err, err)
+	exitCode, err := b.Exec("my-sandbox", map[string]string{"FOO": "bar"}, []string{"echo", "hello"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if calledName != "my-sandbox" {
+		t.Errorf("expected name 'my-sandbox', got '%s'", calledName)
+	}
+	if calledEnvVars["FOO"] != "bar" {
+		t.Errorf("expected envVars to contain FOO=bar, got %v", calledEnvVars)
+	}
+	if len(calledArgs) != 2 || calledArgs[0] != "echo" || calledArgs[1] != "hello" {
+		t.Errorf("expected args [echo hello], got %v", calledArgs)
+	}
+}
+
+func TestNonoBackendExecPropagatesExitCode(t *testing.T) {
+	b := &NonoBackend{
+		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+			return 42, nil
+		},
+	}
+
+	exitCode, err := b.Exec("my-sandbox", nil, []string{"false"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 42 {
+		t.Errorf("expected exit code 42, got %d", exitCode)
 	}
 }
 
