@@ -45,4 +45,4 @@ When fixing issues caused by naming conventions or patterns:
 2. Fix ALL instances in a single commit
 3. Never commit partial fixes for pattern-based problems
 
-<!-- claude-config-files-sha: bebb3ad83864129bfd174424df3c64c12f621f70 -->
+<!-- claude-config-files-sha: 9f09e6290c311e4a8e7f96329f1e9c28d53aacf4 -->
