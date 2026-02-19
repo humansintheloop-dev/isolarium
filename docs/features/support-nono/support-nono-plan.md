@@ -162,16 +162,16 @@ Adds interactive execution modes: `--exec` flag for TTY preservation in `nono ru
     - [x] Wire `NonoBackend.ExecInteractive` to delegate to `nono.ExecInteractiveCommand` via the injected `ExecInteractiveFunc`
     - [x] Update `runInNono` in `cmd_run.go` to call `b.ExecInteractive` when `interactive` is true
 
-- [ ] **Task 2.2: `isolarium shell --type nono` opens sandboxed interactive shell**
+- [x] **Task 2.2: `isolarium shell --type nono` opens sandboxed interactive shell**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `isolarium shell --type nono` builds and executes `nono shell --allow . --allow ~/.claude/ ...` with the hardcoded permission set (uses `nono shell`, not `nono run`); `--copy-session` rejected when explicitly set with `--copy-session is not supported with --type nono`
   - Evidence: Go tests verify `BuildShellCommand` produces correct `nono shell` args with all permission flags, CLI routing calls `backend.OpenShell`, and --copy-session rejection for nono; `go test ./...` exits 0
   - Steps:
-    - [ ] Add `BuildShellCommand() []string` to `internal/nono/command.go` that returns `["nono", "shell", <permission-flags>]`
-    - [ ] Create `internal/nono/shell.go` with `OpenShell(name string, envVars map[string]string) (int, error)` that builds the nono shell command and executes with stdio streaming
-    - [ ] Wire `NonoBackend.OpenShell` to delegate to `nono.OpenShell` via the injected `OpenShellFunc`
-    - [ ] Add nono routing in `cmd_shell.go`: reject `--copy-session` if explicitly changed for nono; skip credential copy and GitHub token injection for nono; call `b.OpenShell`
+    - [x] Add `BuildShellCommand() []string` to `internal/nono/command.go` that returns `["nono", "shell", <permission-flags>]`
+    - [x] Create `internal/nono/shell.go` with `OpenShell(name string, envVars map[string]string) (int, error)` that builds the nono shell command and executes with stdio streaming
+    - [x] Wire `NonoBackend.OpenShell` to delegate to `nono.OpenShell` via the injected `OpenShellFunc`
+    - [x] Add nono routing in `cmd_shell.go`: reject `--copy-session` if explicitly changed for nono; skip credential copy and GitHub token injection for nono; call `b.OpenShell`
 
 ## Thread 3: Lifecycle Management
 
@@ -224,3 +224,18 @@ Implemented nono run command: permissions.go with hardcoded permission flags, co
 
 ### 2026-02-19 17:39 - mark-task-complete
 All 4 steps implemented with TDD. Tests verify BuildRunCommandInteractive includes --exec, BuildRunCommand does not, backend delegates to ExecInteractiveFunc, and CLI routes to ExecInteractive when -i is set.
+
+### 2026-02-19 17:52 - mark-step-complete
+Added BuildShellCommand() returning [nono, shell, <permission-flags>]
+
+### 2026-02-19 17:52 - mark-step-complete
+Created shell.go with OpenShell delegating to runWithCommand(BuildShellCommand())
+
+### 2026-02-19 17:52 - mark-step-complete
+Added OpenShellFunc field to NonoBackend, wired nono.OpenShell in resolve.go
+
+### 2026-02-19 17:52 - mark-step-complete
+Added --copy-session rejection for nono in cmd_shell.go; existing code already skips creds and GH token for non-container types
+
+### 2026-02-19 17:52 - mark-task-complete
+All tests pass: BuildShellCommand produces nono shell with permission flags, NonoBackend.OpenShell delegates via OpenShellFunc, cmd_shell.go rejects --copy-session for nono

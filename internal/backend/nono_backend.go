@@ -22,6 +22,7 @@ type NonoBackend struct {
 	MetadataDir         string
 	ExecFunc            ExecFunc
 	ExecInteractiveFunc ExecFunc
+	OpenShellFunc       ShellFunc
 }
 
 func (b *NonoBackend) Create(name string, opts CreateOptions) error {
@@ -45,7 +46,7 @@ func (b *NonoBackend) ExecInteractive(name string, envVars map[string]string, ar
 }
 
 func (b *NonoBackend) OpenShell(name string, envVars map[string]string) (int, error) {
-	return 1, &UnsupportedOperationError{Operation: "open-shell"}
+	return b.OpenShellFunc(name, envVars)
 }
 
 func (b *NonoBackend) GetState(name string) string {
