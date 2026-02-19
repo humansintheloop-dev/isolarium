@@ -114,7 +114,7 @@ Steps should be implemented using TDD.
 
 ---
 
-## Thread 1: Create and Non-interactive Run
+## Steel Thread 1: Create and Non-interactive Run
 
 This thread proves the end-to-end architecture: CLI type validation -> backend resolution -> NonoBackend -> nono package -> metadata storage -> command execution. CI already exists (`.github/workflows/ci.yml` runs `go test ./...` via `test-scripts/test-end-to-end.sh`), so all new Go tests are automatically validated on every commit.
 
@@ -147,7 +147,7 @@ This thread proves the end-to-end architecture: CLI type validation -> backend r
     - [ ] Add `runInNono(name string, args []string, interactive bool, resolver BackendResolver) error` function in `internal/cli/cmd_run.go` that resolves the backend, calls `b.Exec` with empty envVars, and propagates exit codes
     - [ ] Add nono routing in `cmd_run.go` `RunE`: before calling `runInNono`, reject `--copy-session` if `cmd.Flags().Changed("copy-session")` and reject `--fresh-login` if `cmd.Flags().Changed("fresh-login")`; otherwise route to `runInNono`
 
-## Thread 2: Interactive Run and Shell
+## Steel Thread 2: Interactive Run and Shell
 
 Adds interactive execution modes: `--exec` flag for TTY preservation in `nono run`, and `nono shell` for sandboxed interactive shells.
 
@@ -173,7 +173,7 @@ Adds interactive execution modes: `--exec` flag for TTY preservation in `nono ru
     - [ ] Wire `NonoBackend.OpenShell` to delegate to `nono.OpenShell` via the injected `OpenShellFunc`
     - [ ] Add nono routing in `cmd_shell.go`: reject `--copy-session` if explicitly changed for nono; skip credential copy and GitHub token injection for nono; call `b.OpenShell`
 
-## Thread 3: Lifecycle Management
+## Steel Thread 3: Lifecycle Management
 
 Adds environment lifecycle operations: status listing shows nono environments, destroy removes metadata.
 
@@ -197,7 +197,7 @@ Adds environment lifecycle operations: status listing shows nono environments, d
     - [ ] Wire `NonoBackend.Destroy` to delegate to `nono.Destroyer`
     - [ ] Verify nono routing in `cmd_destroy.go` already works via the existing non-VM Backend interface path (same as container)
 
-## Thread 4: VM-only Command Validation
+## Steel Thread 4: VM-only Command Validation
 
 Ensures VM-only commands error with clear messages when used with `--type nono`.
 
