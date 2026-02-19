@@ -44,6 +44,24 @@ func TestResolveEnvironmentTypeFindsVMWhenOnlyVMExists(t *testing.T) {
 	}
 }
 
+func TestResolveEnvironmentTypeFindsNonoWhenOnlyNonoExists(t *testing.T) {
+	baseDir := t.TempDir()
+	name := "test-env"
+
+	nonoDir := filepath.Join(baseDir, name, "nono")
+	if err := os.MkdirAll(nonoDir, 0755); err != nil {
+		t.Fatalf("failed to create nono dir: %v", err)
+	}
+
+	envType, err := ResolveEnvironmentType(baseDir, name)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if envType != "nono" {
+		t.Errorf("expected %q, got %q", "nono", envType)
+	}
+}
+
 func TestResolveEnvironmentTypeReturnsErrorWhenBothExist(t *testing.T) {
 	baseDir := t.TempDir()
 	name := "test-env"
