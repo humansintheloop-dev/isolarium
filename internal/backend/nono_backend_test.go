@@ -189,17 +189,30 @@ func TestNonoBackendExecInteractiveDelegatesToExecInteractiveFunc(t *testing.T) 
 	}
 }
 
-func TestNonoBackendOpenShellReturnsUnsupportedOperationError(t *testing.T) {
-	b := &NonoBackend{}
+func TestNonoBackendOpenShellDelegatesToOpenShellFunc(t *testing.T) {
+	var calledName string
+	var calledEnvVars map[string]string
 
-	_, err := b.OpenShell("my-sandbox", nil)
-	if err == nil {
-		t.Fatal("expected error from OpenShell")
+	b := &NonoBackend{
+		OpenShellFunc: func(name string, envVars map[string]string) (int, error) {
+			calledName = name
+			calledEnvVars = envVars
+			return 0, nil
+		},
 	}
 
-	var unsupported *UnsupportedOperationError
-	if !errors.As(err, &unsupported) {
-		t.Errorf("expected UnsupportedOperationError, got %T: %v", err, err)
+	exitCode, err := b.OpenShell("my-sandbox", map[string]string{"FOO": "bar"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+	if calledName != "my-sandbox" {
+		t.Errorf("expected name 'my-sandbox', got '%s'", calledName)
+	}
+	if calledEnvVars["FOO"] != "bar" {
+		t.Errorf("expected envVars to contain FOO=bar, got %v", calledEnvVars)
 	}
 }
 

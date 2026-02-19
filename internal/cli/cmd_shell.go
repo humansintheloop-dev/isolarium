@@ -21,6 +21,12 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 				return err
 			}
 
+			if envType == "nono" {
+				if cmd.Flags().Changed("copy-session") {
+					return fmt.Errorf("--copy-session is not supported with --type nono")
+				}
+			}
+
 			b, err := resolver(envType)
 			if err != nil {
 				return err

@@ -37,6 +37,7 @@ func newNonoBackend() *NonoBackend {
 		MetadataDir:         filepath.Join(home, ".isolarium"),
 		ExecFunc:            nono.ExecCommand,
 		ExecInteractiveFunc: nono.ExecInteractiveCommand,
+		OpenShellFunc:       nono.OpenShell,
 	}
 }
 

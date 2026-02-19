@@ -8,6 +8,12 @@ func BuildRunCommand(args []string) []string {
 	return cmd
 }
 
+func BuildShellCommand() []string {
+	cmd := []string{"nono", "shell"}
+	cmd = append(cmd, PermissionFlags()...)
+	return cmd
+}
+
 func BuildRunCommandInteractive(args []string) []string {
 	cmd := []string{"nono", "run"}
 	cmd = append(cmd, PermissionFlags()...)

@@ -115,6 +115,38 @@ func TestBuildRunCommandInteractiveEndsWithUserArgs(t *testing.T) {
 	}
 }
 
+func TestBuildShellCommandStartsWithNonoShell(t *testing.T) {
+	cmd := BuildShellCommand()
+
+	if cmd[0] != "nono" || cmd[1] != "shell" {
+		t.Errorf("expected command to start with [nono shell], got %v", cmd[:2])
+	}
+}
+
+func TestBuildShellCommandIncludesPermissionFlags(t *testing.T) {
+	cmd := BuildShellCommand()
+
+	assertContainsSequence(t, cmd, "--allow", ".")
+	assertContainsSequence(t, cmd, "--allow", "~/.claude/")
+	assertContainsSequence(t, cmd, "--allow-file", "~/.claude.json")
+	assertContainsSequence(t, cmd, "--read-file", "~/Library/Keychains/login.keychain-db")
+	assertContainsSequence(t, cmd, "--allow", "~/.cache/uv")
+	assertContainsSequence(t, cmd, "--read", "~/.local/share/uv")
+}
+
+func TestBuildShellCommandDoesNotContainSeparatorOrExecFlag(t *testing.T) {
+	cmd := BuildShellCommand()
+
+	for _, v := range cmd {
+		if v == "--" {
+			t.Fatal("expected BuildShellCommand NOT to include '--' separator")
+		}
+		if v == "--exec" {
+			t.Fatal("expected BuildShellCommand NOT to include '--exec' flag")
+		}
+	}
+}
+
 func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 	cmd := BuildRunCommand([]string{"ls"})
 
