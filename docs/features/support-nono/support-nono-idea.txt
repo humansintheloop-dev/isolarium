@@ -1,0 +1,22 @@
+Implement support for nono as a third isolation backend in isolarium.
+
+Nono is a capability-based sandbox for AI agents that provides process-level
+sandboxing on macOS with fine-grained filesystem, network, and command
+restrictions. Unlike the VM and container backends which create separate
+environments, nono wraps commands on the host with permission constraints.
+
+Key design decisions:
+- Third backend implementing the existing Backend interface (alongside Lima VM and Docker container)
+- `isolarium create --type nono` records metadata only (no persistent environment to provision)
+- `isolarium run --type nono -- <command>` wraps commands with `nono run` + hardcoded Claude+Python permission set
+- Agent works directly on local project files (CWD is a repo or git worktree)
+- Credentials accessed directly from host via nono's filesystem permission flags (no copying)
+- `isolarium ssh --type nono` maps to `nono shell`
+- Interactive mode (`-i`) maps to nono's `--exec` flag for TTY preservation
+- Network allowed, nono's default command blocklist used as-is
+- Default environment name: `isolarium-nono`
+- Inapplicable flags (`--copy-session`, `--fresh-login`) error when used with nono
+
+References:
+- nono --help (and nono run --help) for full option reference
+- nono-playground/ for usage examples (Claude, Python/uv, Gradle)
