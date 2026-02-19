@@ -187,15 +187,15 @@ Adds environment lifecycle operations: status listing shows nono environments, d
     - [x] Add `case "nono"` to `populateTypeSpecificFields()` in `internal/status/environment.go` that reads `work_directory` from `metadata.json` (same pattern as `case "container"`)
     - [x] Add `case "nono"` to `formatDetails()` in `internal/cli/cmd_status.go` that returns `env.WorkDirectory`
 
-- [ ] **Task 3.2: `isolarium destroy --type nono` removes nono metadata**
+- [x] **Task 3.2: `isolarium destroy --type nono` removes nono metadata**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: `isolarium destroy --type nono` removes the `~/.isolarium/{name}/nono/` directory; after destroy, the environment no longer appears in status listing
   - Evidence: Go tests verify Destroyer removes the metadata directory and backend.Destroy is called with the correct name; `go test ./...` exits 0
   - Steps:
-    - [ ] Create `internal/nono/destroy.go` with `Destroyer` struct (field: `MetadataDir string`) and `Destroy(name string) error` that removes `{MetadataDir}/{name}/nono/` using `os.RemoveAll`
-    - [ ] Wire `NonoBackend.Destroy` to delegate to `nono.Destroyer`
-    - [ ] Verify nono routing in `cmd_destroy.go` already works via the existing non-VM Backend interface path (same as container)
+    - [x] Create `internal/nono/destroy.go` with `Destroyer` struct (field: `MetadataDir string`) and `Destroy(name string) error` that removes `{MetadataDir}/{name}/nono/` using `os.RemoveAll`
+    - [x] Wire `NonoBackend.Destroy` to delegate to `nono.Destroyer`
+    - [x] Verify nono routing in `cmd_destroy.go` already works via the existing non-VM Backend interface path (same as container)
 
 ## Thread 4: VM-only Command Validation
 
@@ -239,3 +239,6 @@ Added --copy-session rejection for nono in cmd_shell.go; existing code already s
 
 ### 2026-02-19 17:52 - mark-task-complete
 All tests pass: BuildShellCommand produces nono shell with permission flags, NonoBackend.OpenShell delegates via OpenShellFunc, cmd_shell.go rejects --copy-session for nono
+
+### 2026-02-19 18:10 - mark-task-complete
+Implemented nono Destroyer, wired NonoBackend.Destroy delegation, verified CLI routing

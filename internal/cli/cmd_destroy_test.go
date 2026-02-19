@@ -26,6 +26,24 @@ func TestDestroyCommand_ContainerCallsBackendDestroy(t *testing.T) {
 }
 
 
+func TestDestroyCommand_NonoCallsBackendDestroy(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"destroy", "--type", "nono"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.destroyCalled {
+		t.Fatal("expected backend.Destroy to be called")
+	}
+	if spy.destroyName != "isolarium-nono" {
+		t.Errorf("expected name 'isolarium-nono', got '%s'", spy.destroyName)
+	}
+}
+
 func TestDestroyCommand_ExplicitNameOverridesDefault(t *testing.T) {
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
