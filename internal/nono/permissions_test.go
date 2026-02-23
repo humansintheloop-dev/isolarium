@@ -11,6 +11,18 @@ func TestPermissionFlagsContainsProjectDirectoryAccess(t *testing.T) {
 	assertContainsSequence(t, flags, "--allow", ".")
 }
 
+func TestPermissionFlagsContainsTempDirectory(t *testing.T) {
+	flags := PermissionFlags()
+
+	assertContainsSequence(t, flags, "--allow", tempDir())
+}
+
+func TestPermissionFlagsContainsPrivateTmp(t *testing.T) {
+	flags := PermissionFlags()
+
+	assertContainsSequence(t, flags, "--allow", "/private/tmp")
+}
+
 func TestPermissionFlagsContainsClaudeConfigDirectory(t *testing.T) {
 	flags := PermissionFlags()
 
@@ -23,10 +35,22 @@ func TestPermissionFlagsContainsClaudeSettingsFile(t *testing.T) {
 	assertContainsSequence(t, flags, "--allow-file", filepath.Join(homeDir(), ".claude.json"))
 }
 
+func TestPermissionFlagsContainsGitConfigReadOnly(t *testing.T) {
+	flags := PermissionFlags()
+
+	assertContainsSequence(t, flags, "--read-file", filepath.Join(homeDir(), ".gitconfig"))
+}
+
 func TestPermissionFlagsContainsMacOSKeychainReadOnly(t *testing.T) {
 	flags := PermissionFlags()
 
 	assertContainsSequence(t, flags, "--read-file", filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"))
+}
+
+func TestPermissionFlagsContainsHitlWorktreeLogs(t *testing.T) {
+	flags := PermissionFlags()
+
+	assertContainsSequence(t, flags, "--allow", filepath.Join(homeDir(), ".hitl", "worktree", "logs"))
 }
 
 func TestPermissionFlagsContainsUvCache(t *testing.T) {
