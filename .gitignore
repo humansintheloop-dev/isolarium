@@ -1,6 +1,5 @@
+**/.hitl
 *-sessionID.txt
-.claude/issues
-.claude/sessions
 
 # Go binaries
 /bin/

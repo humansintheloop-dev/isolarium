@@ -165,10 +165,14 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 		"--allow": true, "--allow-file": true, "--read-file": true, "--read": true,
 	}
 	knownValues := map[string]bool{
-		".": true,
+		".":            true,
+		tempDir():      true,
+		"/private/tmp": true,
 		filepath.Join(homeDir(), ".claude") + "/":                                  true,
 		filepath.Join(homeDir(), ".claude.json"):                                   true,
+		filepath.Join(homeDir(), ".gitconfig"):                                     true,
 		filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"):      true,
+		filepath.Join(homeDir(), ".hitl", "worktree", "logs"):                      true,
 		filepath.Join(homeDir(), ".cache", "uv"):                                   true,
 		filepath.Join(homeDir(), ".local", "share", "uv"):                          true,
 	}
