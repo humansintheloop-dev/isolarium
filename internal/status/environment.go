@@ -38,7 +38,7 @@ func WithType(envType string) ListOption {
 	}
 }
 
-var knownTypes = []string{"vm", "container"}
+var knownTypes = []string{"vm", "container", "nono"}
 
 func ListAllEnvironments(baseDir string, stateProvider StateProvider, opts ...ListOption) []EnvironmentStatus {
 	options := &listOptions{}
@@ -110,7 +110,7 @@ func populateTypeSpecificFields(baseDir, name, envType string, env *EnvironmentS
 			env.Repository = fmt.Sprintf("%s/%s", meta.Owner, meta.Repo)
 			env.Branch = meta.Branch
 		}
-	case "container":
+	case "container", "nono":
 		var meta struct {
 			WorkDirectory string `json:"work_directory"`
 		}

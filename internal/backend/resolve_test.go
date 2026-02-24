@@ -24,6 +24,16 @@ func TestResolveBackendReturnsDockerBackendForContainer(t *testing.T) {
 	}
 }
 
+func TestResolveBackendReturnsNonoBackendForNono(t *testing.T) {
+	b, err := ResolveBackend("nono")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := b.(*NonoBackend); !ok {
+		t.Errorf("expected *NonoBackend, got %T", b)
+	}
+}
+
 func TestResolveBackendReturnsErrorForUnknownType(t *testing.T) {
 	_, err := ResolveBackend("unknown")
 	if err == nil {

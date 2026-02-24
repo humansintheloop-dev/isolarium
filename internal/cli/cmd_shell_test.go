@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/cer/isolarium/internal/backend"
@@ -118,6 +119,69 @@ func TestShellCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
 
 	if spy.copyCredentialsCalled {
 		t.Fatal("expected backend.CopyCredentials NOT to be called when --copy-session=false")
+	}
+}
+
+func TestShellCommand_NonoCallsBackendOpenShell(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"shell", "--type", "nono"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.openShellCalled {
+		t.Fatal("expected backend.OpenShell to be called")
+	}
+	if spy.openShellName != "isolarium-nono" {
+		t.Errorf("expected name 'isolarium-nono', got '%s'", spy.openShellName)
+	}
+}
+
+func TestShellCommand_NonoPassesEmptyEnvVars(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"shell", "--type", "nono"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(spy.openShellEnvVars) != 0 {
+		t.Errorf("expected empty envVars for nono, got %v", spy.openShellEnvVars)
+	}
+}
+
+func TestShellCommand_NonoRejectsCopySessionWhenExplicitlySet(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"shell", "--type", "nono", "--copy-session"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when --copy-session is explicitly set with --type nono")
+	}
+	if !strings.Contains(err.Error(), "--copy-session is not supported with --type nono") {
+		t.Errorf("expected error message about --copy-session not supported, got: %v", err)
+	}
+}
+
+func TestShellCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"shell", "--type", "nono"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if spy.copyCredentialsCalled {
+		t.Fatal("expected CopyCredentials NOT to be called for nono")
 	}
 }
 

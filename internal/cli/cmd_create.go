@@ -9,6 +9,7 @@ import (
 )
 
 const defaultContainerName = "isolarium-container"
+const defaultNonoName = "isolarium-nono"
 
 func newCreateCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver) *cobra.Command {
 	var workDirFlag string
@@ -21,6 +22,10 @@ func newCreateCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag
 
 			if workDirectoryExplicitlySet(cmd) && envType == "vm" {
 				return fmt.Errorf("--work-directory is only supported with --type container")
+			}
+
+			if workDirectoryExplicitlySet(cmd) && envType == "nono" {
+				return fmt.Errorf("--work-directory is not supported with --type nono")
 			}
 
 			name := resolveDefaultName(*nameFlag, envType, rootCmd)
@@ -57,6 +62,9 @@ func resolveDefaultName(nameFlag string, envType string, rootCmd *cobra.Command)
 	}
 	if envType == "container" {
 		return defaultContainerName
+	}
+	if envType == "nono" {
+		return defaultNonoName
 	}
 	return nameFlag
 }

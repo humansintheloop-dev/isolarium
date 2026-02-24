@@ -8,6 +8,7 @@ import (
 	"github.com/cer/isolarium/internal/command"
 	"github.com/cer/isolarium/internal/docker"
 	"github.com/cer/isolarium/internal/git"
+	"github.com/cer/isolarium/internal/nono"
 )
 
 // ResolveBackend returns the appropriate Backend implementation for the given
@@ -19,8 +20,24 @@ func ResolveBackend(envType string) (Backend, error) {
 		return &LimaBackend{}, nil
 	case "container":
 		return newDockerBackend(), nil
+	case "nono":
+		return newNonoBackend(), nil
 	default:
 		return nil, fmt.Errorf("unknown environment type: %q", envType)
+	}
+}
+
+func newNonoBackend() *NonoBackend {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	return &NonoBackend{
+		Runner:              command.ExecRunner{},
+		MetadataDir:         filepath.Join(home, ".isolarium"),
+		ExecFunc:            nono.ExecCommand,
+		ExecInteractiveFunc: nono.ExecInteractiveCommand,
+		OpenShellFunc:       nono.OpenShell,
 	}
 }
 

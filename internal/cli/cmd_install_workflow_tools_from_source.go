@@ -7,12 +7,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newInstallWorkflowToolsFromSourceCmd() *cobra.Command {
+func newInstallWorkflowToolsFromSourceCmd(rootCmd *cobra.Command, typeFlag *environmentType) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install-workflow-tools-from-source <path>",
 		Short: "Install workflow tools from a local directory, including uncommitted changes",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if string(*typeFlag) == "nono" {
+				return fmt.Errorf("install-workflow-tools-from-source is not supported with --type nono")
+			}
 			sourcePath := args[0]
 
 			state := lima.GetVMState(vmNameFlag)

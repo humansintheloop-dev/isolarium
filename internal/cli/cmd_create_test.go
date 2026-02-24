@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cer/isolarium/internal/backend"
@@ -133,6 +134,55 @@ func TestCreateCommand_ExplicitNameOverridesDefault(t *testing.T) {
 
 	if spy.createName != "my-env" {
 		t.Errorf("expected name 'my-env', got '%s'", spy.createName)
+	}
+}
+
+func TestCreateCommand_TypeFlagAcceptsNono(t *testing.T) {
+	rootCmd := NewRootCmd()
+	disableAllRunHandlers(rootCmd)
+	rootCmd.SetArgs([]string{"create", "--type", "nono"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	typeFlag := rootCmd.PersistentFlags().Lookup("type")
+	if typeFlag.Value.String() != "nono" {
+		t.Errorf("expected --type to be 'nono', got '%s'", typeFlag.Value.String())
+	}
+}
+
+func TestCreateCommand_NonoCallsBackendCreateWithDefaultName(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"create", "--type", "nono"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.createCalled {
+		t.Fatal("expected backend.Create to be called")
+	}
+	if spy.createName != "isolarium-nono" {
+		t.Errorf("expected name 'isolarium-nono', got '%s'", spy.createName)
+	}
+}
+
+func TestCreateCommand_WorkDirectoryRejectedForNonoType(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"create", "--type", "nono", "--work-directory", "/some/path"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when --work-directory used with --type nono")
+	}
+
+	expectedMessage := "--work-directory is not supported with --type nono"
+	if !strings.Contains(err.Error(), expectedMessage) {
+		t.Errorf("expected error containing %q, got %q", expectedMessage, err.Error())
 	}
 }
 
