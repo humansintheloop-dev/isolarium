@@ -8,12 +8,15 @@ import (
 	"github.com/cer/isolarium/internal/nono"
 )
 
+type nonoExecFunc func(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error)
+
 type NonoBackend struct {
 	Runner              command.Runner
 	MetadataDir         string
-	ExecFunc            ExecFunc
-	ExecInteractiveFunc ExecFunc
+	ExecFunc            nonoExecFunc
+	ExecInteractiveFunc nonoExecFunc
 	OpenShellFunc       ShellFunc
+	ExtraReadPaths      []string
 }
 
 func (b *NonoBackend) Create(name string, opts CreateOptions) error {
@@ -32,11 +35,11 @@ func (b *NonoBackend) Destroy(name string) error {
 }
 
 func (b *NonoBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {
-	return b.ExecFunc(name, envVars, args)
+	return b.ExecFunc(name, envVars, args, b.ExtraReadPaths)
 }
 
 func (b *NonoBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
-	return b.ExecInteractiveFunc(name, envVars, args)
+	return b.ExecInteractiveFunc(name, envVars, args, b.ExtraReadPaths)
 }
 
 func (b *NonoBackend) OpenShell(name string, envVars map[string]string) (int, error) {

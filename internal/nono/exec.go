@@ -6,12 +6,12 @@ import (
 	"os/exec"
 )
 
-func ExecCommand(name string, envVars map[string]string, args []string) (int, error) {
-	return runWithCommand(BuildRunCommand(args), envVars)
+func ExecCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
+	return runWithCommand(BuildRunCommand(args, extraReadPaths), envVars)
 }
 
-func ExecInteractiveCommand(name string, envVars map[string]string, args []string) (int, error) {
-	return runWithCommand(BuildRunCommandInteractive(args), envVars)
+func ExecInteractiveCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
+	return runWithCommand(BuildRunCommandInteractive(args, extraReadPaths), envVars)
 }
 
 func runWithCommand(cmdArgs []string, envVars map[string]string) (int, error) {

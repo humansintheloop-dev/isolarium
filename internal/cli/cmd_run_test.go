@@ -348,6 +348,28 @@ func TestRunCommand_NonoNonInteractiveCallsBackendExec(t *testing.T) {
 	}
 }
 
+func TestRunCommand_NonoReadFlagSetsExtraReadPaths(t *testing.T) {
+	stubMintGitHubToken(t)
+	var calledExtraReadPaths []string
+	nb := &backend.NonoBackend{
+		ExecFunc: func(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
+			calledExtraReadPaths = extraReadPaths
+			return 0, nil
+		},
+	}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return nb, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "nono", "--read", "/path/one", "--read", "/path/two", "--", "echo", "hello"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(calledExtraReadPaths) != 2 || calledExtraReadPaths[0] != "/path/one" || calledExtraReadPaths[1] != "/path/two" {
+		t.Errorf("expected extraReadPaths [/path/one /path/two], got %v", calledExtraReadPaths)
+	}
+}
+
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{}

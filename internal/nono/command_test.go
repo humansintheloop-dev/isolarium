@@ -6,7 +6,7 @@ import (
 )
 
 func TestBuildRunCommandStartsWithNonoRun(t *testing.T) {
-	cmd := BuildRunCommand([]string{"echo", "hello"})
+	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
 
 	if cmd[0] != "nono" || cmd[1] != "run" {
 		t.Errorf("expected command to start with [nono run], got %v", cmd[:2])
@@ -14,7 +14,7 @@ func TestBuildRunCommandStartsWithNonoRun(t *testing.T) {
 }
 
 func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
-	cmd := BuildRunCommand([]string{"echo", "hello"})
+	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
 
 	home := homeDir()
 	assertContainsSequence(t, cmd, "--allow", ".")
@@ -26,7 +26,7 @@ func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
 }
 
 func TestBuildRunCommandEndsWithSeparatorAndUserArgs(t *testing.T) {
-	cmd := BuildRunCommand([]string{"echo", "hello"})
+	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
 
 	separatorIdx := -1
 	for i, v := range cmd {
@@ -47,7 +47,7 @@ func TestBuildRunCommandEndsWithSeparatorAndUserArgs(t *testing.T) {
 }
 
 func TestBuildRunCommandDoesNotIncludeExecFlag(t *testing.T) {
-	cmd := BuildRunCommand([]string{"claude"})
+	cmd := BuildRunCommand([]string{"claude"}, nil)
 
 	for _, v := range cmd {
 		if v == "--exec" {
@@ -57,7 +57,7 @@ func TestBuildRunCommandDoesNotIncludeExecFlag(t *testing.T) {
 }
 
 func TestBuildRunCommandInteractiveStartsWithNonoRun(t *testing.T) {
-	cmd := BuildRunCommandInteractive([]string{"claude"})
+	cmd := BuildRunCommandInteractive([]string{"claude"}, nil)
 
 	if cmd[0] != "nono" || cmd[1] != "run" {
 		t.Errorf("expected command to start with [nono run], got %v", cmd[:2])
@@ -65,7 +65,7 @@ func TestBuildRunCommandInteractiveStartsWithNonoRun(t *testing.T) {
 }
 
 func TestBuildRunCommandInteractiveIncludesExecBeforeSeparator(t *testing.T) {
-	cmd := BuildRunCommandInteractive([]string{"claude"})
+	cmd := BuildRunCommandInteractive([]string{"claude"}, nil)
 
 	execIdx := -1
 	separatorIdx := -1
@@ -91,13 +91,13 @@ func TestBuildRunCommandInteractiveIncludesExecBeforeSeparator(t *testing.T) {
 }
 
 func TestBuildRunCommandInteractiveIncludesPermissionFlags(t *testing.T) {
-	cmd := BuildRunCommandInteractive([]string{"claude"})
+	cmd := BuildRunCommandInteractive([]string{"claude"}, nil)
 
 	assertContainsSequence(t, cmd, "--allow", ".")
 }
 
 func TestBuildRunCommandInteractiveEndsWithUserArgs(t *testing.T) {
-	cmd := BuildRunCommandInteractive([]string{"claude", "--verbose"})
+	cmd := BuildRunCommandInteractive([]string{"claude", "--verbose"}, nil)
 
 	separatorIdx := -1
 	for i, v := range cmd {
@@ -151,7 +151,7 @@ func TestBuildShellCommandDoesNotContainSeparatorOrExecFlag(t *testing.T) {
 }
 
 func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
-	cmd := BuildRunCommand([]string{"ls"})
+	cmd := BuildRunCommand([]string{"ls"}, nil)
 
 	separatorIdx := -1
 	for i, v := range cmd {
@@ -186,5 +186,41 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 		if !knownFlags[flag] && !knownValues[flag] {
 			t.Errorf("unexpected flag before separator: %s", flag)
 		}
+	}
+}
+
+func TestBuildRunCommandIncludesExtraReadPaths(t *testing.T) {
+	cmd := BuildRunCommand([]string{"ls"}, []string{"/extra/path1", "/extra/path2"})
+
+	assertContainsSequence(t, cmd, "--read", "/extra/path1")
+	assertContainsSequence(t, cmd, "--read", "/extra/path2")
+}
+
+func TestBuildRunCommandInteractiveIncludesExtraReadPaths(t *testing.T) {
+	cmd := BuildRunCommandInteractive([]string{"claude"}, []string{"/extra/path"})
+
+	assertContainsSequence(t, cmd, "--read", "/extra/path")
+}
+
+func TestBuildRunCommandExtraReadPathsBeforeSeparator(t *testing.T) {
+	cmd := BuildRunCommand([]string{"ls"}, []string{"/extra/path"})
+
+	separatorIdx := -1
+	extraReadIdx := -1
+	for i, v := range cmd {
+		if v == "--" {
+			separatorIdx = i
+			break
+		}
+		if v == "/extra/path" {
+			extraReadIdx = i
+		}
+	}
+
+	if extraReadIdx == -1 {
+		t.Fatal("expected extra read path to appear in command")
+	}
+	if extraReadIdx >= separatorIdx {
+		t.Errorf("expected extra read path (index %d) before separator (index %d)", extraReadIdx, separatorIdx)
 	}
 }

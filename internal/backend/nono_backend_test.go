@@ -124,14 +124,17 @@ func TestNonoBackendExecDelegatesToExecFunc(t *testing.T) {
 	var calledName string
 	var calledEnvVars map[string]string
 	var calledArgs []string
+	var calledExtraReadPaths []string
 
 	b := &NonoBackend{
-		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+		ExecFunc: func(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
 			calledName = name
 			calledEnvVars = envVars
 			calledArgs = args
+			calledExtraReadPaths = extraReadPaths
 			return 0, nil
 		},
+		ExtraReadPaths: []string{"/extra/path"},
 	}
 
 	exitCode, err := b.Exec("my-sandbox", map[string]string{"FOO": "bar"}, []string{"echo", "hello"})
@@ -150,11 +153,14 @@ func TestNonoBackendExecDelegatesToExecFunc(t *testing.T) {
 	if len(calledArgs) != 2 || calledArgs[0] != "echo" || calledArgs[1] != "hello" {
 		t.Errorf("expected args [echo hello], got %v", calledArgs)
 	}
+	if len(calledExtraReadPaths) != 1 || calledExtraReadPaths[0] != "/extra/path" {
+		t.Errorf("expected extraReadPaths [/extra/path], got %v", calledExtraReadPaths)
+	}
 }
 
 func TestNonoBackendExecPropagatesExitCode(t *testing.T) {
 	b := &NonoBackend{
-		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+		ExecFunc: func(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
 			return 42, nil
 		},
 	}
@@ -172,14 +178,17 @@ func TestNonoBackendExecInteractiveDelegatesToExecInteractiveFunc(t *testing.T) 
 	var calledName string
 	var calledEnvVars map[string]string
 	var calledArgs []string
+	var calledExtraReadPaths []string
 
 	b := &NonoBackend{
-		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
 			calledName = name
 			calledEnvVars = envVars
 			calledArgs = args
+			calledExtraReadPaths = extraReadPaths
 			return 0, nil
 		},
+		ExtraReadPaths: []string{"/interactive/path"},
 	}
 
 	exitCode, err := b.ExecInteractive("my-sandbox", map[string]string{"FOO": "bar"}, []string{"claude"})
@@ -197,6 +206,9 @@ func TestNonoBackendExecInteractiveDelegatesToExecInteractiveFunc(t *testing.T) 
 	}
 	if len(calledArgs) != 1 || calledArgs[0] != "claude" {
 		t.Errorf("expected args [claude], got %v", calledArgs)
+	}
+	if len(calledExtraReadPaths) != 1 || calledExtraReadPaths[0] != "/interactive/path" {
+		t.Errorf("expected extraReadPaths [/interactive/path], got %v", calledExtraReadPaths)
 	}
 }
 

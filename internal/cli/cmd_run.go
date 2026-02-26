@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cer/isolarium/internal/backend"
 	"github.com/cer/isolarium/internal/lima"
 	"github.com/spf13/cobra"
 )
@@ -13,6 +14,7 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 	var copySession bool
 	var freshLogin bool
 	var interactive bool
+	var readPaths []string
 
 	cmd := &cobra.Command{
 		Use:   "run [flags] -- command [args...]",
@@ -40,7 +42,7 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				if cmd.Flags().Changed("fresh-login") {
 					return fmt.Errorf("--fresh-login is not supported with --type nono")
 				}
-				return runInNono(name, args, interactive, resolver)
+				return runInNono(name, args, interactive, readPaths, resolver)
 			}
 
 			return runInContainer(name, args, copySession, interactive, resolver, envType)
@@ -50,6 +52,7 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 	cmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to VM")
 	cmd.Flags().BoolVar(&freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
 	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach TTY for interactive commands")
+	cmd.Flags().StringSliceVar(&readPaths, "read", nil, "Grant nono sandbox read-only access to additional paths")
 
 	return cmd
 }
@@ -106,10 +109,14 @@ func runInVM(name string, args []string, copySession bool, freshLogin bool, inte
 	return nil
 }
 
-func runInNono(name string, args []string, interactive bool, resolver BackendResolver) error {
+func runInNono(name string, args []string, interactive bool, readPaths []string, resolver BackendResolver) error {
 	b, err := resolver("nono")
 	if err != nil {
 		return err
+	}
+
+	if nb, ok := b.(*backend.NonoBackend); ok {
+		nb.ExtraReadPaths = readPaths
 	}
 
 	envVars := map[string]string{
