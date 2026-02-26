@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: precommit-check
+        name: Run precommit checks
+        entry: ./test-scripts/test-precommit.sh
+        language: script
+        pass_filenames: false
+        files: ^(internal/|cmd/|test-scripts/)
