@@ -228,7 +228,15 @@ func TestRunCommand_AutoDetectsContainerWhenTypeNotProvided(t *testing.T) {
 	}
 }
 
+func stubMintGitHubToken(t *testing.T) {
+	t.Helper()
+	orig := mintGitHubToken
+	mintGitHubToken = func() (string, error) { return "test-token", nil }
+	t.Cleanup(func() { mintGitHubToken = orig })
+}
+
 func TestRunCommand_NonoCallsBackendExec(t *testing.T) {
+	stubMintGitHubToken(t)
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
@@ -249,18 +257,23 @@ func TestRunCommand_NonoCallsBackendExec(t *testing.T) {
 	}
 }
 
-func TestRunCommand_NonoPassesEmptyEnvVars(t *testing.T) {
+func TestRunCommand_NonoFailsWhenGitHubAppNotConfigured(t *testing.T) {
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
 	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "echo", "hello"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
 
-	if len(spy.execEnvVars) != 0 {
-		t.Errorf("expected empty envVars for nono, got %v", spy.execEnvVars)
+	t.Setenv("GITHUB_APP_ID", "")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "")
+
+	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "echo", "hello"})
+	err := rootCmd.Execute()
+
+	if err == nil {
+		t.Fatal("expected error when GitHub App is not configured")
+	}
+	if !strings.Contains(err.Error(), "GitHub App not configured") {
+		t.Errorf("expected error about GitHub App not configured, got: %v", err)
 	}
 }
 
@@ -295,6 +308,7 @@ func TestRunCommand_NonoRejectsFreshLoginWhenExplicitlySet(t *testing.T) {
 }
 
 func TestRunCommand_NonoInteractiveCallsBackendExecInteractive(t *testing.T) {
+	stubMintGitHubToken(t)
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
@@ -316,6 +330,7 @@ func TestRunCommand_NonoInteractiveCallsBackendExecInteractive(t *testing.T) {
 }
 
 func TestRunCommand_NonoNonInteractiveCallsBackendExec(t *testing.T) {
+	stubMintGitHubToken(t)
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
@@ -334,6 +349,7 @@ func TestRunCommand_NonoNonInteractiveCallsBackendExec(t *testing.T) {
 }
 
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
+	stubMintGitHubToken(t)
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil

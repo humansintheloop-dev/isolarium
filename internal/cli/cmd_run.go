@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/cer/isolarium/internal/lima"
 	"github.com/spf13/cobra"
@@ -111,12 +112,27 @@ func runInNono(name string, args []string, interactive bool, resolver BackendRes
 		return err
 	}
 
+	envVars := map[string]string{
+		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
+		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
+	}
+	token, tokenErr := mintGitHubToken()
+	if tokenErr != nil {
+		return tokenErr
+	}
+	if token != "" {
+		envVars["GH_TOKEN"] = token
+		envVars["GIT_CONFIG_COUNT"] = "1"
+		envVars["GIT_CONFIG_KEY_0"] = "url.https://x-access-token:" + token + "@github.com/.insteadOf"
+		envVars["GIT_CONFIG_VALUE_0"] = "git@github.com:"
+	}
+
 	var exitCode int
 	var execErr error
 	if interactive {
-		exitCode, execErr = b.ExecInteractive(name, map[string]string{}, args)
+		exitCode, execErr = b.ExecInteractive(name, envVars, args)
 	} else {
-		exitCode, execErr = b.Exec(name, map[string]string{}, args)
+		exitCode, execErr = b.Exec(name, envVars, args)
 	}
 	if execErr != nil {
 		return fmt.Errorf("failed to execute command: %w", execErr)

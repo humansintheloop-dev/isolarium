@@ -38,12 +38,17 @@ func newRootCmdWithResolver(resolver BackendResolver) *cobra.Command {
 func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	var nameFlag string
 	var typeFlag environmentType = "vm"
+	var envFileFlag string
 
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
 		Short: "Secure execution environment for coding agents",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return LoadEnvFile(envFileFlag)
+		},
 	}
 
+	rootCmd.PersistentFlags().StringVar(&envFileFlag, "env-file", ".env.local", "Path to environment file")
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
 	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", or "nono" (default "vm")`)
 
@@ -162,7 +167,7 @@ var readKeychainCredentials = func() (string, error) {
 	return claude.ReadCredentialsFromKeychain()
 }
 
-func mintGitHubToken() (string, error) {
+var mintGitHubToken = func() (string, error) {
 	appID := os.Getenv("GITHUB_APP_ID")
 	privateKeyPath := os.Getenv("GITHUB_APP_PRIVATE_KEY_PATH")
 	if appID == "" || privateKeyPath == "" {
