@@ -20,6 +20,10 @@ IMPORTANT: Always invoke the relevant skill before performing these actions:
 - **When moving/renaming files**: Use the `idea-to-code:file-organization` skill
 - **When writing multiple similar files**: Use the `idea-to-code:incremental-development` skill
 
+## Code Health
+
+Before committing code changes, read and follow [CODE_SCENE.md](CODE_SCENE.md) for Code Health safeguard and refactoring instructions.
+
 ## Code Style
 
 IMPORTANT: Prefer intention-revealing method names over comments. If you find yourself writing a comment to explain what code does, extract it into a method whose name conveys the intent. This applies to ALL code — production, tests, scripts. Never write comments like `// Verify X is installed` — instead extract a function like `verifyXInstalled()`. Follow this rule even when surrounding code uses inline comments.
