@@ -47,16 +47,16 @@ func TestPermissionFlagsContainsMacOSKeychainReadOnly(t *testing.T) {
 	assertContainsSequence(t, flags, "--read-file", filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"))
 }
 
-func TestPermissionFlagsContainsHitlWorktreeLogs(t *testing.T) {
+func TestPermissionFlagsContainsHitlDirectory(t *testing.T) {
 	flags := PermissionFlags()
 
-	assertContainsSequence(t, flags, "--allow", filepath.Join(homeDir(), ".hitl", "worktree", "logs"))
+	assertContainsSequence(t, flags, "--allow", filepath.Join(homeDir(), ".hitl"))
 }
 
-func TestPermissionFlagsContainsUvCache(t *testing.T) {
+func TestPermissionFlagsContainsUvCacheReadOnly(t *testing.T) {
 	flags := PermissionFlags()
 
-	assertContainsSequence(t, flags, "--allow", filepath.Join(homeDir(), ".cache", "uv"))
+	assertContainsSequence(t, flags, "--read", filepath.Join(homeDir(), ".cache", "uv"))
 }
 
 func TestPermissionFlagsContainsUvDataReadOnly(t *testing.T) {

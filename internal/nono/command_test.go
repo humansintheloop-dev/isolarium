@@ -21,7 +21,7 @@ func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
 	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".claude")+"/")
 	assertContainsSequence(t, cmd, "--allow-file", filepath.Join(home, ".claude.json"))
 	assertContainsSequence(t, cmd, "--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"))
-	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".cache", "uv"))
+	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".cache", "uv"))
 	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".local", "share", "uv"))
 }
 
@@ -133,7 +133,7 @@ func TestBuildShellCommandIncludesPermissionFlags(t *testing.T) {
 	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".claude")+"/")
 	assertContainsSequence(t, cmd, "--allow-file", filepath.Join(home, ".claude.json"))
 	assertContainsSequence(t, cmd, "--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"))
-	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".cache", "uv"))
+	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".cache", "uv"))
 	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".local", "share", "uv"))
 }
 
@@ -171,10 +171,15 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 		filepath.Join(homeDir(), ".claude") + "/":                                  true,
 		filepath.Join(homeDir(), ".claude.json"):                                   true,
 		filepath.Join(homeDir(), ".gitconfig"):                                     true,
+		filepath.Join(homeDir(), ".config", "git"):                                 true,
+		filepath.Join(homeDir(), ".config", "gh"):                                  true,
 		filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"):      true,
-		filepath.Join(homeDir(), ".hitl", "worktree", "logs"):                      true,
+		filepath.Join(homeDir(), ".hitl"):                                          true,
 		filepath.Join(homeDir(), ".cache", "uv"):                                   true,
 		filepath.Join(homeDir(), ".local", "share", "uv"):                          true,
+	}
+	for _, flag := range worktreeMainRepoDirFlags() {
+		knownValues[flag] = true
 	}
 	for i := 2; i < separatorIdx; i++ {
 		flag := cmd[i]
