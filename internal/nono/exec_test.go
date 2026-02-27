@@ -50,3 +50,21 @@ func TestRunWithSignalsForwardsSIGINTAndExitsWithCode130(t *testing.T) {
 		t.Errorf("expected exit code 130, got %d", exitCode)
 	}
 }
+
+func TestRunWithSignalsForwardsSIGTERMAndExitsWithCode143(t *testing.T) {
+	sigCh := make(chan os.Signal, 1)
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		sigCh <- syscall.SIGTERM
+	}()
+
+	exitCode, err := runWithSignals([]string{"sleep", "100"}, nil, sigCh, 10*time.Second)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 143 {
+		t.Errorf("expected exit code 143, got %d", exitCode)
+	}
+}
