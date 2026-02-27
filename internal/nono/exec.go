@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func ExecCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
@@ -15,13 +18,26 @@ func ExecInteractiveCommand(name string, envVars map[string]string, args []strin
 }
 
 func runWithCommand(cmdArgs []string, envVars map[string]string) (int, error) {
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	return runWithSignals(cmdArgs, envVars, sigCh, 10*time.Second)
+}
+
+func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os.Signal, gracePeriod time.Duration) (int, error) {
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Env = buildEnv(envVars)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return 1, fmt.Errorf("failed to start command in nono sandbox: %w", err)
+	}
+
+	err := cmd.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return exitErr.ExitCode(), nil
