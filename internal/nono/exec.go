@@ -45,7 +45,12 @@ func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os
 	select {
 	case sig := <-sigCh:
 		_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
-		<-doneCh
+		select {
+		case <-doneCh:
+		case <-time.After(gracePeriod):
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			<-doneCh
+		}
 		return 128 + int(sig.(syscall.Signal)), nil
 	case err := <-doneCh:
 		if err != nil {
