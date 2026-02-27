@@ -51,6 +51,29 @@ func TestRunWithSignalsForwardsSIGINTAndExitsWithCode130(t *testing.T) {
 	}
 }
 
+func TestRunWithSignalsSendsKillAfterGracePeriodWhenChildIgnoresSignal(t *testing.T) {
+	sigCh := make(chan os.Signal, 1)
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		sigCh <- syscall.SIGINT
+	}()
+
+	start := time.Now()
+	exitCode, err := runWithSignals([]string{"sh", "-c", `trap "" INT; sleep 100`}, nil, sigCh, 1*time.Second)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 130 {
+		t.Errorf("expected exit code 130, got %d", exitCode)
+	}
+	if elapsed > 3*time.Second {
+		t.Errorf("expected process to terminate within ~2 seconds, took %v", elapsed)
+	}
+}
+
 func TestRunWithSignalsForwardsSIGTERMAndExitsWithCode143(t *testing.T) {
 	sigCh := make(chan os.Signal, 1)
 
