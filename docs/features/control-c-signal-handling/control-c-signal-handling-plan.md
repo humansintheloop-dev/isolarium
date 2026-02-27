@@ -75,17 +75,17 @@ Implements Scenario 1 from the spec: user presses Ctrl-C, isolarium forwards SIG
     - [x] Have `runWithCommand` create a signal channel with `signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)`, then delegate to `runWithSignals` with a 10-second grace period
     - [x] Verify both tests pass
 
-- [ ] **Task 1.2: runWithCommand forwards SIGINT to nono process group and exits with code 130**
+- [x] **Task 1.2: runWithCommand forwards SIGINT to nono process group and exits with code 130**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/nono/...`
   - Observable: When SIGINT is received while child is running, SIGINT is forwarded to the child process group via `syscall.Kill(-pgid, SIGINT)`; function returns exit code 130 (128 + 2)
   - Evidence: Unit test sends SIGINT via test signal channel while child runs `sleep`, verifies child terminates and function returns exit code 130; `go test ./internal/nono/...` passes
   - Steps:
-    - [ ] Write test: call `runWithSignals` with `["sleep", "100"]`, send `syscall.SIGINT` on the test signal channel after 200ms, assert exit code is 130
-    - [ ] Add signal listener goroutine in `runWithSignals`: select on sigCh and the process done channel
-    - [ ] When signal received, forward to child process group via `syscall.Kill(-cmd.Process.Pid, sig)` (negative PID targets the group)
-    - [ ] Compute exit code as 128 + signal number (SIGINT=2 → 130)
-    - [ ] Verify all tests pass (including backward-compat tests from Task 1.1)
+    - [x] Write test: call `runWithSignals` with `["sleep", "100"]`, send `syscall.SIGINT` on the test signal channel after 200ms, assert exit code is 130
+    - [x] Add signal listener goroutine in `runWithSignals`: select on sigCh and the process done channel
+    - [x] When signal received, forward to child process group via `syscall.Kill(-cmd.Process.Pid, sig)` (negative PID targets the group)
+    - [x] Compute exit code as 128 + signal number (SIGINT=2 → 130)
+    - [x] Verify all tests pass (including backward-compat tests from Task 1.1)
 
 ## Steel Thread 2: SIGTERM Forwarding
 
@@ -156,3 +156,6 @@ All tests pass: go test ./internal/nono/... → ok
 
 ### 2026-02-27 09:39 - mark-task-complete
 runWithSignals extracted with Setpgid, Start+Wait; tests verify exit code 0 and 42 propagation
+
+### 2026-02-27 09:54 - mark-task-complete
+Implemented signal listener goroutine with select on sigCh/doneCh, SIGINT forwarding via syscall.Kill(-pgid, sig), and exit code 128+signal. All 35 tests pass.

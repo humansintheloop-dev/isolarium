@@ -6,9 +6,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
-# pre-commit sets GIT_INDEX_FILE during stash, which breaks git worktree tests
-unset GIT_INDEX_FILE
+# pre-commit sets git environment variables that override auto-detection in
+# tests that create temporary repos with git init
+unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE
 
 echo "=== Running Go tests ==="
 
-go test ./...
+go test ./... -count=2
