@@ -37,14 +37,25 @@ func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os
 		return 1, fmt.Errorf("failed to start command in nono sandbox: %w", err)
 	}
 
-	err := cmd.Wait()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return exitErr.ExitCode(), nil
+	doneCh := make(chan error, 1)
+	go func() {
+		doneCh <- cmd.Wait()
+	}()
+
+	select {
+	case sig := <-sigCh:
+		_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
+		<-doneCh
+		return 128 + int(sig.(syscall.Signal)), nil
+	case err := <-doneCh:
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				return exitErr.ExitCode(), nil
+			}
+			return 1, fmt.Errorf("failed to execute command in nono sandbox: %w", err)
 		}
-		return 1, fmt.Errorf("failed to execute command in nono sandbox: %w", err)
+		return 0, nil
 	}
-	return 0, nil
 }
 
 func buildEnv(envVars map[string]string) []string {

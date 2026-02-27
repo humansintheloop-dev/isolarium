@@ -2,6 +2,7 @@ package nono
 
 import (
 	"os"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -29,5 +30,23 @@ func TestRunWithSignalsPropagatesNonZeroExitCode(t *testing.T) {
 	}
 	if exitCode != 42 {
 		t.Errorf("expected exit code 42, got %d", exitCode)
+	}
+}
+
+func TestRunWithSignalsForwardsSIGINTAndExitsWithCode130(t *testing.T) {
+	sigCh := make(chan os.Signal, 1)
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		sigCh <- syscall.SIGINT
+	}()
+
+	exitCode, err := runWithSignals([]string{"sleep", "100"}, nil, sigCh, 10*time.Second)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 130 {
+		t.Errorf("expected exit code 130, got %d", exitCode)
 	}
 }
