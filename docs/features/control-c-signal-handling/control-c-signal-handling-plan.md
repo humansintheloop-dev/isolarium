@@ -105,16 +105,16 @@ Implements Scenario 4 from the spec: CI sends SIGTERM to isolarium, isolarium fo
 
 Implements Scenario 2 from the spec: child process ignores the forwarded signal, isolarium waits the grace period, then sends SIGKILL to the process group.
 
-- [ ] **Task 3.1: runWithCommand sends SIGKILL to process group after grace period when child ignores signal**
+- [x] **Task 3.1: runWithCommand sends SIGKILL to process group after grace period when child ignores signal**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/nono/...`
   - Observable: When child process doesn't exit within grace period after signal forwarding, SIGKILL is sent to the process group; function returns the signal-based exit code (130 for SIGINT)
   - Evidence: Unit test uses a signal-ignoring child process (`sh -c 'trap "" INT; sleep 100'`) and a 1-second grace period; sends SIGINT, verifies process is killed and exit code is 130; `go test ./internal/nono/...` passes
   - Steps:
-    - [ ] Write test: call `runWithSignals` with `["sh", "-c", "trap \"\" INT; sleep 100"]`, 1-second grace period, send SIGINT on test channel, assert process terminates within ~2 seconds and exit code is 130
-    - [ ] Add grace period timer in `runWithSignals`: after forwarding signal, start a `time.After(gracePeriod)` timer
-    - [ ] If timer fires before child exits, send `syscall.Kill(-pgid, syscall.SIGKILL)` to the process group
-    - [ ] Verify all tests pass
+    - [x] Write test: call `runWithSignals` with `["sh", "-c", "trap \"\" INT; sleep 100"]`, 1-second grace period, send SIGINT on test channel, assert process terminates within ~2 seconds and exit code is 130
+    - [x] Add grace period timer in `runWithSignals`: after forwarding signal, start a `time.After(gracePeriod)` timer
+    - [x] If timer fires before child exits, send `syscall.Kill(-pgid, syscall.SIGKILL)` to the process group
+    - [x] Verify all tests pass
 
 ## Steel Thread 4: Double Signal Force Kill
 
@@ -171,3 +171,18 @@ All 36 tests in internal/nono pass
 
 ### 2026-02-27 13:13 - mark-task-complete
 SIGTERM test passes with exit code 143; generic signal handling already covered this
+
+### 2026-02-27 13:20 - mark-step-complete
+Test written: signal-ignoring child with 1s grace period, asserts exit code 130 and termination within 3s
+
+### 2026-02-27 13:20 - mark-step-complete
+Added nested select with time.After(gracePeriod) after forwarding signal
+
+### 2026-02-27 13:20 - mark-step-complete
+SIGKILL sent to process group via syscall.Kill(-pgid, syscall.SIGKILL) when timer fires
+
+### 2026-02-27 13:20 - mark-step-complete
+All 37 tests pass including new SIGKILL escalation test
+
+### 2026-02-27 13:20 - mark-task-complete
+SIGKILL escalation after grace period implemented and tested
