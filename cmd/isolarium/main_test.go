@@ -223,7 +223,8 @@ func TestRunCommand_CreatesVMWhenNoneExists(t *testing.T) {
 	// Run from a non-git directory so it fails fast at the git check,
 	// proving it went through the create path instead of erroring about no VM.
 	tmpDir := t.TempDir()
-	cmd := exec.Command(binaryPath, "run", "--name", "test-novm", "--copy-session=false", "--", "echo", "hello")
+	envFilePath := filepath.Join(cwd, "..", "..", ".env.local")
+	cmd := exec.Command(binaryPath, "run", "--name", "test-novm", "--copy-session=false", "--env-file", envFilePath, "--", "echo", "hello")
 	cmd.Dir = tmpDir
 	output, err := cmd.CombinedOutput()
 
