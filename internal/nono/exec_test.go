@@ -1,0 +1,33 @@
+package nono
+
+import (
+	"os"
+	"testing"
+	"time"
+)
+
+func TestRunWithSignalsReturnsZeroExitCodeForSuccessfulCommand(t *testing.T) {
+	sigCh := make(chan os.Signal, 1)
+
+	exitCode, err := runWithSignals([]string{"echo", "hello"}, nil, sigCh, 10*time.Second)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("expected exit code 0, got %d", exitCode)
+	}
+}
+
+func TestRunWithSignalsPropagatesNonZeroExitCode(t *testing.T) {
+	sigCh := make(chan os.Signal, 1)
+
+	exitCode, err := runWithSignals([]string{"sh", "-c", "exit 42"}, nil, sigCh, 10*time.Second)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exitCode != 42 {
+		t.Errorf("expected exit code 42, got %d", exitCode)
+	}
+}
