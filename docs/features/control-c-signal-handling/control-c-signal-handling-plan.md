@@ -91,15 +91,15 @@ Implements Scenario 1 from the spec: user presses Ctrl-C, isolarium forwards SIG
 
 Implements Scenario 4 from the spec: CI sends SIGTERM to isolarium, isolarium forwards SIGTERM to the nono process group, and exits with code 143.
 
-- [ ] **Task 2.1: runWithCommand forwards SIGTERM to nono process group and exits with code 143**
+- [x] **Task 2.1: runWithCommand forwards SIGTERM to nono process group and exits with code 143**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/nono/...`
   - Observable: When SIGTERM is received while child is running, SIGTERM is forwarded to the child process group; function returns exit code 143 (128 + 15)
   - Evidence: Unit test sends SIGTERM via test signal channel, verifies exit code is 143; `go test ./internal/nono/...` passes
   - Steps:
-    - [ ] Write test: call `runWithSignals` with `["sleep", "100"]`, send `syscall.SIGTERM` on the test signal channel after 200ms, assert exit code is 143
-    - [ ] Verify the signal forwarding implementation from Steel Thread 1 handles SIGTERM correctly (the generic signal number calculation `128 + sig` should already cover this)
-    - [ ] Verify all tests pass
+    - [x] Write test: call `runWithSignals` with `["sleep", "100"]`, send `syscall.SIGTERM` on the test signal channel after 200ms, assert exit code is 143
+    - [x] Verify the signal forwarding implementation from Steel Thread 1 handles SIGTERM correctly (the generic signal number calculation `128 + sig` should already cover this)
+    - [x] Verify all tests pass
 
 ## Steel Thread 3: Timeout Escalation to SIGKILL
 
@@ -159,3 +159,15 @@ runWithSignals extracted with Setpgid, Start+Wait; tests verify exit code 0 and 
 
 ### 2026-02-27 09:54 - mark-task-complete
 Implemented signal listener goroutine with select on sigCh/doneCh, SIGINT forwarding via syscall.Kill(-pgid, sig), and exit code 128+signal. All 35 tests pass.
+
+### 2026-02-27 13:13 - mark-step-complete
+Wrote TestRunWithSignalsForwardsSIGTERMAndExitsWithCode143
+
+### 2026-02-27 13:13 - mark-step-complete
+Generic 128+sig formula already handles SIGTERM correctly - test confirms exit code 143
+
+### 2026-02-27 13:13 - mark-step-complete
+All 36 tests in internal/nono pass
+
+### 2026-02-27 13:13 - mark-task-complete
+SIGTERM test passes with exit code 143; generic signal handling already covered this
