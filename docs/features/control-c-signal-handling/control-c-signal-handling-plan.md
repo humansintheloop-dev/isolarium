@@ -126,9 +126,9 @@ Implements Scenario 3 from the spec: user presses Ctrl-C a second time during th
   - Observable: When a second SIGINT or SIGTERM arrives during the grace period, SIGKILL is sent immediately to the process group without waiting for the grace period to expire; function returns the signal-based exit code (130 for SIGINT)
   - Evidence: Unit test uses a signal-ignoring child process with 30-second grace period; sends SIGINT, then sends second SIGINT 200ms later; verifies process terminates within ~1 second (well before the 30-second grace period); `go test ./internal/nono/...` passes
   - Steps:
-    - [ ] Write test: call `runWithSignals` with `["sh", "-c", "trap \"\" INT; sleep 100"]`, 30-second grace period, send SIGINT, send second SIGINT 200ms later, assert process terminates within ~1 second and exit code is 130
-    - [ ] Modify the signal listener in `runWithSignals`: after first signal and during grace period, continue listening on sigCh; on second signal, immediately send `syscall.Kill(-pgid, syscall.SIGKILL)`
-    - [ ] Verify all tests pass
+    - [x] Write test: call `runWithSignals` with `["sh", "-c", "trap \"\" INT; sleep 100"]`, 30-second grace period, send SIGINT, send second SIGINT 200ms later, assert process terminates within ~1 second and exit code is 130
+    - [x] Modify the signal listener in `runWithSignals`: after first signal and during grace period, continue listening on sigCh; on second signal, immediately send `syscall.Kill(-pgid, syscall.SIGKILL)`
+    - [x] Verify all tests pass
 
 ---
 
@@ -186,3 +186,12 @@ All 37 tests pass including new SIGKILL escalation test
 
 ### 2026-02-27 13:20 - mark-task-complete
 SIGKILL escalation after grace period implemented and tested
+
+### 2026-02-27 13:27 - mark-step-complete
+Test written and fails correctly
+
+### 2026-02-27 13:27 - mark-step-complete
+Added second signal case in select to immediately SIGKILL
+
+### 2026-02-27 13:27 - mark-step-complete
+All 37 tests pass
