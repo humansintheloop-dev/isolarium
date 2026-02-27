@@ -61,19 +61,19 @@ All tasks should be implemented using TDD.
 
 Implements Scenario 1 from the spec: user presses Ctrl-C, isolarium forwards SIGINT to the nono process group, and exits with code 130. Also establishes backward compatibility (Scenario 5).
 
-- [ ] **Task 1.1: runWithCommand starts nono in its own process group and preserves normal exit behavior**
+- [x] **Task 1.1: runWithCommand starts nono in its own process group and preserves normal exit behavior**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/nono/...`
   - Observable: `runWithCommand` starts child process in its own process group (via `Setpgid`); normal completion returns the child's exit code unchanged (0 for success, non-zero propagated)
   - Evidence: Unit tests in `internal/nono/exec_test.go` verify exit code 0 for successful command and non-zero exit code propagation; `go test ./internal/nono/...` passes
   - Steps:
-    - [ ] Create `internal/nono/exec_test.go` with test that calls `runWithSignals` with `["echo", "hello"]` and asserts exit code 0
-    - [ ] Create test that calls `runWithSignals` with `["sh", "-c", "exit 42"]` and asserts exit code 42
-    - [ ] Extract `runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os.Signal, gracePeriod time.Duration) (int, error)` from `runWithCommand` in `internal/nono/exec.go`
-    - [ ] Set `cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}` on the child command
-    - [ ] Replace `cmd.Run()` with `cmd.Start()` + `cmd.Wait()` in the extracted function
-    - [ ] Have `runWithCommand` create a signal channel with `signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)`, then delegate to `runWithSignals` with a 10-second grace period
-    - [ ] Verify both tests pass
+    - [x] Create `internal/nono/exec_test.go` with test that calls `runWithSignals` with `["echo", "hello"]` and asserts exit code 0
+    - [x] Create test that calls `runWithSignals` with `["sh", "-c", "exit 42"]` and asserts exit code 42
+    - [x] Extract `runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os.Signal, gracePeriod time.Duration) (int, error)` from `runWithCommand` in `internal/nono/exec.go`
+    - [x] Set `cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}` on the child command
+    - [x] Replace `cmd.Run()` with `cmd.Start()` + `cmd.Wait()` in the extracted function
+    - [x] Have `runWithCommand` create a signal channel with `signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)`, then delegate to `runWithSignals` with a 10-second grace period
+    - [x] Verify both tests pass
 
 - [ ] **Task 1.2: runWithCommand forwards SIGINT to nono process group and exits with code 130**
   - TaskType: OUTCOME
@@ -129,3 +129,30 @@ Implements Scenario 3 from the spec: user presses Ctrl-C a second time during th
     - [ ] Write test: call `runWithSignals` with `["sh", "-c", "trap \"\" INT; sleep 100"]`, 30-second grace period, send SIGINT, send second SIGINT 200ms later, assert process terminates within ~1 second and exit code is 130
     - [ ] Modify the signal listener in `runWithSignals`: after first signal and during grace period, continue listening on sigCh; on second signal, immediately send `syscall.Kill(-pgid, syscall.SIGKILL)`
     - [ ] Verify all tests pass
+
+---
+
+## Change History
+### 2026-02-27 09:38 - mark-step-complete
+Test created and passing for exit code 0
+
+### 2026-02-27 09:39 - mark-step-complete
+Test for exit code 42 propagation passes
+
+### 2026-02-27 09:39 - mark-step-complete
+runWithSignals extracted from runWithCommand
+
+### 2026-02-27 09:39 - mark-step-complete
+Setpgid set on child command
+
+### 2026-02-27 09:39 - mark-step-complete
+cmd.Run replaced with cmd.Start + cmd.Wait
+
+### 2026-02-27 09:39 - mark-step-complete
+runWithCommand creates signal channel with Notify and delegates to runWithSignals with 10s grace period
+
+### 2026-02-27 09:39 - mark-step-complete
+All tests pass: go test ./internal/nono/... → ok
+
+### 2026-02-27 09:39 - mark-task-complete
+runWithSignals extracted with Setpgid, Start+Wait; tests verify exit code 0 and 42 propagation
