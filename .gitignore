@@ -8,3 +8,4 @@
 *.test
 /cmd/isolarium/isolarium
 .env.local
+repomix-output.xml
