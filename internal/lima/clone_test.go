@@ -1,46 +1,52 @@
 package lima
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/humansintheloop-dev/isolarium/internal/project"
 )
 
 func TestBuildCloneURL_WithToken(t *testing.T) {
-	url := BuildCloneURL("https://github.com/cer/isolarium.git", "ghs_token123")
-	expected := "https://x-access-token:ghs_token123@github.com/cer/isolarium.git"
+	httpsURL := fmt.Sprintf("https://github.com/%s/%s.git", project.GitHubOrg, project.GitHubRepo)
+	url := BuildCloneURL(httpsURL, "ghs_token123")
+	expected := fmt.Sprintf("https://x-access-token:ghs_token123@github.com/%s/%s.git", project.GitHubOrg, project.GitHubRepo)
 	if url != expected {
 		t.Errorf("expected %q, got %q", expected, url)
 	}
 }
 
 func TestBuildCloneURL_WithoutToken(t *testing.T) {
-	url := BuildCloneURL("https://github.com/cer/isolarium.git", "")
-	expected := "https://github.com/cer/isolarium.git"
-	if url != expected {
-		t.Errorf("expected %q, got %q", expected, url)
+	httpsURL := fmt.Sprintf("https://github.com/%s/%s.git", project.GitHubOrg, project.GitHubRepo)
+	url := BuildCloneURL(httpsURL, "")
+	if url != httpsURL {
+		t.Errorf("expected %q, got %q", httpsURL, url)
 	}
 }
 
 func TestBuildCloneURL_SSHConvertsToHTTPS(t *testing.T) {
-	url := BuildCloneURL("git@github.com:cer/isolarium.git", "ghs_token123")
-	expected := "https://x-access-token:ghs_token123@github.com/cer/isolarium.git"
+	sshURL := fmt.Sprintf("git@github.com:%s/%s.git", project.GitHubOrg, project.GitHubRepo)
+	url := BuildCloneURL(sshURL, "ghs_token123")
+	expected := fmt.Sprintf("https://x-access-token:ghs_token123@github.com/%s/%s.git", project.GitHubOrg, project.GitHubRepo)
 	if url != expected {
 		t.Errorf("expected %q, got %q", expected, url)
 	}
 }
 
 func TestBuildCloneURL_SSHPreservedWithoutToken(t *testing.T) {
-	url := BuildCloneURL("git@github.com:cer/isolarium.git", "")
-	expected := "git@github.com:cer/isolarium.git"
-	if url != expected {
-		t.Errorf("expected %q, got %q", expected, url)
+	sshURL := fmt.Sprintf("git@github.com:%s/%s.git", project.GitHubOrg, project.GitHubRepo)
+	url := BuildCloneURL(sshURL, "")
+	if url != sshURL {
+		t.Errorf("expected %q, got %q", sshURL, url)
 	}
 }
 
 func TestBuildCloneCommand(t *testing.T) {
-	cmd := BuildCloneCommand("isolarium", "https://github.com/cer/isolarium.git", "main")
+	httpsURL := fmt.Sprintf("https://github.com/%s/%s.git", project.GitHubOrg, project.GitHubRepo)
+	cmd := BuildCloneCommand("isolarium", httpsURL, "main")
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
-		"git", "clone", "--branch", "main", "https://github.com/cer/isolarium.git", "repo",
+		"git", "clone", "--branch", "main", httpsURL, "repo",
 	}
 	if len(cmd) != len(expected) {
 		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
@@ -57,7 +63,7 @@ func TestBuildWorkflowToolsCloneCommand(t *testing.T) {
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"git", "clone",
-		"https://x-access-token:ghs_token123@github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git",
+		fmt.Sprintf("https://x-access-token:ghs_token123@github.com/%s.git", project.WorkflowToolsOrgRepo),
 		"workflow-tools",
 	}
 	if len(cmd) != len(expected) {
@@ -75,7 +81,7 @@ func TestBuildWorkflowToolsCloneCommand_NoToken(t *testing.T) {
 	expected := []string{
 		"limactl", "shell", "isolarium", "--",
 		"git", "clone",
-		"https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git",
+		fmt.Sprintf("https://github.com/%s.git", project.WorkflowToolsOrgRepo),
 		"workflow-tools",
 	}
 	if len(cmd) != len(expected) {

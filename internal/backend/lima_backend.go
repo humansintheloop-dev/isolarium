@@ -1,7 +1,7 @@
 package backend
 
 import (
-	"github.com/cer/isolarium/internal/lima"
+	"github.com/humansintheloop-dev/isolarium/internal/lima"
 )
 
 // LimaBackend implements the Backend interface using Lima VMs.

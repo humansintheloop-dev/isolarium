@@ -3,7 +3,7 @@ package nono
 import (
 	"fmt"
 
-	"github.com/cer/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
 )
 
 type Creator struct {

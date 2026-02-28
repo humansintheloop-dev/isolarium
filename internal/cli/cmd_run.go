@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cer/isolarium/internal/backend"
-	"github.com/cer/isolarium/internal/lima"
+	"github.com/humansintheloop-dev/isolarium/internal/backend"
+	"github.com/humansintheloop-dev/isolarium/internal/lima"
 	"github.com/spf13/cobra"
 )
 

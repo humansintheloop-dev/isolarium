@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/humansintheloop-dev/isolarium/internal/project"
 )
 
 func TestGetStatus_ReturnsValidVMState(t *testing.T) {
@@ -68,15 +70,16 @@ func TestGetStatus_ReturnsNotConfiguredWhenOnlyPrivateKeySet(t *testing.T) {
 }
 
 func TestStatus_HasRepositoryFields(t *testing.T) {
+	expectedRepo := project.GitHubOrgRepo
 	s := Status{
 		VMState:             "running",
 		GitHubAppConfigured: true,
-		Repository:          "cer/isolarium",
+		Repository:          expectedRepo,
 		Branch:              "main",
 	}
 
-	if s.Repository != "cer/isolarium" {
-		t.Errorf("expected Repository 'cer/isolarium', got '%s'", s.Repository)
+	if s.Repository != expectedRepo {
+		t.Errorf("expected Repository %q, got %q", expectedRepo, s.Repository)
 	}
 	if s.Branch != "main" {
 		t.Errorf("expected Branch 'main', got '%s'", s.Branch)
@@ -106,7 +109,7 @@ func TestListAllEnvironments_ReturnsBothVMAndContainer(t *testing.T) {
 func TestListAllEnvironments_VMStatusIncludesRepositoryAndBranch(t *testing.T) {
 	baseDir := t.TempDir()
 
-	createVMMetadataWithRepo(t, baseDir, "my-vm", "cer", "isolarium", "main")
+	createVMMetadataWithRepo(t, baseDir, "my-vm", project.GitHubOrg, project.GitHubRepo, "main")
 
 	stateProvider := func(name, envType string) string {
 		return "running"
@@ -119,8 +122,9 @@ func TestListAllEnvironments_VMStatusIncludesRepositoryAndBranch(t *testing.T) {
 	}
 
 	env := envs[0]
-	if env.Repository != "cer/isolarium" {
-		t.Errorf("expected Repository 'cer/isolarium', got %q", env.Repository)
+	expectedRepo := project.GitHubOrgRepo
+	if env.Repository != expectedRepo {
+		t.Errorf("expected Repository %q, got %q", expectedRepo, env.Repository)
 	}
 	if env.Branch != "main" {
 		t.Errorf("expected Branch 'main', got %q", env.Branch)

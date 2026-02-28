@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cer/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
 )
 
 func TestBuildDestroyCommandProducesDockerRmForceArgs(t *testing.T) {

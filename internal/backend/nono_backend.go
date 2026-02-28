@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cer/isolarium/internal/command"
-	"github.com/cer/isolarium/internal/nono"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/nono"
 )
 
 type nonoExecFunc func(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error)

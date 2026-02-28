@@ -5,7 +5,7 @@ import (
 	"os/user"
 	"strings"
 
-	"github.com/cer/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
 )
 
 type KeychainReader struct {

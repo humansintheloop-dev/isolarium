@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cer/isolarium/internal/backend"
-	"github.com/cer/isolarium/internal/claude"
-	"github.com/cer/isolarium/internal/git"
-	"github.com/cer/isolarium/internal/github"
-	"github.com/cer/isolarium/internal/lima"
+	"github.com/humansintheloop-dev/isolarium/internal/backend"
+	"github.com/humansintheloop-dev/isolarium/internal/claude"
+	"github.com/humansintheloop-dev/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/github"
+	"github.com/humansintheloop-dev/isolarium/internal/lima"
 	"github.com/spf13/cobra"
 )
 

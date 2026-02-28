@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cer/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
 func PermissionFlags() []string {

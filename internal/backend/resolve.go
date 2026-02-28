@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cer/isolarium/internal/command"
-	"github.com/cer/isolarium/internal/docker"
-	"github.com/cer/isolarium/internal/git"
-	"github.com/cer/isolarium/internal/nono"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/docker"
+	"github.com/humansintheloop-dev/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/nono"
 )
 
 // ResolveBackend returns the appropriate Backend implementation for the given
