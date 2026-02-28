@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cer/isolarium/internal/backend"
+	"github.com/humansintheloop-dev/isolarium/internal/backend"
 )
 
 func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {

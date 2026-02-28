@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cer/isolarium/internal/command"
-	"github.com/cer/isolarium/internal/docker"
-	"github.com/cer/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/docker"
+	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
 // ExecFunc is the function signature for executing commands in a container.

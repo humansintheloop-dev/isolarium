@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cer/isolarium/internal/status"
+	"github.com/humansintheloop-dev/isolarium/internal/status"
 )
 
 type defaultEnvironmentLister struct {

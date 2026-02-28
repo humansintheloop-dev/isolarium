@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/humansintheloop-dev/isolarium/internal/project"
 )
 
 func generateTestPrivateKey(t *testing.T) string {
@@ -73,7 +74,8 @@ func TestTokenMinter_GetInstallationID(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify request path
-		if r.URL.Path != "/repos/cer/isolarium/installation" {
+		expectedPath := "/repos/" + project.GitHubOrgRepo + "/installation"
+		if r.URL.Path != expectedPath {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 
@@ -96,7 +98,7 @@ func TestTokenMinter_GetInstallationID(t *testing.T) {
 		t.Fatalf("failed to create minter: %v", err)
 	}
 
-	installationID, err := minter.getInstallationID("cer", "isolarium")
+	installationID, err := minter.getInstallationID(project.GitHubOrg, project.GitHubRepo)
 	if err != nil {
 		t.Fatalf("failed to get installation ID: %v", err)
 	}
@@ -113,7 +115,7 @@ func TestTokenMinter_MintInstallationToken(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch r.URL.Path {
-		case "/repos/cer/isolarium/installation":
+		case "/repos/" + project.GitHubOrgRepo + "/installation":
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"id": 98765,
 			})
@@ -137,7 +139,7 @@ func TestTokenMinter_MintInstallationToken(t *testing.T) {
 		t.Fatalf("failed to create minter: %v", err)
 	}
 
-	token, err := minter.MintInstallationToken("cer", "isolarium")
+	token, err := minter.MintInstallationToken(project.GitHubOrg, project.GitHubRepo)
 	if err != nil {
 		t.Fatalf("failed to mint token: %v", err)
 	}
@@ -151,7 +153,7 @@ func TestTokenMinter_AppNotInstalled(t *testing.T) {
 	privateKeyPEM := generateTestPrivateKey(t)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/repos/cer/private-repo/installation" {
+		if r.URL.Path == "/repos/"+project.GitHubOrg+"/private-repo/installation" {
 			http.Error(w, `{"message": "Not Found"}`, http.StatusNotFound)
 			return
 		}
@@ -164,7 +166,7 @@ func TestTokenMinter_AppNotInstalled(t *testing.T) {
 		t.Fatalf("failed to create minter: %v", err)
 	}
 
-	_, err = minter.MintInstallationToken("cer", "private-repo")
+	_, err = minter.MintInstallationToken(project.GitHubOrg, "private-repo")
 	if err == nil {
 		t.Error("expected error when app not installed")
 	}

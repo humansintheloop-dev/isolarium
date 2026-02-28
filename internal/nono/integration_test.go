@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cer/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
 )
 
 const testEnvName = "isolarium-nono-integration-test"

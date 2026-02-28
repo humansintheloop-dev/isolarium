@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cer/isolarium/internal/lima"
+	"github.com/humansintheloop-dev/isolarium/internal/lima"
 	"github.com/spf13/cobra"
 )
 

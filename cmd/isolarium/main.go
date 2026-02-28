@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/cer/isolarium/internal/cli"
+	"github.com/humansintheloop-dev/isolarium/internal/cli"
 )
 
 func main() {

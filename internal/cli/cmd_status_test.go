@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cer/isolarium/internal/status"
+	"github.com/humansintheloop-dev/isolarium/internal/project"
+	"github.com/humansintheloop-dev/isolarium/internal/status"
 )
 
 func TestStatusCommand_ListsBothVMsAndContainers(t *testing.T) {
 	lister := &stubEnvironmentLister{
 		environments: []status.EnvironmentStatus{
-			{Name: "my-vm", Type: "vm", State: "running", Repository: "cer/isolarium", Branch: "main"},
+			{Name: "my-vm", Type: "vm", State: "running", Repository: project.GitHubOrgRepo, Branch: "main"},
 			{Name: "my-container", Type: "container", State: "running", WorkDirectory: "/home/user/repo"},
 		},
 	}
@@ -29,7 +30,7 @@ func TestStatusCommand_ListsBothVMsAndContainers(t *testing.T) {
 	assertOutputContains(t, output, "my-vm")
 	assertOutputContains(t, output, "vm")
 	assertOutputContains(t, output, "running")
-	assertOutputContains(t, output, "cer/isolarium")
+	assertOutputContains(t, output, project.GitHubOrgRepo)
 	assertOutputContains(t, output, "my-container")
 	assertOutputContains(t, output, "container")
 	assertOutputContains(t, output, "/home/user/repo")

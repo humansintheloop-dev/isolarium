@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cer/isolarium/internal/command"
-	"github.com/cer/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
 func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {

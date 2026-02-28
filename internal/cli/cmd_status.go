@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"text/tabwriter"
 
-	"github.com/cer/isolarium/internal/status"
+	"github.com/humansintheloop-dev/isolarium/internal/status"
 	"github.com/spf13/cobra"
 )
 

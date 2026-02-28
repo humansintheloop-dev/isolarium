@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cer/isolarium/internal/claude"
-	"github.com/cer/isolarium/internal/github"
+	"github.com/humansintheloop-dev/isolarium/internal/claude"
+	"github.com/humansintheloop-dev/isolarium/internal/github"
 )
 
 // Aliases for github package functions used in tests

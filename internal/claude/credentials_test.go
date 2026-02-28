@@ -5,7 +5,7 @@ import (
 	"os/user"
 	"testing"
 
-	"github.com/cer/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/command"
 )
 
 func TestReadCredentials_ReturnsCredentials(t *testing.T) {

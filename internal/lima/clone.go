@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/humansintheloop-dev/isolarium/internal/project"
 )
 
 //go:embed install-using-sdkman.sh
@@ -35,7 +37,7 @@ func BuildCloneCommand(name, cloneURL, branch string) []string {
 	}
 }
 
-const workflowToolsRepo = "https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git"
+var workflowToolsRepo = "https://github.com/" + project.WorkflowToolsOrgRepo + ".git"
 
 func BuildWorkflowToolsCloneCommand(name, token string) []string {
 	cloneURL := workflowToolsRepo
