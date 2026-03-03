@@ -85,7 +85,7 @@ func (m *TokenMinter) getInstallationID(owner, repo string) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to get installation: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return 0, ErrAppNotInstalled
@@ -125,7 +125,7 @@ func (m *TokenMinter) createAccessToken(installationID int64) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create access token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)

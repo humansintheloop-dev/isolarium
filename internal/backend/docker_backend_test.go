@@ -239,7 +239,7 @@ func TestDockerBackendExecReturnsErrorWhenContainerStopped(t *testing.T) {
 		t.Fatal("expected error when container is stopped")
 	}
 
-	expectedMessage := "Container 'my-container' is stopped. Run 'isolarium create --type container' to recreate it."
+	expectedMessage := "container 'my-container' is stopped, run 'isolarium create --type container' to recreate it"
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
 	}
@@ -262,7 +262,7 @@ func TestDockerBackendExecInteractiveReturnsErrorWhenContainerStopped(t *testing
 		t.Fatal("expected error when container is stopped")
 	}
 
-	expectedMessage := "Container 'my-container' is stopped. Run 'isolarium create --type container' to recreate it."
+	expectedMessage := "container 'my-container' is stopped, run 'isolarium create --type container' to recreate it"
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
 	}

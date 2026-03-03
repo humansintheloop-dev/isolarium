@@ -84,7 +84,7 @@ func (s *MetadataStore) Cleanup() error {
 	if err := os.RemoveAll(s.dir()); err != nil {
 		return fmt.Errorf("failed to cleanup metadata: %w", err)
 	}
-	os.Remove(s.legacyPath())
+	_ = os.Remove(s.legacyPath())
 	return nil
 }
 

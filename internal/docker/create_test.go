@@ -113,7 +113,7 @@ func TestCreateFailsWhenDockerNotAvailable(t *testing.T) {
 		t.Fatal("expected error when Docker is not available")
 	}
 
-	expectedMessage := "Docker is not installed or not running. Install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode"
+	expectedMessage := "docker is not installed or not running; install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode"
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error message to contain %q, got %q", expectedMessage, err.Error())
 	}

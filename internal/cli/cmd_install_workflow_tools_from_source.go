@@ -30,7 +30,7 @@ func newInstallWorkflowToolsFromSourceCmd(rootCmd *cobra.Command, typeFlag *envi
 			}
 
 			fmt.Println("Uninstalling existing i2code...")
-			lima.UninstallI2Code(vmNameFlag)
+			_ = lima.UninstallI2Code(vmNameFlag)
 
 			fmt.Println("Copying source to VM...")
 			if err := lima.CopyDirToVM(vmNameFlag, sourcePath, "~/workflow-tools"); err != nil {

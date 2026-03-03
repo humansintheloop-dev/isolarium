@@ -18,7 +18,6 @@ import (
 )
 
 var vmNameFlag string
-var envTypeFlag = environmentType("vm")
 
 // BackendResolver resolves a Backend from an environment type string.
 type BackendResolver func(envType string) (backend.Backend, error)
@@ -112,7 +111,7 @@ func LoadEnvFile(path string) error {
 	if err != nil {
 		return nil // File doesn't exist, skip silently
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -134,7 +133,7 @@ func LoadEnvFile(path string) error {
 
 			// Only set if not already set in environment
 			if os.Getenv(key) == "" {
-				os.Setenv(key, value)
+				_ = os.Setenv(key, value)
 			}
 		}
 	}

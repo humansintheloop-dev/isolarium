@@ -36,7 +36,7 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(contextDir)
+	defer func() { _ = os.RemoveAll(contextDir) }()
 
 	creator := &docker.Creator{
 		Runner:      b.Runner,
@@ -86,7 +86,7 @@ func (b *DockerBackend) ExecInteractive(name string, envVars map[string]string, 
 func (b *DockerBackend) ensureContainerRunning(name string) error {
 	state := b.GetState(name)
 	if state == "stopped" {
-		return fmt.Errorf("Container '%s' is stopped. Run 'isolarium create --type container' to recreate it.", name)
+		return fmt.Errorf("container '%s' is stopped, run 'isolarium create --type container' to recreate it", name)
 	}
 	return nil
 }

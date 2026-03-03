@@ -105,7 +105,7 @@ func TestWriteDockerTempfileWritesEmbeddedDockerfileContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	content, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
 	if err != nil {

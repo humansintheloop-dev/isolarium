@@ -87,7 +87,7 @@ func TestTokenMinter_GetInstallationID(t *testing.T) {
 
 		// Return installation info
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id": 98765,
 		})
 	}))
@@ -116,14 +116,14 @@ func TestTokenMinter_MintInstallationToken(t *testing.T) {
 
 		switch r.URL.Path {
 		case "/repos/" + project.GitHubOrgRepo + "/installation":
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"id": 98765,
 			})
 		case "/app/installations/98765/access_tokens":
 			if r.Method != "POST" {
 				t.Errorf("expected POST, got %s", r.Method)
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"token":      "ghs_test_token_abc123",
 				"expires_at": "2024-01-01T00:00:00Z",
 			})

@@ -38,7 +38,7 @@ func TestStatusCommand_ShowsTableHeaderWhenEnvironmentsExist(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(baseDir, "metadata.json"), []byte(`{"owner":"","repo":"","branch":""}`), 0644); err != nil {
 		t.Fatalf("failed to write test metadata: %v", err)
 	}
-	defer os.RemoveAll(filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env"))
+	defer func() { _ = os.RemoveAll(filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env")) }()
 
 	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
 	buildCmd.Dir = "."
@@ -377,7 +377,7 @@ func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 	case <-done:
 		// Process exited - success
 	case <-time.After(10 * time.Second):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		t.Fatal("process did not terminate within 10 seconds after SIGINT")
 	}
 }
