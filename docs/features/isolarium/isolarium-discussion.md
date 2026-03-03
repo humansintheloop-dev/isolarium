@@ -271,12 +271,12 @@ D. **SSH session** - Drop user into SSH session inside VM where script runs; ful
 Sometimes you'll need to inspect the VM state, debug issues, or run ad-hoc commands.
 
 **Options:**
-A. **Yes, explicit command** - `isolarium ssh` opens an interactive shell in the VM
+A. **Yes, explicit command** - `isolarium shell` opens an interactive shell in the VM
 B. **Via Lima directly** - Document that users can use `limactl shell <vm-name>` (no extra command needed)
-C. **Both** - `isolarium ssh` as convenience wrapper, document Lima fallback
+C. **Both** - `isolarium shell` as convenience wrapper, document Lima fallback
 D. **No** - Keep VM opaque; if something's wrong, destroy and recreate
 
-**Answer:** A - Yes, explicit command (`isolarium ssh` opens an interactive shell in the VM)
+**Answer:** A - Yes, explicit command (`isolarium shell` opens an interactive shell in the VM)
 
 ---
 
@@ -323,7 +323,7 @@ D. **Other** - Describe your target
 | VM image contents | Base Linux, git, Node.js, Claude Code, Docker, GitHub CLI, JDK 17 (SDKMAN) |
 | Network access | Full (no restrictions) |
 | Implementation language | Go |
-| CLI commands | `create`, `run`, `destroy`, `status`, `config`, `ssh` |
+| CLI commands | `create`, `run`, `destroy`, `status`, `config`, `shell` |
 | GitHub App setup | Assume existing App; user creates manually |
 | Multi-VM support | Single VM initially |
 | Script I/O | Attached (streams to terminal, Ctrl+C stops) |

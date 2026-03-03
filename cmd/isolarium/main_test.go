@@ -335,63 +335,6 @@ func TestDestroyCommand_SucceedsWhenNoVMExists(t *testing.T) {
 	}
 }
 
-func TestSSHCommand_Exists(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	cmd := exec.Command(binaryPath, "ssh", "--help")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("ssh --help failed: %v, output: %s", err, output)
-	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "interactive shell") {
-		t.Errorf("expected ssh help to mention interactive shell, got: %s", outputStr)
-	}
-}
-
-func TestSSHCommand_FailsWhenNoVMExists(t *testing.T) {
-	checkCmd := exec.Command("limactl", "list", "--json")
-	checkOutput, err := checkCmd.Output()
-	if err != nil {
-		t.Skip("limactl not available, skipping SSH no-VM test")
-	}
-	if strings.Contains(string(checkOutput), `"name":"isolarium"`) ||
-		strings.Contains(string(checkOutput), `"name": "isolarium"`) {
-		t.Skip("isolarium VM exists, skipping SSH no-VM test")
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	cmd := exec.Command(binaryPath, "ssh")
-	output, err := cmd.CombinedOutput()
-
-	if err == nil {
-		t.Fatalf("expected ssh to fail when no VM exists, got: %s", output)
-	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "no VM exists") {
-		t.Errorf("expected error about no VM, got: %s", outputStr)
-	}
-}
-
 func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 	checkCmd := exec.Command("limactl", "list", "--json")
 	checkOutput, err := checkCmd.Output()

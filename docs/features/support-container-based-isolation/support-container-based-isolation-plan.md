@@ -55,7 +55,7 @@ This plan implements container-based isolation for isolarium, a Go CLI tool that
 - Expand metadata system to support `(name, type)` identity pairs at `~/.isolarium/<name>/<type>/metadata.json`
 - Embed a Dockerfile in the binary using `//go:embed`, following the same pattern as `template.yaml`
 - Container credentials: `gh auth token` for GitHub (injected per-command as `GH_TOKEN`), Claude credentials copied via `docker exec`
-- The `ssh` command is renamed to `shell` in the CLI (per spec FR3), keeping backward compatibility
+- The CLI command is `shell` (per spec FR3)
 
 ---
 
@@ -161,11 +161,11 @@ This thread implements command execution inside a running container, including G
 - [x] **Task 3.1: `isolarium shell --type container` opens interactive bash in container**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/... ./internal/cli/...`
-  - Observable: `isolarium shell --type container` runs `docker exec -it -e GH_TOKEN=<token> -w /home/isolarium/repo <name> bash`. The `shell` command (currently named `ssh`) is updated or a new `shell` command is added alongside `ssh`.
+  - Observable: `isolarium shell --type container` runs `docker exec -it -e GH_TOKEN=<token> -w /home/isolarium/repo <name> bash`.
   - Evidence: Unit tests verify: (1) `BuildShellCommand()` produces correct `docker exec -it` args with env vars and working directory, (2) CLI routes `shell` command to the correct backend based on type.
   - Steps:
     - [x] Create `internal/docker/shell.go` with `BuildShellCommand(name string, envVars map[string]string) []string` and `OpenShell(name string, envVars map[string]string) (int, error)`
-    - [x] Add `newShellCmd()` in `internal/cli/` that works for both VM and container modes (uses backend interface). Keep the existing `ssh` command as an alias for backward compatibility.
+    - [x] Add `newShellCmd()` in `internal/cli/` that works for both VM and container modes (uses backend interface).
     - [x] Wire credential injection: for container mode, extract `gh auth token` and inject as GH_TOKEN
 
 ---

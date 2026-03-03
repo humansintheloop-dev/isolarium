@@ -58,7 +58,6 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	rootCmd.AddCommand(newStatusCmdWithLister(rootCmd, &nameFlag, &typeFlag, lister))
 	rootCmd.AddCommand(newRunCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
 	rootCmd.AddCommand(newShellCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver, envTypeResolver))
-	rootCmd.AddCommand(newSshCmd())
 	rootCmd.AddCommand(newCloneRepoCmd(rootCmd, &typeFlag))
 	rootCmd.AddCommand(newInstallToolsCmd(rootCmd, &typeFlag))
 	rootCmd.AddCommand(newInstallWorkflowToolsFromSourceCmd(rootCmd, &typeFlag))

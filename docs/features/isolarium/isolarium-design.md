@@ -469,7 +469,7 @@ isolarium/
 │   │   ├── destroy.go              # isolarium destroy
 │   │   ├── status.go               # isolarium status
 │   │   ├── config.go               # isolarium config
-│   │   └── ssh.go                  # isolarium ssh
+│   │   └── shell.go                # isolarium shell
 │   ├── credentials/
 │   │   ├── keychain.go             # macOS Keychain access
 │   │   ├── keychain_test.go        # Unit tests

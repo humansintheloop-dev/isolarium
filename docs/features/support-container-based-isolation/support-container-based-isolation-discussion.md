@@ -37,12 +37,12 @@ VM isolation protects against host compromise even if the agent is malicious (se
 
 ### Q3: Which existing CLI commands should support the `--type container` flag?
 
-Currently isolarium has these commands: `create`, `run`, `shell` (ssh), `destroy`, `status`, `clone-repo`, `install-tools`.
+Currently isolarium has these commands: `create`, `run`, `shell`, `destroy`, `status`, `clone-repo`, `install-tools`.
 
 With container mode, some commands map naturally:
 - `create` → build image + start container (instead of Lima VM)
 - `run` → `docker exec` (instead of `limactl shell`)
-- `shell`/`ssh` → `docker exec -it bash` (instead of `limactl shell --tty`)
+- `shell` → `docker exec -it bash` (instead of `limactl shell --tty`)
 - `destroy` → `docker rm -f` + optionally remove image (instead of `limactl delete`)
 - `status` → `docker inspect` (instead of Lima state check)
 

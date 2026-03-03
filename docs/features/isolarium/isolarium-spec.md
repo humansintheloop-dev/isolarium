@@ -105,7 +105,7 @@ isolarium run [opts] -- cmd  # Run command in VM repo directory
 isolarium destroy         # Delete the VM
 isolarium status          # Show VM state, repo, credentials status
 isolarium config          # Manage GitHub App credentials in Keychain
-isolarium ssh             # Open interactive shell in VM
+isolarium shell             # Open interactive shell in VM
 ```
 
 ### 4.2 Command Details
@@ -193,7 +193,7 @@ isolarium config show
 isolarium config delete
 ```
 
-#### `isolarium ssh`
+#### `isolarium shell`
 
 Opens an interactive shell inside the VM.
 
@@ -353,7 +353,7 @@ Opens an interactive shell inside the VM.
 **Steps:**
 
 1. Developer has an existing VM from `isolarium create`
-2. Developer runs: `isolarium ssh`
+2. Developer runs: `isolarium shell`
 3. Interactive shell opens inside VM
 4. Developer inspects files, runs commands, diagnoses issues
 5. Developer exits shell
@@ -427,7 +427,7 @@ Opens an interactive shell inside the VM.
 | AC-5 | `isolarium run` injects a fresh GitHub token as an environment variable |
 | AC-6 | `isolarium run --copy-session` makes Claude Code work without login |
 | AC-7 | `isolarium run --fresh-login` triggers device code authentication |
-| AC-8 | `isolarium ssh` opens an interactive shell in the VM |
+| AC-8 | `isolarium shell` opens an interactive shell in the VM |
 | AC-9 | `isolarium destroy` deletes the VM completely |
 | AC-10 | `isolarium status` reports VM state and configuration |
 

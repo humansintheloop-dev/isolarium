@@ -55,7 +55,7 @@ Use these skills by invoking them before the relevant action:
 | 7. Command Execution | `run` command to execute commands inside VM in the repo directory |
 | 8. VM Lifecycle Hardening | Error handling and status reporting for VM lifecycle |
 | 9. Fresh Login | `--fresh-login` flag for device code authentication flow |
-| 10. SSH Access | `ssh` command for interactive VM debugging |
+| 10. Shell Access | `shell` command for interactive VM debugging |
 | 11. Security Verification | Verify VM isolation properties (no host mounts, no Docker socket, no git credentials) |
 | 12. Test Infrastructure | End-to-end test scripts and CI integration |
 
@@ -345,25 +345,25 @@ The command runs directly inside the VM in `~/repo` — no files are copied from
 
 ## Steel Thread 10: SSH Access
 
-**Goal:** Implement `ssh` command for interactive VM debugging.
+**Goal:** Implement `shell` command for interactive VM debugging.
 
-- [x] **Task 10.1: `ssh` opens interactive shell in VM**
+- [x] **Task 10.1: `shell` opens interactive shell in VM**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium ssh`
+  - Entrypoint: `./isolarium shell`
   - Observable: Interactive shell opens inside the Lima VM; user can run commands; exit returns to host shell
-  - Evidence: Test runs `ssh` command with stdin containing `echo test && exit`, asserts "test" appears in output
+  - Evidence: Test runs `shell` command with stdin containing `echo test && exit`, asserts "test" appears in output
   - Steps:
     - [x] Create `internal/lima/ssh.go` with `OpenShell(vm)` function using `limactl shell`
-    - [x] Add `ssh` subcommand to CLI
-    - [x] Create test that pipes commands to ssh and verifies output
+    - [x] Add `shell` subcommand to CLI
+    - [x] Create test that pipes commands to shell and verifies output
 
-- [x] **Task 10.2: `ssh` fails gracefully when VM does not exist**
+- [x] **Task 10.2: `shell` fails gracefully when VM does not exist**
   - TaskType: OUTCOME
-  - Entrypoint: `./isolarium ssh` (when no VM exists)
+  - Entrypoint: `./isolarium shell` (when no VM exists)
   - Observable: Command exits with non-zero code and error message "no VM exists; run 'isolarium create' first"
-  - Evidence: Test runs `ssh` without VM, asserts error message
+  - Evidence: Test runs `shell` without VM, asserts error message
   - Steps:
-    - [x] Add VM existence check to `ssh` command
+    - [x] Add VM existence check to `shell` command
     - [x] Add test for missing VM error
 
 ---
