@@ -56,7 +56,7 @@ func verifyMetadataWritten(t *testing.T, metadataDir string) {
 
 func verifyRunEchoProducesOutput(t *testing.T, workDir string) {
 	t.Helper()
-	cmdArgs := BuildRunCommand([]string{"echo", "hello"})
+	cmdArgs := BuildRunCommand([]string{"echo", "hello"}, nil)
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Dir = workDir
 	cmd.Env = os.Environ()
@@ -90,7 +90,7 @@ func verifyMetadataRemoved(t *testing.T, metadataDir string) {
 
 func verifyExitCodePropagated(t *testing.T, workDir string, expectedCode int) {
 	t.Helper()
-	cmdArgs := BuildRunCommand([]string{"sh", "-c", "exit 42"})
+	cmdArgs := BuildRunCommand([]string{"sh", "-c", "exit 42"}, nil)
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Dir = workDir
 	cmd.Env = os.Environ()

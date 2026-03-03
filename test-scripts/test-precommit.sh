@@ -10,6 +10,10 @@ cd "$PROJECT_ROOT"
 # tests that create temporary repos with git init
 unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE
 
+echo "=== Compile-checking all build tags ==="
+
+go test -run=^$ -count=1 -tags=integration,integration_setup,integration_teardown,cleanup ./...
+
 echo "=== Running Go tests ==="
 
-go test ./... -count=2
+go test ./... -count=1
