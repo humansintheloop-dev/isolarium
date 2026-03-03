@@ -29,17 +29,17 @@ func newStatusCmdWithLister(rootCmd *cobra.Command, nameFlag *string, typeFlag *
 			envs := lister.List(nameFilter, typeFilter)
 
 			if len(envs) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "No environments found")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No environments found")
 				return nil
 			}
 
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "NAME\tTYPE\tSTATE\tDETAILS")
+			_, _ = fmt.Fprintln(w, "NAME\tTYPE\tSTATE\tDETAILS")
 			for _, env := range envs {
 				details := formatDetails(env)
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", env.Name, env.Type, env.State, details)
+				_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", env.Name, env.Type, env.State, details)
 			}
-			w.Flush()
+			_ = w.Flush()
 			return nil
 		},
 	}

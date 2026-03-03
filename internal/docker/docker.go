@@ -51,7 +51,7 @@ func WriteDockerTempfile() (string, error) {
 		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 		return "", fmt.Errorf("failed to write Dockerfile: %w", err)
 	}
 	return dir, nil

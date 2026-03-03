@@ -101,7 +101,7 @@ func CreateVM(name string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configPath := filepath.Join(tmpDir, "lima.yaml")
 	config, err := GenerateConfig()
@@ -139,7 +139,7 @@ func DestroyVM(name string) error {
 	}
 
 	stopCmd := exec.Command("limactl", "stop", name)
-	stopCmd.Run() // Ignore error
+	_ = stopCmd.Run() // best-effort
 
 	cmd := exec.Command("limactl", "delete", name)
 	cmd.Stdout = os.Stdout

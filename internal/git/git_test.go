@@ -13,7 +13,7 @@ func TestGetRemoteURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Initialize git repo
 	if err := runGitCommand(tmpDir, "init"); err != nil {
@@ -42,7 +42,7 @@ func TestGetRemoteURL_NotGitRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test GetRemoteURL on non-git directory
 	_, err = GetRemoteURL(tmpDir)
@@ -57,7 +57,7 @@ func TestGetCurrentBranch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Initialize git repo
 	if err := runGitCommand(tmpDir, "init"); err != nil {
@@ -106,7 +106,7 @@ func TestGetCurrentBranch_NotGitRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test GetCurrentBranch on non-git directory
 	_, err = GetCurrentBranch(tmpDir)

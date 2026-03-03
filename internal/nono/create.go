@@ -13,7 +13,7 @@ type Creator struct {
 
 func (c *Creator) Create(name, workDir string) error {
 	if err := c.checkNonoAvailable(); err != nil {
-		return fmt.Errorf("nono is not installed. Install nono to use sandbox mode.")
+		return fmt.Errorf("nono is not installed, install nono to use sandbox mode")
 	}
 
 	return c.writeMetadata(name, workDir)

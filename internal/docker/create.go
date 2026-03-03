@@ -15,7 +15,7 @@ type Creator struct {
 
 func (c *Creator) Create(name, workDir, contextDir string) error {
 	if err := c.checkDockerAvailable(); err != nil {
-		return fmt.Errorf("Docker is not installed or not running. Install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode: %w", err)
+		return fmt.Errorf("docker is not installed or not running; install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode: %w", err)
 	}
 
 	if err := c.buildImage(contextDir); err != nil {

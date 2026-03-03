@@ -127,7 +127,7 @@ func UninstallI2Code(name string) error {
 		"bash", "-lc", "uv tool uninstall i2code")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run() // best-effort; may not be installed
+	_ = cmd.Run() // best-effort; may not be installed
 	return nil
 }
 

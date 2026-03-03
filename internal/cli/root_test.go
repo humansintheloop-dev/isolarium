@@ -26,9 +26,9 @@ ANOTHER_VAR=value with spaces
 		t.Fatalf("failed to write env file: %v", err)
 	}
 
-	os.Unsetenv("GITHUB_APP_ID")
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
-	os.Unsetenv("ANOTHER_VAR")
+	_ = os.Unsetenv("GITHUB_APP_ID")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("ANOTHER_VAR")
 
 	if err := LoadEnvFile(envFile); err != nil {
 		t.Fatalf("LoadEnvFile failed: %v", err)
@@ -44,9 +44,9 @@ ANOTHER_VAR=value with spaces
 		t.Errorf("ANOTHER_VAR: expected 'value with spaces', got '%s'", got)
 	}
 
-	os.Unsetenv("GITHUB_APP_ID")
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
-	os.Unsetenv("ANOTHER_VAR")
+	_ = os.Unsetenv("GITHUB_APP_ID")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("ANOTHER_VAR")
 }
 
 func TestLoadEnvFile_DoesNotOverrideExisting(t *testing.T) {
@@ -58,8 +58,7 @@ func TestLoadEnvFile_DoesNotOverrideExisting(t *testing.T) {
 		t.Fatalf("failed to write env file: %v", err)
 	}
 
-	os.Setenv("GITHUB_APP_ID", "from-environment")
-	defer os.Unsetenv("GITHUB_APP_ID")
+	t.Setenv("GITHUB_APP_ID", "from-environment")
 
 	if err := LoadEnvFile(envFile); err != nil {
 		t.Fatalf("LoadEnvFile failed: %v", err)
@@ -92,7 +91,7 @@ func TestLoadEnvFile_ValidatesPathVariablesExist(t *testing.T) {
 		t.Fatalf("failed to write env file: %v", err)
 	}
 
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 
 	err := LoadEnvFile(envFile)
 	if err != nil {
@@ -103,7 +102,7 @@ func TestLoadEnvFile_ValidatesPathVariablesExist(t *testing.T) {
 		t.Errorf("GITHUB_APP_PRIVATE_KEY_PATH: expected '%s', got '%s'", realFile, got)
 	}
 
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 }
 
 func TestLoadEnvFile_ErrorsWhenPathVariableFileNotFound(t *testing.T) {
@@ -118,7 +117,7 @@ func TestLoadEnvFile_ErrorsWhenPathVariableFileNotFound(t *testing.T) {
 		t.Fatalf("failed to write env file: %v", err)
 	}
 
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 
 	err := LoadEnvFile(envFile)
 	if err == nil {
@@ -135,7 +134,7 @@ func TestLoadEnvFile_ErrorsWhenPathVariableFileNotFound(t *testing.T) {
 		}
 	}
 
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
 }
 
 func TestLoadEnvFile_ValidatesMultiplePathVariables(t *testing.T) {
@@ -159,9 +158,9 @@ REGULAR_VAR=not_a_path
 		t.Fatalf("failed to write env file: %v", err)
 	}
 
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
-	os.Unsetenv("SOME_CERT_PATH")
-	os.Unsetenv("REGULAR_VAR")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("SOME_CERT_PATH")
+	_ = os.Unsetenv("REGULAR_VAR")
 
 	err := LoadEnvFile(envFile)
 	if err != nil {
@@ -178,7 +177,7 @@ REGULAR_VAR=not_a_path
 		t.Errorf("REGULAR_VAR: expected 'not_a_path', got '%s'", got)
 	}
 
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
-	os.Unsetenv("SOME_CERT_PATH")
-	os.Unsetenv("REGULAR_VAR")
+	_ = os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	_ = os.Unsetenv("SOME_CERT_PATH")
+	_ = os.Unsetenv("REGULAR_VAR")
 }

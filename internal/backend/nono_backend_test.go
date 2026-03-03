@@ -49,7 +49,7 @@ func TestNonoBackendCreateFailsWhenNonoNotInstalled(t *testing.T) {
 		t.Fatal("expected error when nono is not installed")
 	}
 
-	expectedMessage := "nono is not installed. Install nono to use sandbox mode."
+	expectedMessage := "nono is not installed, install nono to use sandbox mode"
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error message to contain %q, got %q", expectedMessage, err.Error())
 	}

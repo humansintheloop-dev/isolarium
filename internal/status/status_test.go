@@ -18,9 +18,8 @@ func TestGetStatus_ReturnsValidVMState(t *testing.T) {
 }
 
 func TestGetStatus_ReturnsNotConfiguredWhenNoCredentials(t *testing.T) {
-	// Clear env vars to ensure clean state
-	os.Unsetenv("GITHUB_APP_ID")
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	t.Setenv("GITHUB_APP_ID", "")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "")
 
 	s := GetStatus("isolarium")
 
@@ -30,13 +29,8 @@ func TestGetStatus_ReturnsNotConfiguredWhenNoCredentials(t *testing.T) {
 }
 
 func TestGetStatus_ReturnsConfiguredWhenBothEnvVarsSet(t *testing.T) {
-	// Set both env vars
-	os.Setenv("GITHUB_APP_ID", "12345")
-	os.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
-	defer func() {
-		os.Unsetenv("GITHUB_APP_ID")
-		os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
-	}()
+	t.Setenv("GITHUB_APP_ID", "12345")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
 
 	s := GetStatus("isolarium")
 
@@ -46,9 +40,8 @@ func TestGetStatus_ReturnsConfiguredWhenBothEnvVarsSet(t *testing.T) {
 }
 
 func TestGetStatus_ReturnsNotConfiguredWhenOnlyAppIDSet(t *testing.T) {
-	os.Setenv("GITHUB_APP_ID", "12345")
-	os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
-	defer os.Unsetenv("GITHUB_APP_ID")
+	t.Setenv("GITHUB_APP_ID", "12345")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "")
 
 	s := GetStatus("isolarium")
 
@@ -58,9 +51,8 @@ func TestGetStatus_ReturnsNotConfiguredWhenOnlyAppIDSet(t *testing.T) {
 }
 
 func TestGetStatus_ReturnsNotConfiguredWhenOnlyPrivateKeySet(t *testing.T) {
-	os.Unsetenv("GITHUB_APP_ID")
-	os.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
-	defer os.Unsetenv("GITHUB_APP_PRIVATE_KEY_PATH")
+	t.Setenv("GITHUB_APP_ID", "")
+	t.Setenv("GITHUB_APP_PRIVATE_KEY_PATH", "test-private-key")
 
 	s := GetStatus("isolarium")
 
