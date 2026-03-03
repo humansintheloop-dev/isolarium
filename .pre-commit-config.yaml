@@ -22,7 +22,7 @@ repos:
         pass_filenames: false
       - id: golangci-lint
         name: Run golangci-lint
-        entry: golangci-lint run
+        entry: golangci-lint run --new-from-rev=HEAD
         language: system
         types: [go]
         pass_filenames: false

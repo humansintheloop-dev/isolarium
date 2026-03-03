@@ -5,33 +5,42 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
 
 func ExecCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
-	return runWithCommand(BuildRunCommand(args, extraReadPaths), envVars)
+	return runWithCommand(BuildRunCommand(args, extraReadPaths), envVars, false)
 }
 
 func ExecInteractiveCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
-	return runWithCommand(BuildRunCommandInteractive(args, extraReadPaths), envVars)
+	return runWithCommand(BuildRunCommandInteractive(args, extraReadPaths), envVars, true)
 }
 
-func runWithCommand(cmdArgs []string, envVars map[string]string) (int, error) {
+func runWithCommand(cmdArgs []string, envVars map[string]string, interactive bool) (int, error) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	return runWithSignals(cmdArgs, envVars, sigCh, 10*time.Second)
+	return runWithSignals(cmdArgs, envVars, sigCh, 10*time.Second, interactive)
 }
 
-func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os.Signal, gracePeriod time.Duration) (int, error) {
+func buildCommand(cmdArgs []string, envVars map[string]string, interactive bool) *exec.Cmd {
+	fmt.Fprintf(os.Stderr, "DEBUG nono command: %s\n", strings.Join(cmdArgs, " "))
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
 	cmd.Env = buildEnv(envVars)
-	cmd.Stdin = os.Stdin
+	if interactive {
+		cmd.Stdin = os.Stdin
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd
+}
+
+func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os.Signal, gracePeriod time.Duration, interactive bool) (int, error) {
+	cmd := buildCommand(cmdArgs, envVars, interactive)
 
 	if err := cmd.Start(); err != nil {
 		return 1, fmt.Errorf("failed to start command in nono sandbox: %w", err)
