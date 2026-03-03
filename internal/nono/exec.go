@@ -11,36 +11,46 @@ import (
 )
 
 func ExecCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
-	return runWithCommand(BuildRunCommand(args, extraReadPaths), envVars, false)
+	sc := sandboxCommand{args: BuildRunCommand(args, extraReadPaths), envVars: envVars}
+	return sc.run()
 }
 
 func ExecInteractiveCommand(name string, envVars map[string]string, args []string, extraReadPaths []string) (int, error) {
-	return runWithCommand(BuildRunCommandInteractive(args, extraReadPaths), envVars, true)
+	sc := sandboxCommand{args: BuildRunCommandInteractive(args, extraReadPaths), envVars: envVars, interactive: true}
+	return sc.run()
 }
 
-func runWithCommand(cmdArgs []string, envVars map[string]string, interactive bool) (int, error) {
+type sandboxCommand struct {
+	args        []string
+	envVars     map[string]string
+	interactive bool
+}
+
+func (sc sandboxCommand) run() (int, error) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigCh)
 
-	return runWithSignals(cmdArgs, envVars, sigCh, 10*time.Second, interactive)
+	return runWithSignals(sc, sigCh, 10*time.Second)
 }
 
-func buildCommand(cmdArgs []string, envVars map[string]string, interactive bool) *exec.Cmd {
-	fmt.Fprintf(os.Stderr, "DEBUG nono command: %s\n", strings.Join(cmdArgs, " "))
-	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-	cmd.Env = buildEnv(envVars)
-	if interactive {
+func (sc sandboxCommand) build() *exec.Cmd {
+	fmt.Fprintf(os.Stderr, "DEBUG nono command: %s\n", strings.Join(sc.args, " "))
+	cmd := exec.Command(sc.args[0], sc.args[1:]...)
+	cmd.Env = buildEnv(sc.envVars)
+	if sc.interactive {
 		cmd.Stdin = os.Stdin
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if !sc.interactive {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 	return cmd
 }
 
-func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os.Signal, gracePeriod time.Duration, interactive bool) (int, error) {
-	cmd := buildCommand(cmdArgs, envVars, interactive)
+func runWithSignals(sc sandboxCommand, sigCh <-chan os.Signal, gracePeriod time.Duration) (int, error) {
+	cmd := sc.build()
 
 	if err := cmd.Start(); err != nil {
 		return 1, fmt.Errorf("failed to start command in nono sandbox: %w", err)
@@ -51,28 +61,41 @@ func runWithSignals(cmdArgs []string, envVars map[string]string, sigCh <-chan os
 		doneCh <- cmd.Wait()
 	}()
 
+	killPid := -cmd.Process.Pid
+	if sc.interactive {
+		killPid = cmd.Process.Pid
+	}
+
 	select {
 	case sig := <-sigCh:
-		_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
-		select {
-		case <-doneCh:
-		case <-sigCh:
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			<-doneCh
-		case <-time.After(gracePeriod):
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			<-doneCh
-		}
+		_ = syscall.Kill(killPid, sig.(syscall.Signal))
+		escalateOrWait(killPid, sigCh, doneCh, gracePeriod)
 		return 128 + int(sig.(syscall.Signal)), nil
 	case err := <-doneCh:
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				return exitErr.ExitCode(), nil
-			}
-			return 1, fmt.Errorf("failed to execute command in nono sandbox: %w", err)
-		}
-		return 0, nil
+		return exitCodeFromError(err)
 	}
+}
+
+func escalateOrWait(killPid int, sigCh <-chan os.Signal, doneCh <-chan error, gracePeriod time.Duration) {
+	select {
+	case <-doneCh:
+	case <-sigCh:
+		_ = syscall.Kill(killPid, syscall.SIGKILL)
+		<-doneCh
+	case <-time.After(gracePeriod):
+		_ = syscall.Kill(killPid, syscall.SIGKILL)
+		<-doneCh
+	}
+}
+
+func exitCodeFromError(err error) (int, error) {
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return exitErr.ExitCode(), nil
+		}
+		return 1, fmt.Errorf("failed to execute command in nono sandbox: %w", err)
+	}
+	return 0, nil
 }
 
 func buildEnv(envVars map[string]string) []string {
