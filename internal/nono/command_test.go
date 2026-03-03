@@ -176,6 +176,8 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 		filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"):      true,
 		filepath.Join(homeDir(), ".hitl"):                                          true,
 		filepath.Join(homeDir(), ".cache", "uv"):                                   true,
+		filepath.Join(homeDir(), ".vscode"):                                         true,
+		filepath.Join(homeDir(), "Library", "Application Support", "Code"):          true,
 		filepath.Join(homeDir(), ".local", "share", "uv"):                          true,
 	}
 	for _, flag := range worktreeMainRepoDirFlags() {

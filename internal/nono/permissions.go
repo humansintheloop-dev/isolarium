@@ -14,6 +14,8 @@ func PermissionFlags() []string {
 		"--allow", tempDir(),
 		"--allow", "/private/tmp",
 		"--allow", filepath.Join(home, ".claude") + "/",
+		"--allow", filepath.Join(home, ".vscode"),
+		"--allow", filepath.Join(home, "Library", "Application Support", "Code"),
 		"--allow-file", filepath.Join(home, ".claude.json"),
 		"--read-file", filepath.Join(home, ".gitconfig"),
 		"--read", filepath.Join(home, ".config", "git"),

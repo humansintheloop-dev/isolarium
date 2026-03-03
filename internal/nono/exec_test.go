@@ -7,10 +7,14 @@ import (
 	"time"
 )
 
+func nonInteractiveCommand(args []string) sandboxCommand {
+	return sandboxCommand{args: args, interactive: false}
+}
+
 func TestRunWithSignalsReturnsZeroExitCodeForSuccessfulCommand(t *testing.T) {
 	sigCh := make(chan os.Signal, 1)
 
-	exitCode, err := runWithSignals([]string{"echo", "hello"}, nil, sigCh, 10*time.Second, false)
+	exitCode, err := runWithSignals(nonInteractiveCommand([]string{"echo", "hello"}), sigCh, 10*time.Second)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -23,7 +27,7 @@ func TestRunWithSignalsReturnsZeroExitCodeForSuccessfulCommand(t *testing.T) {
 func TestRunWithSignalsPropagatesNonZeroExitCode(t *testing.T) {
 	sigCh := make(chan os.Signal, 1)
 
-	exitCode, err := runWithSignals([]string{"sh", "-c", "exit 42"}, nil, sigCh, 10*time.Second, false)
+	exitCode, err := runWithSignals(nonInteractiveCommand([]string{"sh", "-c", "exit 42"}), sigCh, 10*time.Second)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -41,7 +45,7 @@ func TestRunWithSignalsForwardsSIGINTAndExitsWithCode130(t *testing.T) {
 		sigCh <- syscall.SIGINT
 	}()
 
-	exitCode, err := runWithSignals([]string{"sleep", "100"}, nil, sigCh, 10*time.Second, false)
+	exitCode, err := runWithSignals(nonInteractiveCommand([]string{"sleep", "100"}), sigCh, 10*time.Second)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -60,7 +64,7 @@ func TestRunWithSignalsSendsKillAfterGracePeriodWhenChildIgnoresSignal(t *testin
 	}()
 
 	start := time.Now()
-	exitCode, err := runWithSignals([]string{"sh", "-c", `trap "" INT; sleep 100`}, nil, sigCh, 1*time.Second, false)
+	exitCode, err := runWithSignals(nonInteractiveCommand([]string{"sh", "-c", `trap "" INT; sleep 100`}), sigCh, 1*time.Second)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -85,7 +89,7 @@ func TestRunWithSignalsSendsImmediateKillOnSecondSignalDuringGracePeriod(t *test
 	}()
 
 	start := time.Now()
-	exitCode, err := runWithSignals([]string{"sh", "-c", `trap "" INT; sleep 100`}, nil, sigCh, 30*time.Second, false)
+	exitCode, err := runWithSignals(nonInteractiveCommand([]string{"sh", "-c", `trap "" INT; sleep 100`}), sigCh, 30*time.Second)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -107,7 +111,7 @@ func TestRunWithSignalsForwardsSIGTERMAndExitsWithCode143(t *testing.T) {
 		sigCh <- syscall.SIGTERM
 	}()
 
-	exitCode, err := runWithSignals([]string{"sleep", "100"}, nil, sigCh, 10*time.Second, false)
+	exitCode, err := runWithSignals(nonInteractiveCommand([]string{"sleep", "100"}), sigCh, 10*time.Second)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
