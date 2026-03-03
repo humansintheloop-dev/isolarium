@@ -1,4 +1,4 @@
-//go:build manual
+//go:build e2e_claude
 
 package main
 

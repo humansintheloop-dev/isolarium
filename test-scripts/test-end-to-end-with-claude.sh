@@ -26,7 +26,7 @@ if [ ${#TYPES[@]} -eq 0 ]; then
     TYPES=("all")
 fi
 
-GOTEST_FLAGS=(-v -tags=manual)
+GOTEST_FLAGS=(-v -tags=e2e_claude)
 if [ "$FORCE" = true ]; then
     GOTEST_FLAGS+=(-count=1)
 fi
@@ -53,17 +53,17 @@ run_test() {
 
 for TYPE in "${TYPES[@]}"; do
     case "$TYPE" in
-        nono)      if [ "$CLEANUP" = true ]; then destroy_environment nono; else run_test nono "TestClaude.*InNono_Manual"; fi ;;
-        container) if [ "$CLEANUP" = true ]; then destroy_environment container; else run_test container "TestClaude.*InContainer_Manual"; fi ;;
-        vm)        if [ "$CLEANUP" = true ]; then destroy_environment vm; else run_test vm "TestClaude.*InVM_Manual"; fi ;;
+        nono)      if [ "$CLEANUP" = true ]; then destroy_environment nono; else run_test nono "TestClaude.*InNono_EndToEnd"; fi ;;
+        container) if [ "$CLEANUP" = true ]; then destroy_environment container; else run_test container "TestClaude.*InContainer_EndToEnd"; fi ;;
+        vm)        if [ "$CLEANUP" = true ]; then destroy_environment vm; else run_test vm "TestClaude.*InVM_EndToEnd"; fi ;;
         all)
             if [ "$CLEANUP" = true ]; then
                 destroy_environment container
                 destroy_environment vm
             else
-                run_test nono "TestClaude.*InNono_Manual"
-                run_test container "TestClaude.*InContainer_Manual"
-                run_test vm "TestClaude.*InVM_Manual"
+                run_test nono "TestClaude.*InNono_EndToEnd"
+                run_test container "TestClaude.*InContainer_EndToEnd"
+                run_test vm "TestClaude.*InVM_EndToEnd"
             fi
             ;;
     esac
