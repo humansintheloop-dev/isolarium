@@ -54,7 +54,7 @@ run_test() {
 for TYPE in "${TYPES[@]}"; do
     case "$TYPE" in
         nono)      if [ "$CLEANUP" = true ]; then destroy_environment nono; else run_test nono "TestClaude.*InNono_Manual"; fi ;;
-        container) if [ "$CLEANUP" = true ]; then destroy_environment container; else run_test container "TestClaudeNonInteractiveInContainer_Manual"; fi ;;
+        container) if [ "$CLEANUP" = true ]; then destroy_environment container; else run_test container "TestClaude.*InContainer_Manual"; fi ;;
         vm)        if [ "$CLEANUP" = true ]; then destroy_environment vm; else run_test vm "TestClaudeNonInteractiveInVM_Manual"; fi ;;
         all)
             if [ "$CLEANUP" = true ]; then
@@ -62,7 +62,7 @@ for TYPE in "${TYPES[@]}"; do
                 destroy_environment vm
             else
                 run_test nono "TestClaude.*InNono_Manual"
-                run_test container "TestClaudeNonInteractiveInContainer_Manual"
+                run_test container "TestClaude.*InContainer_Manual"
                 run_test vm "TestClaudeNonInteractiveInVM_Manual"
             fi
             ;;
