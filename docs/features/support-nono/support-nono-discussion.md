@@ -121,14 +121,14 @@
 
 ---
 
-### Q8: Should `isolarium ssh --type nono` be supported?
+### Q8: Should `isolarium shell --type nono` be supported?
 
 **Options:**
 - A. Map to `nono shell` with the same permission set
 - B. Not supported (doesn't make sense for host-level sandboxing)
 - C. Defer for initial implementation
 
-**Answer:** A - Map to `nono shell`. `isolarium ssh --type nono` runs `nono shell` with the hardcoded Claude+Python permission set, giving the user a sandboxed interactive shell in the project directory.
+**Answer:** A - Map to `nono shell`. `isolarium shell --type nono` runs `nono shell` with the hardcoded Claude+Python permission set, giving the user a sandboxed interactive shell in the project directory.
 
 **Implications:** Provides a consistent command surface across all backends. Users can drop into a sandboxed shell to explore or debug, just as they would SSH into a VM.
 

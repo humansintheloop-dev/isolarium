@@ -11,7 +11,7 @@ Key design decisions:
 - `isolarium run --type nono -- <command>` wraps commands with `nono run` + hardcoded Claude+Python permission set
 - Agent works directly on local project files (CWD is a repo or git worktree)
 - Credentials accessed directly from host via nono's filesystem permission flags (no copying)
-- `isolarium ssh --type nono` maps to `nono shell`
+- `isolarium shell --type nono` maps to `nono shell`
 - Interactive mode (`-i`) maps to nono's `--exec` flag for TTY preservation
 - Network allowed, nono's default command blocklist used as-is
 - Default environment name: `isolarium-nono`
