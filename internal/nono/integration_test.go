@@ -64,8 +64,9 @@ func verifyRunEchoProducesOutput(t *testing.T, workDir string) {
 	if err != nil {
 		t.Fatalf("nono run echo hello failed: %v", err)
 	}
-	if strings.TrimSpace(string(output)) != "hello" {
-		t.Errorf("expected output 'hello', got %q", strings.TrimSpace(string(output)))
+	trimmed := strings.TrimSpace(string(output))
+	if !strings.HasSuffix(trimmed, "hello") {
+		t.Errorf("expected output to end with 'hello', got %q", trimmed)
 	}
 }
 

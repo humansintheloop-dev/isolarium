@@ -5,12 +5,10 @@ import (
 	"testing"
 )
 
-func TestBuildRunCommandStartsWithNonoRun(t *testing.T) {
+func TestBuildRunCommandStartsWithNonoRunAndProfile(t *testing.T) {
 	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
 
-	if cmd[0] != "nono" || cmd[1] != "run" {
-		t.Errorf("expected command to start with [nono run], got %v", cmd[:2])
-	}
+	assertCommandPrefix(t, cmd, "nono", "run", "--profile", "claude-code")
 }
 
 func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
@@ -18,9 +16,7 @@ func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
 
 	home := homeDir()
 	assertContainsSequence(t, cmd, "--allow", ".")
-	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".claude")+"/")
-	assertContainsSequence(t, cmd, "--allow-file", filepath.Join(home, ".claude.json"))
-	assertContainsSequence(t, cmd, "--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"))
+	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".config", "gh"))
 	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".cache", "uv"))
 	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".local", "share", "uv"))
 }
@@ -56,12 +52,10 @@ func TestBuildRunCommandDoesNotIncludeExecFlag(t *testing.T) {
 	}
 }
 
-func TestBuildRunCommandInteractiveStartsWithNonoRun(t *testing.T) {
+func TestBuildRunCommandInteractiveStartsWithNonoRunAndProfile(t *testing.T) {
 	cmd := BuildRunCommandInteractive([]string{"claude"}, nil)
 
-	if cmd[0] != "nono" || cmd[1] != "run" {
-		t.Errorf("expected command to start with [nono run], got %v", cmd[:2])
-	}
+	assertCommandPrefix(t, cmd, "nono", "run", "--profile", "claude-code")
 }
 
 func TestBuildRunCommandInteractiveIncludesExecBeforeSeparator(t *testing.T) {
@@ -117,12 +111,10 @@ func TestBuildRunCommandInteractiveEndsWithUserArgs(t *testing.T) {
 	}
 }
 
-func TestBuildShellCommandStartsWithNonoShell(t *testing.T) {
+func TestBuildShellCommandStartsWithNonoShellAndProfile(t *testing.T) {
 	cmd := BuildShellCommand()
 
-	if cmd[0] != "nono" || cmd[1] != "shell" {
-		t.Errorf("expected command to start with [nono shell], got %v", cmd[:2])
-	}
+	assertCommandPrefix(t, cmd, "nono", "shell", "--profile", "claude-code")
 }
 
 func TestBuildShellCommandIncludesPermissionFlags(t *testing.T) {
@@ -130,9 +122,7 @@ func TestBuildShellCommandIncludesPermissionFlags(t *testing.T) {
 
 	home := homeDir()
 	assertContainsSequence(t, cmd, "--allow", ".")
-	assertContainsSequence(t, cmd, "--allow", filepath.Join(home, ".claude")+"/")
-	assertContainsSequence(t, cmd, "--allow-file", filepath.Join(home, ".claude.json"))
-	assertContainsSequence(t, cmd, "--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"))
+	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".config", "gh"))
 	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".cache", "uv"))
 	assertContainsSequence(t, cmd, "--read", filepath.Join(home, ".local", "share", "uv"))
 }
@@ -162,23 +152,15 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 	}
 
 	knownFlags := map[string]bool{
-		"--allow": true, "--allow-file": true, "--read-file": true, "--read": true,
+		"--allow": true, "--read": true, "--profile": true,
 	}
 	knownValues := map[string]bool{
 		".":            true,
-		tempDir():      true,
-		"/private/tmp": true,
-		filepath.Join(homeDir(), ".claude") + "/":                                  true,
-		filepath.Join(homeDir(), ".claude.json"):                                   true,
-		filepath.Join(homeDir(), ".gitconfig"):                                     true,
-		filepath.Join(homeDir(), ".config", "git"):                                 true,
-		filepath.Join(homeDir(), ".config", "gh"):                                  true,
-		filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db"):      true,
-		filepath.Join(homeDir(), ".hitl"):                                          true,
-		filepath.Join(homeDir(), ".cache", "uv"):                                   true,
-		filepath.Join(homeDir(), ".vscode"):                                         true,
-		filepath.Join(homeDir(), "Library", "Application Support", "Code"):          true,
-		filepath.Join(homeDir(), ".local", "share", "uv"):                          true,
+		"claude-code":  true,
+		filepath.Join(homeDir(), ".config", "gh"):            true,
+		filepath.Join(homeDir(), ".hitl"):                    true,
+		filepath.Join(homeDir(), ".cache", "uv"):             true,
+		filepath.Join(homeDir(), ".local", "share", "uv"):    true,
 	}
 	for _, flag := range worktreeMainRepoDirFlags() {
 		knownValues[flag] = true
@@ -224,5 +206,18 @@ func TestBuildRunCommandExtraReadPathsBeforeSeparator(t *testing.T) {
 	}
 	if extraReadIdx >= separatorIdx {
 		t.Errorf("expected extra read path (index %d) before separator (index %d)", extraReadIdx, separatorIdx)
+	}
+}
+
+func assertCommandPrefix(t *testing.T, cmd []string, expected ...string) {
+	t.Helper()
+	if len(cmd) < len(expected) {
+		t.Fatalf("command too short: got %v, expected prefix %v", cmd, expected)
+	}
+	for i, want := range expected {
+		if cmd[i] != want {
+			t.Errorf("expected command prefix %v, got %v", expected, cmd[:len(expected)])
+			return
+		}
 	}
 }
