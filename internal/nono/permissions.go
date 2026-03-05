@@ -11,16 +11,7 @@ func PermissionFlags() []string {
 	home := homeDir()
 	flags := []string{
 		"--allow", ".",
-		"--allow", tempDir(),
-		"--allow", "/private/tmp",
-		"--allow", filepath.Join(home, ".claude") + "/",
-		"--allow", filepath.Join(home, ".vscode"),
-		"--allow", filepath.Join(home, "Library", "Application Support", "Code"),
-		"--allow-file", filepath.Join(home, ".claude.json"),
-		"--read-file", filepath.Join(home, ".gitconfig"),
-		"--read", filepath.Join(home, ".config", "git"),
 		"--read", filepath.Join(home, ".config", "gh"),
-		"--read-file", filepath.Join(home, "Library", "Keychains", "login.keychain-db"),
 		// HITL subdir name is the worktree name, but might not exist
 		"--allow", filepath.Join(home, ".hitl"),
 		"--read", filepath.Join(home, ".cache", "uv"),
@@ -40,10 +31,6 @@ func worktreeMainRepoDirFlags() []string {
 		return nil
 	}
 	return []string{"--allow", info.MainRepoDir}
-}
-
-func tempDir() string {
-	return os.TempDir()
 }
 
 func homeDir() string {

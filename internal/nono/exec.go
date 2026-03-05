@@ -99,7 +99,12 @@ func exitCodeFromError(err error) (int, error) {
 }
 
 func buildEnv(envVars map[string]string) []string {
-	env := os.Environ()
+	var env []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "CLAUDECODE=") {
+			env = append(env, e)
+		}
+	}
 	for k, v := range envVars {
 		env = append(env, k+"="+v)
 	}
