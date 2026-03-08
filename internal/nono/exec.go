@@ -35,7 +35,8 @@ func (sc sandboxCommand) run() (int, error) {
 }
 
 func (sc sandboxCommand) build() *exec.Cmd {
-	fmt.Fprintf(os.Stderr, "DEBUG nono command: %s\n", strings.Join(sc.args, " "))
+	cwd, _ := os.Getwd()
+	fmt.Fprintf(os.Stderr, "DEBUG nono command (cwd = %s): %s\n", cwd, strings.Join(sc.args, " "))
 	cmd := exec.Command(sc.args[0], sc.args[1:]...)
 	cmd.Env = buildEnv(sc.envVars)
 	if sc.interactive {

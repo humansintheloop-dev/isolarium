@@ -143,10 +143,13 @@ func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 	}
 
 	knownFlags := map[string]bool{
-		"--allow": true, "--read": true, "--profile": true, "--allow-cwd": true,
+		"--allow": true, "--read": true, "--profile": true, "--allow-cwd": true, "--override-deny": true,
 	}
 	knownValues := map[string]bool{
-		getProfilePath():  true,
+		getProfilePath(): true,
+	}
+	for _, flag := range linuxSystemPathFlags() {
+		knownValues[flag] = true
 	}
 	for _, flag := range worktreeMainRepoDirFlags() {
 		knownValues[flag] = true

@@ -10,11 +10,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type runOptions struct {
+	name        string
+	args        []string
+	copySession bool
+	freshLogin  bool
+	interactive bool
+	noGHToken   bool
+	readPaths   []string
+}
+
 func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
-	var copySession bool
-	var freshLogin bool
-	var interactive bool
-	var readPaths []string
+	var opts runOptions
 
 	cmd := &cobra.Command{
 		Use:   "run [flags] -- command [args...]",
@@ -24,15 +31,16 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				return fmt.Errorf("no command specified; use: isolarium run -- <command> [args...]")
 			}
 
-			name := resolveDefaultName(*nameFlag, string(*typeFlag), rootCmd)
+			opts.args = args
+			opts.name = resolveDefaultName(*nameFlag, string(*typeFlag), rootCmd)
 
-			envType, err := resolveEnvType(rootCmd, typeFlag, name, envTypeResolver)
+			envType, err := resolveEnvType(rootCmd, typeFlag, opts.name, envTypeResolver)
 			if err != nil {
 				return err
 			}
 
 			if envType == "vm" {
-				return runInVM(name, args, copySession, freshLogin, interactive, cmd)
+				return runInVM(opts, cmd)
 			}
 
 			if envType == "nono" {
@@ -42,51 +50,113 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				if cmd.Flags().Changed("fresh-login") {
 					return fmt.Errorf("--fresh-login is not supported with --type nono")
 				}
-				return runInNono(name, args, interactive, readPaths, resolver)
+				return runInNono(opts, resolver)
 			}
 
-			return runInContainer(name, args, copySession, interactive, resolver, envType)
+			return runInContainer(opts, resolver, envType)
 		},
 	}
 
-	cmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to VM")
-	cmd.Flags().BoolVar(&freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
-	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Attach TTY for interactive commands")
-	cmd.Flags().StringSliceVar(&readPaths, "read", nil, "Grant nono sandbox read-only access to additional paths")
+	cmd.Flags().BoolVar(&opts.copySession, "copy-session", true, "Copy Claude credentials from host to VM")
+	cmd.Flags().BoolVar(&opts.freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
+	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "Attach TTY for interactive commands")
+	cmd.Flags().StringSliceVar(&opts.readPaths, "read", nil, "Grant nono sandbox read-only access to additional paths")
+	cmd.Flags().BoolVar(&opts.noGHToken, "no-gh-token", false, "Disable GitHub token minting and GH_TOKEN injection")
 
 	return cmd
 }
 
-func runInVM(name string, args []string, copySession bool, freshLogin bool, interactive bool, cmd *cobra.Command) error {
-	if freshLogin && cmd.Flags().Changed("copy-session") {
+type tokenFetcher func() (string, error)
+
+func tokenEnvVars(fetch tokenFetcher, buildVars func(string) map[string]string) (map[string]string, error) {
+	token, err := fetch()
+	if err != nil {
+		return nil, err
+	}
+	if token == "" {
+		return map[string]string{}, nil
+	}
+	return buildVars(token), nil
+}
+
+func addTokenEnvVars(envVars map[string]string, noGHToken bool, fetch tokenFetcher, buildVars func(string) map[string]string) error {
+	if noGHToken {
+		return nil
+	}
+	tokenVars, err := tokenEnvVars(fetch, buildVars)
+	if err != nil {
+		return err
+	}
+	for k, v := range tokenVars {
+		envVars[k] = v
+	}
+	return nil
+}
+
+func vmTokenVars(token string) map[string]string {
+	return map[string]string{"GIT_TOKEN": token, "GH_TOKEN": token}
+}
+
+func containerTokenVars(token string) map[string]string {
+	return map[string]string{"GH_TOKEN": token}
+}
+
+func nonoTokenVars(token string) map[string]string {
+	return map[string]string{
+		"GH_TOKEN":           token,
+		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_KEY_0":   "url.https://x-access-token:" + token + "@github.com/.insteadOf",
+		"GIT_CONFIG_VALUE_0": "git@github.com:",
+	}
+}
+
+func execBackendCommand(b backend.Backend, opts runOptions, envVars map[string]string) error {
+	var exitCode int
+	var err error
+	if opts.interactive {
+		exitCode, err = b.ExecInteractive(opts.name, envVars, opts.args)
+	} else {
+		exitCode, err = b.Exec(opts.name, envVars, opts.args)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to execute command: %w", err)
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
+	return nil
+}
+
+func prepareVMSession(opts runOptions, cmd *cobra.Command) error {
+	if opts.freshLogin && cmd.Flags().Changed("copy-session") {
 		return fmt.Errorf("--fresh-login and --copy-session are mutually exclusive")
 	}
-
-	if freshLogin {
-		copySession = false
+	if opts.freshLogin {
+		opts.copySession = false
 	}
+	if err := ensureVMRunning(opts.name); err != nil {
+		return err
+	}
+	if !opts.copySession {
+		return nil
+	}
+	if err := copyClaudeCredentialsToVM(opts.name); err != nil {
+		return fmt.Errorf("failed to copy credentials: %w", err)
+	}
+	return nil
+}
 
-	if err := ensureVMRunning(name); err != nil {
+func runInVM(opts runOptions, cmd *cobra.Command) error {
+	if err := prepareVMSession(opts, cmd); err != nil {
 		return err
 	}
 
-	if copySession {
-		if err := copyClaudeCredentialsToVM(name); err != nil {
-			return fmt.Errorf("failed to copy credentials: %w", err)
-		}
-	}
-
 	envVars := map[string]string{}
-	token, tokenErr := mintGitHubToken()
-	if tokenErr != nil {
-		return tokenErr
-	}
-	if token != "" {
-		envVars["GIT_TOKEN"] = token
-		envVars["GH_TOKEN"] = token
+	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, vmTokenVars); err != nil {
+		return err
 	}
 
-	homeDir, homeErr := lima.GetVMHomeDir(name)
+	homeDir, homeErr := lima.GetVMHomeDir(opts.name)
 	if homeErr != nil {
 		return fmt.Errorf("failed to get VM home directory: %w", homeErr)
 	}
@@ -94,10 +164,10 @@ func runInVM(name string, args []string, copySession bool, freshLogin bool, inte
 
 	var exitCode int
 	var execErr error
-	if interactive {
-		exitCode, execErr = lima.ExecInteractiveCommand(name, workdir, envVars, args)
+	if opts.interactive {
+		exitCode, execErr = lima.ExecInteractiveCommand(opts.name, workdir, envVars, opts.args)
 	} else {
-		exitCode, execErr = lima.ExecCommand(name, workdir, envVars, args)
+		exitCode, execErr = lima.ExecCommand(opts.name, workdir, envVars, opts.args)
 	}
 	if execErr != nil {
 		return fmt.Errorf("failed to execute command: %w", execErr)
@@ -109,86 +179,48 @@ func runInVM(name string, args []string, copySession bool, freshLogin bool, inte
 	return nil
 }
 
-func runInNono(name string, args []string, interactive bool, readPaths []string, resolver BackendResolver) error {
+func runInNono(opts runOptions, resolver BackendResolver) error {
 	b, err := resolver("nono")
 	if err != nil {
 		return err
 	}
 
 	if nb, ok := b.(*backend.NonoBackend); ok {
-		nb.ExtraReadPaths = readPaths
+		nb.ExtraReadPaths = opts.readPaths
 	}
 
 	envVars := map[string]string{
 		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
 		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
+		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
 	}
-	token, tokenErr := mintGitHubToken()
-	if tokenErr != nil {
-		return tokenErr
-	}
-	if token != "" {
-		envVars["GH_TOKEN"] = token
-		envVars["GIT_CONFIG_COUNT"] = "1"
-		envVars["GIT_CONFIG_KEY_0"] = "url.https://x-access-token:" + token + "@github.com/.insteadOf"
-		envVars["GIT_CONFIG_VALUE_0"] = "git@github.com:"
+	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, nonoTokenVars); err != nil {
+		return err
 	}
 
-	var exitCode int
-	var execErr error
-	if interactive {
-		exitCode, execErr = b.ExecInteractive(name, envVars, args)
-	} else {
-		exitCode, execErr = b.Exec(name, envVars, args)
-	}
-	if execErr != nil {
-		return fmt.Errorf("failed to execute command: %w", execErr)
-	}
-	if exitCode != 0 {
-		os.Exit(exitCode)
-	}
-
-	return nil
+	return execBackendCommand(b, opts, envVars)
 }
 
-func runInContainer(name string, args []string, copySession bool, interactive bool, resolver BackendResolver, envType string) error {
+func runInContainer(opts runOptions, resolver BackendResolver, envType string) error {
 	b, err := resolver(envType)
 	if err != nil {
 		return err
 	}
 
-	if copySession {
+	if opts.copySession {
 		credentials, credErr := readKeychainCredentials()
 		if credErr != nil {
 			return fmt.Errorf("failed to read credentials: %w", credErr)
 		}
-		if err := b.CopyCredentials(name, credentials); err != nil {
+		if err := b.CopyCredentials(opts.name, credentials); err != nil {
 			return fmt.Errorf("failed to copy credentials: %w", err)
 		}
 	}
 
 	envVars := map[string]string{}
-	token, tokenErr := extractGitHubToken()
-	if tokenErr != nil {
-		return tokenErr
-	}
-	if token != "" {
-		envVars["GH_TOKEN"] = token
+	if err := addTokenEnvVars(envVars, opts.noGHToken, extractGitHubToken, containerTokenVars); err != nil {
+		return err
 	}
 
-	var exitCode int
-	var execErr error
-	if interactive {
-		exitCode, execErr = b.ExecInteractive(name, envVars, args)
-	} else {
-		exitCode, execErr = b.Exec(name, envVars, args)
-	}
-	if execErr != nil {
-		return fmt.Errorf("failed to execute command: %w", execErr)
-	}
-	if exitCode != 0 {
-		os.Exit(exitCode)
-	}
-
-	return nil
+	return execBackendCommand(b, opts, envVars)
 }
