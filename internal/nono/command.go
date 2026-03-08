@@ -1,7 +1,7 @@
 package nono
 
 func BuildRunCommand(args []string, extraReadPaths []string) []string {
-	cmd := []string{"nono", "run", "--profile", getProfilePath()}
+	cmd := []string{"nono", "wrap", "--profile", getProfilePath()}
 	cmd = append(cmd, PermissionFlags()...)
 	for _, p := range extraReadPaths {
 		cmd = append(cmd, "--read", p)
