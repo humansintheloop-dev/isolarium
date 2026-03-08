@@ -20,15 +20,25 @@ func linuxSystemPathFlags() []string {
 	if runtime.GOOS != "linux" {
 		return nil
 	}
+	archLib := archLibDir()
 	return []string{
 		"--read", "/usr/lib/locale",
 		"--override-deny", "/usr/lib/locale",
 		"--read", "/usr/lib/jvm",
 		"--override-deny", "/usr/lib/jvm",
-		"--read", "/lib/x86_64-linux-gnu",
-		"--read", "/usr/lib/x86_64-linux-gnu",
-		"--override-deny", "/usr/lib/x86_64-linux-gnu",
+		"--read", "/lib/" + archLib,
+		"--read", "/usr/lib/" + archLib,
+		"--override-deny", "/usr/lib/" + archLib,
 		"--read", "/opt/hostedtoolcache",
+	}
+}
+
+func archLibDir() string {
+	switch runtime.GOARCH {
+	case "arm64":
+		return "aarch64-linux-gnu"
+	default:
+		return "x86_64-linux-gnu"
 	}
 }
 

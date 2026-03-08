@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-func TestBuildRunCommandStartsWithNonoRunAndProfile(t *testing.T) {
+func TestBuildRunCommandStartsWithNonoWrapAndProfile(t *testing.T) {
 	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
 
-	assertCommandPrefix(t, cmd, "nono", "run", "--profile", getProfilePath())
+	assertCommandPrefix(t, cmd, "nono", "wrap", "--profile", getProfilePath())
 }
 
 func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
@@ -43,6 +43,9 @@ func TestBuildRunCommandDoesNotIncludeExecFlag(t *testing.T) {
 	for _, v := range cmd {
 		if v == "--exec" {
 			t.Fatal("expected BuildRunCommand NOT to include --exec flag")
+		}
+		if v == "run" {
+			t.Fatal("expected BuildRunCommand to use wrap, not run")
 		}
 	}
 }
