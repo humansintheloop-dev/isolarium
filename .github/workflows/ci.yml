@@ -8,6 +8,7 @@ on:
 
 jobs:
   lint:
+    needs: e2e-gradlew
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +43,7 @@ jobs:
           version: latest
 
   test:
+    needs: e2e-gradlew
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,3 +55,96 @@ jobs:
 
       - name: Run tests
         run: ./test-scripts/test-end-to-end.sh
+
+  e2e-gradlew:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install nono
+        run: |
+          curl -sSfL https://github.com/always-further/nono/releases/download/v0.12.0/nono-v0.12.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv nono /usr/local/bin/
+
+      - name: Inspect Linux filesystem layout
+        run: |
+          echo "=== /lib symlink ==="
+          ls -la /lib
+          echo "=== /lib symlink target ==="
+          readlink -f /lib || true
+          # libjli.so locations (from previous find / run):
+          #   /usr/lib/jvm/temurin-17-jdk-amd64/lib/libjli.so
+          #   /usr/lib/jvm/temurin-25-jdk-amd64/lib/libjli.so
+          #   /usr/lib/jvm/temurin-11-jdk-amd64/lib/jli/libjli.so
+          #   /usr/lib/jvm/temurin-21-jdk-amd64/lib/libjli.so
+          #   /usr/lib/jvm/temurin-8-jdk-amd64/lib/amd64/jli/libjli.so
+          #   /usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/amd64/jli/libjli.so
+          echo "=== JAVA_HOME ==="
+          echo "$JAVA_HOME"
+          ls -la "$JAVA_HOME/bin/java" || true
+          echo "=== /usr/lib/locale ==="
+          ls /usr/lib/locale/ 2>&1 | head -5 || true
+          echo "=== /opt/hostedtoolcache Java ==="
+          find /opt/hostedtoolcache -name "java" -type f 2>/dev/null | head -5 || true
+
+      - name: Check libjli.so permissions
+        run: |
+          ls -la /usr/lib/jvm/temurin-17-jdk-amd64/lib/libjli.so || true
+          ls -la "$JAVA_HOME/lib/libjli.so" || true
+          file "$JAVA_HOME/lib/libjli.so" || true
+
+      - name: Test nono read access to libjli.so
+        run: |
+          nono run --profile internal/nono/isolarium-nono-profile.json --allow-cwd --read /usr/lib/locale --override-deny /usr/lib/locale --read /usr/lib/jvm --override-deny /usr/lib/jvm --read /lib/x86_64-linux-gnu --read /usr/lib/x86_64-linux-gnu --override-deny /usr/lib/x86_64-linux-gnu --read /opt/hostedtoolcache -- ls -lt /usr/lib/jvm/temurin-17-jdk-amd64/lib/libjli.so || true
+
+      - name: Test nono read of libjli.so content
+        run: |
+          nono run --profile internal/nono/isolarium-nono-profile.json --allow-cwd --read /usr/lib/locale --override-deny /usr/lib/locale --read /usr/lib/jvm --override-deny /usr/lib/jvm --read /lib/x86_64-linux-gnu --read /usr/lib/x86_64-linux-gnu --override-deny /usr/lib/x86_64-linux-gnu --read /opt/hostedtoolcache -- cat /usr/lib/jvm/temurin-17-jdk-amd64/lib/libjli.so > /dev/null || true
+
+      - name: Inspect dynamic linker config for java
+        run: |
+          echo "=== LD_LIBRARY_PATH ==="
+          echo "${LD_LIBRARY_PATH:-<unset>}"
+          echo "=== RPATH/RUNPATH in java binary ==="
+          readelf -d "$JAVA_HOME/bin/java" | grep -i path || echo "none"
+          echo "=== RPATH/RUNPATH in libjli.so ==="
+          readelf -d "$JAVA_HOME/lib/libjli.so" | grep -i path || echo "none"
+          echo "=== ldconfig -p for libjli ==="
+          ldconfig -p | grep libjli || echo "not in cache"
+          echo "=== /etc/ld.so.conf ==="
+          cat /etc/ld.so.conf || true
+          echo "=== /etc/ld.so.conf.d/ ==="
+          cat /etc/ld.so.conf.d/*.conf || true
+
+      - name: Run java in nono (no extra flags)
+        run: nono run --allow-cwd -- java -version || true
+
+      - name: Learn nono permissions for java
+        run: nono learn -s -- java -version || true
+
+      - name: Run java in nono (with learned flags)
+        run: nono run --allow-cwd --override-deny /usr --read /usr --read /opt/hostedtoolcache -- java -version || true
+
+      - name: Run gradlew without nono
+        run: |
+          cd testdata/spring-boot-app
+          ./gradlew clean build
+
+      - name: Learn nono permissions for gradlew
+        run: |
+          cd testdata/spring-boot-app
+          nono learn -s -- ./gradlew clean build || true
+
+      - name: Run gradlew e2e test
+        run: ./test-scripts/test-end-to-end-with-gradlew.sh --force
