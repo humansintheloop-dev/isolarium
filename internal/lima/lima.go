@@ -112,7 +112,7 @@ func CreateVM(name string) error {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
-	cmd := exec.Command("limactl", "create", "--name", name, configPath)
+	cmd := exec.Command("limactl", "create", "--tty=false", "--name", name, configPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
