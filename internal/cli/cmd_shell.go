@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -66,6 +67,12 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 
 func buildShellEnvVars(envType string) (map[string]string, error) {
 	envVars := map[string]string{}
+
+	if envType == "nono" {
+		envVars["PRE_COMMIT_HOME"] = filepath.Join(os.TempDir(), "pre-commit")
+		envVars["UV_CACHE_DIR"] = filepath.Join(os.TempDir(), "uv-cache")
+		envVars["UV_TOOL_DIR"] = filepath.Join(os.TempDir(), "uv-tools")
+	}
 
 	if envType == "container" {
 		token, err := extractGitHubToken()

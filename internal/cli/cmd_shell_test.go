@@ -150,8 +150,11 @@ func TestShellCommand_NonoPassesEmptyEnvVars(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(spy.openShellEnvVars) != 0 {
-		t.Errorf("expected empty envVars for nono, got %v", spy.openShellEnvVars)
+	expectedKeys := []string{"PRE_COMMIT_HOME", "UV_CACHE_DIR", "UV_TOOL_DIR"}
+	for _, key := range expectedKeys {
+		if _, ok := spy.openShellEnvVars[key]; !ok {
+			t.Errorf("expected envVars to contain %s, got %v", key, spy.openShellEnvVars)
+		}
 	}
 }
 
