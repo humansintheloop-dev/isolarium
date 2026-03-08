@@ -1,7 +1,7 @@
 package nono
 
 func BuildRunCommand(args []string, extraReadPaths []string) []string {
-	cmd := []string{"nono", "run", "--profile", "claude-code"}
+	cmd := []string{"nono", "run", "--profile", getProfilePath()}
 	cmd = append(cmd, PermissionFlags()...)
 	for _, p := range extraReadPaths {
 		cmd = append(cmd, "--read", p)
@@ -12,13 +12,13 @@ func BuildRunCommand(args []string, extraReadPaths []string) []string {
 }
 
 func BuildShellCommand() []string {
-	cmd := []string{"nono", "shell", "--profile", "claude-code"}
+	cmd := []string{"nono", "shell", "--profile", getProfilePath()}
 	cmd = append(cmd, PermissionFlags()...)
 	return cmd
 }
 
 func BuildRunCommandInteractive(args []string, extraReadPaths []string) []string {
-	cmd := []string{"nono", "run", "--profile", "claude-code"}
+	cmd := []string{"nono", "run", "--profile", getProfilePath()}
 	cmd = append(cmd, PermissionFlags()...)
 	for _, p := range extraReadPaths {
 		cmd = append(cmd, "--read", p)

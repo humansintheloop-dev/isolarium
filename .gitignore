@@ -10,3 +10,7 @@
 .env.local
 repomix-output.xml
 logs/
+
+# Gradle (test project)
+testdata/spring-boot-app/.gradle/
+testdata/spring-boot-app/build/
