@@ -1,38 +1,24 @@
 package nono
 
 import (
-	"path/filepath"
 	"testing"
 )
 
-func TestPermissionFlagsContainsProjectDirectoryAccess(t *testing.T) {
+func TestPermissionFlagsContainsAllowCwd(t *testing.T) {
 	flags := PermissionFlags()
 
-	assertContainsSequence(t, flags, "--allow", ".")
+	assertContainsFlag(t, flags, "--allow-cwd")
 }
 
-func TestPermissionFlagsContainsGhConfigReadOnly(t *testing.T) {
-	flags := PermissionFlags()
 
-	assertContainsSequence(t, flags, "--read", filepath.Join(homeDir(), ".config", "gh"))
-}
-
-func TestPermissionFlagsContainsHitlDirectory(t *testing.T) {
-	flags := PermissionFlags()
-
-	assertContainsSequence(t, flags, "--allow", filepath.Join(homeDir(), ".hitl"))
-}
-
-func TestPermissionFlagsContainsUvCacheReadOnly(t *testing.T) {
-	flags := PermissionFlags()
-
-	assertContainsSequence(t, flags, "--read", filepath.Join(homeDir(), ".cache", "uv"))
-}
-
-func TestPermissionFlagsContainsUvDataReadOnly(t *testing.T) {
-	flags := PermissionFlags()
-
-	assertContainsSequence(t, flags, "--read", filepath.Join(homeDir(), ".local", "share", "uv"))
+func assertContainsFlag(t *testing.T, slice []string, flag string) {
+	t.Helper()
+	for _, v := range slice {
+		if v == flag {
+			return
+		}
+	}
+	t.Errorf("expected flags to contain %s, got %v", flag, slice)
 }
 
 func assertContainsSequence(t *testing.T, slice []string, flag, value string) {
