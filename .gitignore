@@ -19,5 +19,4 @@ testdata/spring-boot-app/build/
 testdata/python-cli-app/.venv/
 testdata/python-cli-app/.pytest_cache/
 testdata/python-cli-app/uv.lock
-testdata/python-cli-app/__pycache__/
-testdata/python-cli-app/tests/__pycache__/
+testdata/python-cli-app/**/__pycache__/
