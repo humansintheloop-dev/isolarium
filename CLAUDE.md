@@ -42,6 +42,10 @@ The specialized tools are faster, have correct permissions, and provide better o
 
 IMPORTANT: Always run git commands from the project root directory. If you need to operate on the repository, cd to the root directory first rather than using `git -C`. This prevents accidentally committing files outside the project root.
 
+## Verify After Writing
+
+IMPORTANT: After writing or modifying code, always run the tests before presenting the work as complete. When writing scripts, run the scripts. Every written artifact should be exercised.
+
 ## Pattern-Based Fixes
 
 When fixing issues caused by naming conventions or patterns:

@@ -14,3 +14,10 @@ logs/
 # Gradle (test project)
 testdata/spring-boot-app/.gradle/
 testdata/spring-boot-app/build/
+
+# Python (test project)
+testdata/python-cli-app/.venv/
+testdata/python-cli-app/.pytest_cache/
+testdata/python-cli-app/uv.lock
+testdata/python-cli-app/__pycache__/
+testdata/python-cli-app/tests/__pycache__/
