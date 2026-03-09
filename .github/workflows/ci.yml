@@ -77,5 +77,10 @@ jobs:
           curl -sSfL https://github.com/always-further/nono/releases/download/v0.12.0/nono-v0.12.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
           sudo mv nono /usr/local/bin/
 
+      - name: Create Gradle home directory
+        # nono profile grants allow access to ~/.gradle but skips non-existent paths.
+        # Gradle wrapper needs this directory to download and cache distributions.
+        run: mkdir -p ~/.gradle
+
       - name: Run gradlew e2e test
         run: ./test-scripts/test-end-to-end-with-gradlew.sh --force
