@@ -84,3 +84,25 @@ jobs:
 
       - name: Run gradlew e2e test
         run: ./test-scripts/test-end-to-end-with-gradlew.sh --force
+
+  e2e-pytest:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install nono
+        run: |
+          curl -sSfL https://github.com/always-further/nono/releases/download/v0.12.0/nono-v0.12.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv nono /usr/local/bin/
+
+      - name: Run pytest e2e test
+        run: ./test-scripts/test-end-to-end-with-pytest.sh --force
