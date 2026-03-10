@@ -112,18 +112,18 @@ This thread implements the core Dockerfile generation from pid.yaml `isolation_s
     - [x] Create a `GenerateDockerfile(baseDockerfile string, scripts []config.ScriptEntry) string` function in `internal/docker/` (or extend existing Dockerfile generation)
     - [x] Create unit tests in `internal/docker/dockerfile_gen_test.go`
 
-- [ ] **Task 2.2: Container create copies isolation_scripts to build context and passes build-args**
+- [x] **Task 2.2: Container create copies isolation_scripts to build context and passes build-args**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: During container create, when pid.yaml has container `isolation_scripts`: (1) each referenced script file is copied from the project directory into the temp build context, (2) the generated Dockerfile is written to the build context, (3) `docker build` is invoked with `--build-arg` for each declared env var (values read from process environment), (4) missing declared env vars cause create to fail with an error listing the missing variable
   - Evidence: Unit/integration tests verify: (1) build context contains copied scripts, (2) docker build command includes correct --build-arg flags, (3) missing env var returns descriptive error
   - Steps:
-    - [ ] Find the existing container create flow (likely `internal/docker/backend.go` or similar)
-    - [ ] Add pid.yaml loading at the start of container create
-    - [ ] Implement build context preparation: copy isolation_scripts into temp dir
-    - [ ] Extend docker build invocation to include `--build-arg` flags
-    - [ ] Add env var validation: check all declared env vars are set, fail with clear error if not
-    - [ ] Create tests that mock or verify the docker build command construction
+    - [x] Find the existing container create flow (likely `internal/docker/backend.go` or similar)
+    - [x] Add pid.yaml loading at the start of container create
+    - [x] Implement build context preparation: copy isolation_scripts into temp dir
+    - [x] Extend docker build invocation to include `--build-arg` flags
+    - [x] Add env var validation: check all declared env vars are set, fail with clear error if not
+    - [x] Create tests that mock or verify the docker build command construction
 
 - [ ] **Task 2.3: Container isolation_scripts e2e smoke test**
   - TaskType: INFRA
@@ -348,3 +348,6 @@ CI workflow already runs go test ./... via test-end-to-end.sh. All 13 packages p
 
 ### 2026-03-11 07:56 - mark-task-complete
 GenerateDockerfile function and 4 unit tests implemented via TDD
+
+### 2026-03-11 08:10 - mark-task-complete
+Implemented build context preparation, env var validation, and build-arg passing for container isolation_scripts

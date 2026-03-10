@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/docker"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
@@ -58,7 +59,35 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 		}
 	}
 
+	if err := b.applyIsolationScripts(opts.WorkDirectory, contextDir, creator); err != nil {
+		return err
+	}
+
 	return creator.Create(name, opts.WorkDirectory, contextDir)
+}
+
+func (b *DockerBackend) applyIsolationScripts(workDir, contextDir string, creator *docker.Creator) error {
+	cfg, err := config.LoadPidConfig(workDir)
+	if err != nil {
+		return fmt.Errorf("loading pid.yaml: %w", err)
+	}
+	if cfg == nil || len(cfg.Container.IsolationScripts) == 0 {
+		return nil
+	}
+
+	scripts := cfg.Container.IsolationScripts
+
+	buildArgs, err := docker.ValidateAndCollectBuildArgs(scripts)
+	if err != nil {
+		return err
+	}
+
+	if err := docker.PrepareBuildContext(contextDir, workDir, scripts); err != nil {
+		return fmt.Errorf("preparing build context: %w", err)
+	}
+
+	creator.BuildArgs = buildArgs
+	return nil
 }
 
 func (b *DockerBackend) Destroy(name string) error {
