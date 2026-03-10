@@ -7,12 +7,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 FORCE=false
+WORKAROUND=false
 
 for arg in "$@"; do
     case "$arg" in
         --force) FORCE=true ;;
+        --workaround) WORKAROUND=true ;;
         *)
-            echo "Usage: $0 [--force]"
+            echo "Usage: $0 [--force] [--workaround]"
             exit 1
             ;;
     esac
@@ -25,6 +27,12 @@ fi
 
 BINARY="bin/isolarium"
 go build -o "$BINARY" ./cmd/isolarium
+
+if [ "$WORKAROUND" = true ]; then
+    export GRADLEW_WORKAROUND=true
+fi
+
+testdata/spring-boot-app/gradlew --stop
 
 echo "=== Running gradlew build in nono ==="
 go test "${GOTEST_FLAGS[@]}" -run "TestGradlew.*InNono_EndToEnd" ./cmd/isolarium/...
