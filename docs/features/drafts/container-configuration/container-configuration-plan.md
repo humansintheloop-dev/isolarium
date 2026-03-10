@@ -88,14 +88,14 @@ This thread establishes the foundation: parsing `pid.yaml` and supporting `ISOLA
     - [x] Add env var lookup: if flag not explicitly set, check `os.Getenv("ISOLARIUM_NAME")` / `os.Getenv("ISOLARIUM_TYPE")`
     - [x] Create tests in `cmd/root_test.go` (or appropriate test file) that set env vars via `t.Setenv()` and verify flag resolution
 
-- [ ] **Task 1.3: pid.yaml parsing and env var defaults validated in CI**
+- [x] **Task 1.3: pid.yaml parsing and env var defaults validated in CI**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-end-to-end.sh`
   - Observable: CI runs `go test ./...` which includes the pid.yaml parsing tests and env var default tests, and the existing test-end-to-end.sh passes
   - Evidence: CI workflow runs `go test ./...` and `./test-scripts/test-end-to-end.sh` and both pass
   - Steps:
-    - [ ] Verify existing `.github/workflows/ci.yml` already runs `go test ./...` (if not, add it)
-    - [ ] Run full test suite locally to confirm all existing and new tests pass
+    - [x] Verify existing `.github/workflows/ci.yml` already runs `go test ./...` (if not, add it)
+    - [x] Run full test suite locally to confirm all existing and new tests pass
 
 ---
 
@@ -342,3 +342,6 @@ Implemented LoadPidConfig with PidConfig/IsolationTypeConfig/ScriptEntry types. 
 
 ### 2026-03-11 07:41 - mark-task-complete
 Added applyEnvVarDefaults in PersistentPreRunE. 7 unit tests verify precedence: explicit flag > env var > default.
+
+### 2026-03-11 07:48 - mark-task-complete
+CI workflow already runs go test ./... via test-end-to-end.sh. All 13 packages pass locally.
