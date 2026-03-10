@@ -33,8 +33,8 @@ func TestGenerateDockerfileWithOneScriptAppendsCopyAndRun(t *testing.T) {
 
 	assertContainsInOrder(t, result,
 		"WORKDIR /home/isolarium/repo",
-		"COPY install-go.sh /tmp/install-go.sh",
-		`RUN chmod +x /tmp/install-go.sh && /tmp/install-go.sh`,
+		"COPY --chmod=755 install-go.sh /home/isolarium/install-go.sh",
+		`RUN /home/isolarium/install-go.sh`,
 		`CMD ["sleep", "infinity"]`,
 	)
 }
@@ -50,12 +50,12 @@ func TestGenerateDockerfileWithMultipleScriptsAppendsInOrder(t *testing.T) {
 
 	assertContainsInOrder(t, result,
 		"WORKDIR /home/isolarium/repo",
-		"COPY install-go.sh /tmp/install-go.sh",
-		"RUN chmod +x /tmp/install-go.sh && /tmp/install-go.sh",
-		"COPY install-linters.sh /tmp/install-linters.sh",
-		"RUN chmod +x /tmp/install-linters.sh && /tmp/install-linters.sh",
-		"COPY install-codescene.sh /tmp/install-codescene.sh",
-		"RUN chmod +x /tmp/install-codescene.sh && /tmp/install-codescene.sh",
+		"COPY --chmod=755 install-go.sh /home/isolarium/install-go.sh",
+		"RUN /home/isolarium/install-go.sh",
+		"COPY --chmod=755 install-linters.sh /home/isolarium/install-linters.sh",
+		"RUN /home/isolarium/install-linters.sh",
+		"COPY --chmod=755 install-codescene.sh /home/isolarium/install-codescene.sh",
+		"RUN /home/isolarium/install-codescene.sh",
 		`CMD ["sleep", "infinity"]`,
 	)
 }
@@ -74,8 +74,8 @@ func TestGenerateDockerfileWithEnvVarsIncludesArgDeclarations(t *testing.T) {
 		"WORKDIR /home/isolarium/repo",
 		"ARG CS_ACCESS_TOKEN",
 		"ARG CS_ACE_ACCESS_TOKEN",
-		"COPY install-codescene.sh /tmp/install-codescene.sh",
-		"RUN chmod +x /tmp/install-codescene.sh && /tmp/install-codescene.sh",
+		"COPY --chmod=755 install-codescene.sh /home/isolarium/install-codescene.sh",
+		"RUN /home/isolarium/install-codescene.sh",
 		`CMD ["sleep", "infinity"]`,
 	)
 }

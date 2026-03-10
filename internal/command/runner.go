@@ -9,5 +9,5 @@ type Runner interface {
 type ExecRunner struct{}
 
 func (r ExecRunner) Run(name string, args ...string) ([]byte, error) {
-	return exec.Command(name, args...).Output()
+	return exec.Command(name, args...).CombinedOutput()
 }

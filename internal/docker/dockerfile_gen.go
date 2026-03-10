@@ -24,8 +24,8 @@ func GenerateDockerfile(baseDockerfile string, scripts []config.ScriptEntry) str
 		for _, env := range script.Env {
 			layers.WriteString("ARG " + env + "\n")
 		}
-		layers.WriteString("COPY " + filename + " /tmp/" + filename + "\n")
-		layers.WriteString("RUN chmod +x /tmp/" + filename + " && /tmp/" + filename + "\n")
+		layers.WriteString("COPY --chmod=755 " + filename + " /home/isolarium/" + filename + "\n")
+		layers.WriteString("RUN /home/isolarium/" + filename + "\n")
 	}
 
 	return baseDockerfile[:idx] + layers.String() + baseDockerfile[idx:]
