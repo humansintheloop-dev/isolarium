@@ -42,9 +42,13 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
 		Short: "Secure execution environment for coding agents",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return LoadEnvFile(envFileFlag)
-		},
+	}
+
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := LoadEnvFile(envFileFlag); err != nil {
+			return err
+		}
+		return applyEnvVarDefaults(rootCmd, &nameFlag, &typeFlag)
 	}
 
 	rootCmd.PersistentFlags().StringVar(&envFileFlag, "env-file", ".env.local", "Path to environment file")
@@ -79,6 +83,27 @@ func newRootCmdWithStatusLister(lister EnvironmentLister) *cobra.Command {
 	rootCmd.AddCommand(newStatusCmdWithLister(rootCmd, &nameFlag, &typeFlag, lister))
 
 	return rootCmd
+}
+
+func applyEnvVarDefaults(cmd *cobra.Command, nameFlag *string, typeFlag *environmentType) error {
+	if envName := envVarDefault(cmd, "name", "ISOLARIUM_NAME"); envName != "" {
+		*nameFlag = envName
+	}
+	envType := envVarDefault(cmd, "type", "ISOLARIUM_TYPE")
+	if envType == "" {
+		return nil
+	}
+	if err := typeFlag.Set(envType); err != nil {
+		return fmt.Errorf("ISOLARIUM_TYPE: %w", err)
+	}
+	return nil
+}
+
+func envVarDefault(cmd *cobra.Command, flagName, envVar string) string {
+	if cmd.PersistentFlags().Changed(flagName) {
+		return ""
+	}
+	return os.Getenv(envVar)
 }
 
 func defaultEnvironmentTypeResolver() EnvironmentTypeResolver {
