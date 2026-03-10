@@ -370,6 +370,51 @@ func TestRunCommand_NonoReadFlagSetsExtraReadPaths(t *testing.T) {
 	}
 }
 
+func containerRunWithEnvFlags(t *testing.T, envFlags []string, runArgs []string) *backendSpy {
+	t.Helper()
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+
+	origFn := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	}
+	defer func() { execCommandOutput = origFn }()
+
+	args := []string{}
+	for _, ef := range envFlags {
+		args = append(args, "--env", ef)
+	}
+	args = append(args, "run", "--type", "container", "--copy-session=false")
+	args = append(args, runArgs...)
+	rootCmd.SetArgs(args)
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return spy
+}
+
+func TestRunCommand_ContainerPassesEnvFlagVarsToBackendExec(t *testing.T) {
+	spy := containerRunWithEnvFlags(t, []string{"FOO=bar", "BAZ=qux"}, []string{"--", "env"})
+
+	if spy.execEnvVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", spy.execEnvVars["FOO"])
+	}
+	if spy.execEnvVars["BAZ"] != "qux" {
+		t.Errorf("expected BAZ='qux', got '%s'", spy.execEnvVars["BAZ"])
+	}
+}
+
+func TestRunCommand_ContainerPassesEnvFlagVarsToBackendExecInteractive(t *testing.T) {
+	spy := containerRunWithEnvFlags(t, []string{"MY_VAR=hello"}, []string{"-i", "--", "bash"})
+
+	if spy.execInteractiveEnvVars["MY_VAR"] != "hello" {
+		t.Errorf("expected MY_VAR='hello', got '%s'", spy.execInteractiveEnvVars["MY_VAR"])
+	}
+}
+
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{}

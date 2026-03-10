@@ -100,7 +100,8 @@ func TestShellCommand_ContainerCopySessionCallsCopyCredentials(t *testing.T) {
 	}
 }
 
-func TestShellCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
+func containerShellWithEnvFlags(t *testing.T, envFlags []string) *backendSpy {
+	t.Helper()
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
@@ -112,10 +113,20 @@ func TestShellCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
 	}
 	defer func() { execCommandOutput = origExec }()
 
-	rootCmd.SetArgs([]string{"shell", "--type", "container", "--copy-session=false"})
+	args := []string{}
+	for _, ef := range envFlags {
+		args = append(args, "--env", ef)
+	}
+	args = append(args, "shell", "--type", "container", "--copy-session=false")
+	rootCmd.SetArgs(args)
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	return spy
+}
+
+func TestShellCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
+	spy := containerShellWithEnvFlags(t, nil)
 
 	if spy.copyCredentialsCalled {
 		t.Fatal("expected backend.CopyCredentials NOT to be called when --copy-session=false")
@@ -185,6 +196,14 @@ func TestShellCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 
 	if spy.copyCredentialsCalled {
 		t.Fatal("expected CopyCredentials NOT to be called for nono")
+	}
+}
+
+func TestShellCommand_ContainerPassesEnvFlagVarsToBackendOpenShell(t *testing.T) {
+	spy := containerShellWithEnvFlags(t, []string{"FOO=bar"})
+
+	if spy.openShellEnvVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", spy.openShellEnvVars["FOO"])
 	}
 }
 

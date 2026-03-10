@@ -218,6 +218,9 @@ func runInContainer(opts runOptions, resolver BackendResolver, envType string) e
 	}
 
 	envVars := map[string]string{}
+	for k, v := range GetEnvVars() {
+		envVars[k] = v
+	}
 	if err := addTokenEnvVars(envVars, opts.noGHToken, extractGitHubToken, containerTokenVars); err != nil {
 		return err
 	}

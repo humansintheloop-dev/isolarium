@@ -67,6 +67,9 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 
 func buildShellEnvVars(envType string) (map[string]string, error) {
 	envVars := map[string]string{}
+	for k, v := range GetEnvVars() {
+		envVars[k] = v
+	}
 
 	if envType == "nono" {
 		envVars["PRE_COMMIT_HOME"] = filepath.Join(os.TempDir(), "pre-commit")

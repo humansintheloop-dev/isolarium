@@ -153,16 +153,16 @@ This thread adds the `--env` persistent flag on the root command for passing ad-
     - [x] Store parsed map in a location accessible to subcommands (e.g., on a context struct or package-level variable)
     - [x] Create tests in `cmd/env_flag_test.go`
 
-- [ ] **Task 3.2: --env vars passed to container run/shell as -e flags**
+- [x] **Task 3.2: --env vars passed to container run/shell as -e flags**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: When `isolarium --env FOO=bar run -- env` is executed with container type, the `docker exec` command includes `-e FOO=bar`, and the command inside the container sees `FOO=bar` in its environment
   - Evidence: Unit tests verify the docker exec command construction includes `-e` flags for each --env var. Integration test (if feasible) runs `isolarium --env TEST_VAR=hello run -- printenv TEST_VAR` and verifies output contains `hello`.
   - Steps:
-    - [ ] Find where `docker exec` is constructed for `run`/`shell` (likely in the Docker backend's `Exec`/`ExecInteractive`/`OpenShell` methods)
-    - [ ] Pass the env vars map from the root command to the backend methods
-    - [ ] Add `-e KEY=VALUE` flags to the docker exec command for each entry
-    - [ ] Create unit tests verifying command construction
+    - [x] Find where `docker exec` is constructed for `run`/`shell` (likely in the Docker backend's `Exec`/`ExecInteractive`/`OpenShell` methods)
+    - [x] Pass the env vars map from the root command to the backend methods
+    - [x] Add `-e KEY=VALUE` flags to the docker exec command for each entry
+    - [x] Create unit tests verifying command construction
 
 - [ ] **Task 3.3: --env vars passed to VM run/shell**
   - TaskType: OUTCOME
@@ -369,3 +369,18 @@ E2e test passes: creates container with isolation_scripts, verifies marker file,
 
 ### 2026-03-11 08:36 - mark-task-complete
 Added --env persistent StringSlice flag on root command, parseEnvFlags function that splits on first = to distinguish VAR from VAR=VALUE, GetEnvVars accessor for subcommands, and 6 unit tests covering all evidence criteria
+
+### 2026-03-11 08:46 - mark-step-complete
+docker exec is constructed in internal/docker/exec.go (BuildExecCommand, BuildInteractiveExecCommand)
+
+### 2026-03-11 08:46 - mark-step-complete
+Merged GetEnvVars() into envVars map in runInContainer() and buildShellEnvVars()
+
+### 2026-03-11 08:46 - mark-step-complete
+Docker layer already adds -e KEY=VALUE flags via buildEnvFlags(); now env vars flow through from --env flag
+
+### 2026-03-11 08:46 - mark-step-complete
+Added 3 tests: ContainerPassesEnvFlagVarsToBackendExec, ContainerPassesEnvFlagVarsToBackendExecInteractive, ContainerPassesEnvFlagVarsToBackendOpenShell
+
+### 2026-03-11 08:47 - mark-task-complete
+Merged GetEnvVars() into container run and shell env var maps; verified with 3 new tests
