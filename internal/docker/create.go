@@ -42,8 +42,11 @@ func (c *Creator) checkDockerAvailable() error {
 
 func (c *Creator) buildImage(contextDir string) error {
 	args := BuildImageCommand(c.ImageTag, contextDir, c.Worktree, c.BuildArgs)
-	_, err := c.Runner.Run(args[0], args[1:]...)
-	return err
+	output, err := c.Runner.Run(args[0], args[1:]...)
+	if err != nil {
+		return fmt.Errorf("%w\n%s", err, string(output))
+	}
+	return nil
 }
 
 func (c *Creator) startContainer(name, workDir string) error {

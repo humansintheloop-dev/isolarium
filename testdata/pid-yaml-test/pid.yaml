@@ -1,0 +1,4 @@
+isolarium:
+  container:
+    isolation_scripts:
+      - path: scripts/create-marker.sh

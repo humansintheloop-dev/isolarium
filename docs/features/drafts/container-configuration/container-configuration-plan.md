@@ -125,16 +125,16 @@ This thread implements the core Dockerfile generation from pid.yaml `isolation_s
     - [x] Add env var validation: check all declared env vars are set, fail with clear error if not
     - [x] Create tests that mock or verify the docker build command construction
 
-- [ ] **Task 2.3: Container isolation_scripts e2e smoke test**
+- [x] **Task 2.3: Container isolation_scripts e2e smoke test**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-container-isolation-scripts.sh`
   - Observable: A test creates a container from a test project with a pid.yaml that has one isolation_script (e.g., installs a small tool), then verifies the tool is available inside the container
   - Evidence: `./test-scripts/test-container-isolation-scripts.sh` passes — creates container, runs command to verify tool is installed, destroys container
   - Steps:
-    - [ ] Create a minimal test fixture (e.g., `testdata/pid-yaml-test/`) with a `pid.yaml` containing one `isolation_script` that installs a lightweight tool (e.g., `jq` or creates a marker file)
-    - [ ] Create the isolation script referenced by pid.yaml
-    - [ ] Create `test-scripts/test-container-isolation-scripts.sh` that: builds isolarium, runs `isolarium create --type container` from the test fixture dir, runs `isolarium run -- <verify-command>`, runs `isolarium destroy`
-    - [ ] Add the new test script to `test-scripts/test-end-to-end.sh`
+    - [x] Create a minimal test fixture (e.g., `testdata/pid-yaml-test/`) with a `pid.yaml` containing one `isolation_script` that installs a lightweight tool (e.g., `jq` or creates a marker file)
+    - [x] Create the isolation script referenced by pid.yaml
+    - [x] Create `test-scripts/test-container-isolation-scripts.sh` that: builds isolarium, runs `isolarium create --type container` from the test fixture dir, runs `isolarium run -- <verify-command>`, runs `isolarium destroy`
+    - [x] Add the new test script to `test-scripts/test-end-to-end.sh`
 
 ---
 
@@ -351,3 +351,18 @@ GenerateDockerfile function and 4 unit tests implemented via TDD
 
 ### 2026-03-11 08:10 - mark-task-complete
 Implemented build context preparation, env var validation, and build-arg passing for container isolation_scripts
+
+### 2026-03-11 08:27 - mark-step-complete
+Created testdata/pid-yaml-test/pid.yaml with one isolation_script
+
+### 2026-03-11 08:27 - mark-step-complete
+Created testdata/pid-yaml-test/scripts/create-marker.sh
+
+### 2026-03-11 08:27 - mark-step-complete
+Created test-scripts/test-container-isolation-scripts.sh - builds, creates, verifies, destroys
+
+### 2026-03-11 08:28 - mark-step-complete
+Added test-container-isolation-scripts.sh to test-end-to-end.sh
+
+### 2026-03-11 08:28 - mark-task-complete
+E2e test passes: creates container with isolation_scripts, verifies marker file, destroys

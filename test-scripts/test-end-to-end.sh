@@ -25,6 +25,9 @@ echo ""
 if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
     echo ""
     "$SCRIPT_DIR/test-docker-integration.sh"
+
+    echo ""
+    "$SCRIPT_DIR/test-container-isolation-scripts.sh"
 fi
 
 echo ""

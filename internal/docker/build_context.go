@@ -17,7 +17,7 @@ func PrepareBuildContext(contextDir, projectDir string, scripts []config.ScriptE
 			return fmt.Errorf("copying isolation script %s: %w", script.Path, err)
 		}
 		dst := filepath.Join(contextDir, filepath.Base(script.Path))
-		if err := os.WriteFile(dst, data, 0644); err != nil {
+		if err := os.WriteFile(dst, data, 0755); err != nil {
 			return fmt.Errorf("writing script to build context %s: %w", filepath.Base(script.Path), err)
 		}
 	}

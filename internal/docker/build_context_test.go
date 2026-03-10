@@ -49,8 +49,8 @@ func TestPrepareBuildContextCopiesScriptsAndRegeneratesDockerfile(t *testing.T) 
 		t.Fatal(err)
 	}
 	assertContainsInOrder(t, string(dockerfile),
-		"COPY install-go.sh /tmp/install-go.sh",
-		"RUN chmod +x /tmp/install-go.sh && /tmp/install-go.sh",
+		"COPY --chmod=755 install-go.sh /home/isolarium/install-go.sh",
+		"RUN /home/isolarium/install-go.sh",
 		`CMD ["sleep", "infinity"]`,
 	)
 }
