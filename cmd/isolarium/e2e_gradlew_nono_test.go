@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -13,7 +14,11 @@ func TestGradlewBuildInNono_EndToEnd(t *testing.T) {
 	binary := buildGradlewBinary(t)
 	springBootDir := filepath.Join(gradlewProjectRoot(t), "testdata", "spring-boot-app")
 
-	cmd := exec.Command(binary, "--type", "nono", "run", "--no-gh-token", "--", "./gradlew", "clean", "build")
+	gradlewArgs := []string{"--type", "nono", "run", "--no-gh-token", "--", "./gradlew", "clean", "build"}
+	if os.Getenv("GRADLEW_WORKAROUND") == "true" {
+		gradlewArgs = append(gradlewArgs, "-PuseJavaAgent")
+	}
+	cmd := exec.Command(binary, gradlewArgs...)
 	cmd.Dir = springBootDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("gradlew output:\n%s", output)
