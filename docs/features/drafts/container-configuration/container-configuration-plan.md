@@ -142,16 +142,16 @@ This thread implements the core Dockerfile generation from pid.yaml `isolation_s
 
 This thread adds the `--env` persistent flag on the root command for passing ad-hoc runtime environment variables to `run`/`shell` commands.
 
-- [ ] **Task 3.1: --env persistent flag parses VAR and VAR=VALUE forms**
+- [x] **Task 3.1: --env persistent flag parses VAR and VAR=VALUE forms**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./cmd/...`
   - Observable: The root command accepts `--env VAR` (reads value from `os.Getenv`) and `--env VAR=VALUE` (uses literal value). Parsed env vars are stored as a `map[string]string` accessible to subcommands.
   - Evidence: Unit tests verify: (1) `--env FOO` reads from os environment, (2) `--env FOO=bar` uses literal value, (3) multiple `--env` flags accumulate, (4) `--env VAR` where VAR is unset results in empty string or error (per spec behavior)
   - Steps:
-    - [ ] Add `--env` as a persistent `StringSlice` flag on the root command
-    - [ ] Parse each entry in `PersistentPreRunE`: split on first `=` to distinguish `VAR` from `VAR=VALUE`
-    - [ ] Store parsed map in a location accessible to subcommands (e.g., on a context struct or package-level variable)
-    - [ ] Create tests in `cmd/env_flag_test.go`
+    - [x] Add `--env` as a persistent `StringSlice` flag on the root command
+    - [x] Parse each entry in `PersistentPreRunE`: split on first `=` to distinguish `VAR` from `VAR=VALUE`
+    - [x] Store parsed map in a location accessible to subcommands (e.g., on a context struct or package-level variable)
+    - [x] Create tests in `cmd/env_flag_test.go`
 
 - [ ] **Task 3.2: --env vars passed to container run/shell as -e flags**
   - TaskType: OUTCOME
@@ -366,3 +366,6 @@ Added test-container-isolation-scripts.sh to test-end-to-end.sh
 
 ### 2026-03-11 08:28 - mark-task-complete
 E2e test passes: creates container with isolation_scripts, verifies marker file, destroys
+
+### 2026-03-11 08:36 - mark-task-complete
+Added --env persistent StringSlice flag on root command, parseEnvFlags function that splits on first = to distinguish VAR from VAR=VALUE, GetEnvVars accessor for subcommands, and 6 unit tests covering all evidence criteria
