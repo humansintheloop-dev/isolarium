@@ -164,16 +164,16 @@ This thread adds the `--env` persistent flag on the root command for passing ad-
     - [x] Add `-e KEY=VALUE` flags to the docker exec command for each entry
     - [x] Create unit tests verifying command construction
 
-- [ ] **Task 3.3: --env vars passed to VM run/shell**
+- [x] **Task 3.3: --env vars passed to VM run/shell**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/lima/...`
   - Observable: When `isolarium --env FOO=bar run -- env` is executed with VM type, the `limactl shell` command passes `FOO=bar` as an environment variable, and the command inside the VM sees it
   - Evidence: Unit tests verify the limactl shell command construction includes env var passing mechanism
   - Steps:
-    - [ ] Find where `limactl shell` is constructed for `run`/`shell` in the Lima backend
-    - [ ] Pass the env vars map to the backend methods
-    - [ ] Add env var flags to the limactl shell command
-    - [ ] Create unit tests verifying command construction
+    - [x] Find where `limactl shell` is constructed for `run`/`shell` in the Lima backend
+    - [x] Pass the env vars map to the backend methods
+    - [x] Add env var flags to the limactl shell command
+    - [x] Create unit tests verifying command construction
 
 - [ ] **Task 3.4: --env flag e2e smoke test**
   - TaskType: INFRA
@@ -384,3 +384,6 @@ Added 3 tests: ContainerPassesEnvFlagVarsToBackendExec, ContainerPassesEnvFlagVa
 
 ### 2026-03-11 08:47 - mark-task-complete
 Merged GetEnvVars() into container run and shell env var maps; verified with 3 new tests
+
+### 2026-03-11 08:55 - mark-task-complete
+All env var passing already implemented: buildEnvPrefix in exec.go, BuildExecCommand/BuildInteractiveExecCommand/BuildShellCommand all accept envVars, LimaBackend passes envVars through, CLI passes envVars to lima functions. 5 unit tests verify command construction with env vars.
