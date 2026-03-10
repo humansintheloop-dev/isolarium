@@ -103,14 +103,14 @@ This thread establishes the foundation: parsing `pid.yaml` and supporting `ISOLA
 
 This thread implements the core Dockerfile generation from pid.yaml `isolation_scripts` during `isolarium create --type container`.
 
-- [ ] **Task 2.1: Generate Dockerfile with appended RUN layers from isolation_scripts**
+- [x] **Task 2.1: Generate Dockerfile with appended RUN layers from isolation_scripts**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/docker/...`
   - Observable: A function takes the base Dockerfile content and a list of `ScriptEntry` objects, and returns a new Dockerfile with `COPY` + `RUN` layers appended for each script (inserted after `WORKDIR /home/isolarium/repo` and before `CMD ["sleep", "infinity"]`). Each script's `env` vars become `ARG` declarations before the `RUN`.
   - Evidence: Unit tests verify: (1) no isolation_scripts returns base Dockerfile unchanged, (2) one script appends correct COPY+RUN, (3) multiple scripts append in order, (4) scripts with env vars include ARG declarations
   - Steps:
-    - [ ] Create a `GenerateDockerfile(baseDockerfile string, scripts []config.ScriptEntry) string` function in `internal/docker/` (or extend existing Dockerfile generation)
-    - [ ] Create unit tests in `internal/docker/dockerfile_gen_test.go`
+    - [x] Create a `GenerateDockerfile(baseDockerfile string, scripts []config.ScriptEntry) string` function in `internal/docker/` (or extend existing Dockerfile generation)
+    - [x] Create unit tests in `internal/docker/dockerfile_gen_test.go`
 
 - [ ] **Task 2.2: Container create copies isolation_scripts to build context and passes build-args**
   - TaskType: OUTCOME
@@ -345,3 +345,6 @@ Added applyEnvVarDefaults in PersistentPreRunE. 7 unit tests verify precedence: 
 
 ### 2026-03-11 07:48 - mark-task-complete
 CI workflow already runs go test ./... via test-end-to-end.sh. All 13 packages pass locally.
+
+### 2026-03-11 07:56 - mark-task-complete
+GenerateDockerfile function and 4 unit tests implemented via TDD
