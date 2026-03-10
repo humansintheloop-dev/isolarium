@@ -19,6 +19,27 @@ import (
 
 var vmNameFlag string
 
+var parsedEnvVars map[string]string
+
+func GetEnvVars() map[string]string {
+	if parsedEnvVars == nil {
+		return map[string]string{}
+	}
+	return parsedEnvVars
+}
+
+func parseEnvFlags(envFlags []string) map[string]string {
+	result := make(map[string]string, len(envFlags))
+	for _, entry := range envFlags {
+		if idx := strings.IndexByte(entry, '='); idx >= 0 {
+			result[entry[:idx]] = entry[idx+1:]
+		} else {
+			result[entry] = os.Getenv(entry)
+		}
+	}
+	return result
+}
+
 // BackendResolver resolves a Backend from an environment type string.
 type BackendResolver func(envType string) (backend.Backend, error)
 
@@ -38,6 +59,7 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	var nameFlag string
 	var typeFlag environmentType = "vm"
 	var envFileFlag string
+	var envFlags []string
 
 	rootCmd := &cobra.Command{
 		Use:   "isolarium",
@@ -48,12 +70,14 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 		if err := LoadEnvFile(envFileFlag); err != nil {
 			return err
 		}
+		parsedEnvVars = parseEnvFlags(envFlags)
 		return applyEnvVarDefaults(rootCmd, &nameFlag, &typeFlag)
 	}
 
 	rootCmd.PersistentFlags().StringVar(&envFileFlag, "env-file", ".env.local", "Path to environment file")
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
 	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", or "nono" (default "vm")`)
+	rootCmd.PersistentFlags().StringSliceVar(&envFlags, "env", nil, "Environment variable: VAR (read from env) or VAR=VALUE (literal)")
 
 	lister := newDefaultEnvironmentLister(resolver)
 	rootCmd.AddCommand(newCreateCmdWithResolver(rootCmd, &nameFlag, &typeFlag, resolver))
@@ -86,10 +110,15 @@ func newRootCmdWithStatusLister(lister EnvironmentLister) *cobra.Command {
 }
 
 func applyEnvVarDefaults(cmd *cobra.Command, nameFlag *string, typeFlag *environmentType) error {
-	if envName := envVarDefault(cmd, "name", "ISOLARIUM_NAME"); envName != "" {
-		*nameFlag = envName
+	if !cmd.PersistentFlags().Changed("name") {
+		if envName := os.Getenv("ISOLARIUM_NAME"); envName != "" {
+			*nameFlag = envName
+		}
 	}
-	envType := envVarDefault(cmd, "type", "ISOLARIUM_TYPE")
+	if cmd.PersistentFlags().Changed("type") {
+		return nil
+	}
+	envType := os.Getenv("ISOLARIUM_TYPE")
 	if envType == "" {
 		return nil
 	}
@@ -97,13 +126,6 @@ func applyEnvVarDefaults(cmd *cobra.Command, nameFlag *string, typeFlag *environ
 		return fmt.Errorf("ISOLARIUM_TYPE: %w", err)
 	}
 	return nil
-}
-
-func envVarDefault(cmd *cobra.Command, flagName, envVar string) string {
-	if cmd.PersistentFlags().Changed(flagName) {
-		return ""
-	}
-	return os.Getenv(envVar)
 }
 
 func defaultEnvironmentTypeResolver() EnvironmentTypeResolver {
