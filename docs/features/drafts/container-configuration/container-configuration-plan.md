@@ -78,15 +78,15 @@ This thread establishes the foundation: parsing `pid.yaml` and supporting `ISOLA
     - [x] Create `internal/config/pidconfig_test.go` with tests using embedded YAML strings and `t.TempDir()`
     - [x] Validate that resolved script paths do not escape the project root (no `../` traversal above work directory)
 
-- [ ] **Task 1.2: ISOLARIUM_NAME and ISOLARIUM_TYPE env vars set flag defaults**
+- [x] **Task 1.2: ISOLARIUM_NAME and ISOLARIUM_TYPE env vars set flag defaults**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./cmd/...`
   - Observable: When `--name` flag is not explicitly set and `ISOLARIUM_NAME` env var is set, the name defaults to `ISOLARIUM_NAME`. Same for `--type`/`ISOLARIUM_TYPE`. Explicit flags take precedence over env vars. Env vars take precedence over existing defaults.
   - Evidence: Unit tests verify precedence: (1) explicit flag overrides env var, (2) env var overrides default, (3) absent env var falls back to existing default
   - Steps:
-    - [ ] Find where `--name` and `--type` flag defaults are resolved in the root command (likely `cmd/root.go`)
-    - [ ] Add env var lookup: if flag not explicitly set, check `os.Getenv("ISOLARIUM_NAME")` / `os.Getenv("ISOLARIUM_TYPE")`
-    - [ ] Create tests in `cmd/root_test.go` (or appropriate test file) that set env vars via `t.Setenv()` and verify flag resolution
+    - [x] Find where `--name` and `--type` flag defaults are resolved in the root command (likely `cmd/root.go`)
+    - [x] Add env var lookup: if flag not explicitly set, check `os.Getenv("ISOLARIUM_NAME")` / `os.Getenv("ISOLARIUM_TYPE")`
+    - [x] Create tests in `cmd/root_test.go` (or appropriate test file) that set env vars via `t.Setenv()` and verify flag resolution
 
 - [ ] **Task 1.3: pid.yaml parsing and env var defaults validated in CI**
   - TaskType: INFRA
@@ -339,3 +339,6 @@ This thread validates the full pid.yaml machinery for the VM backend.
 
 ### 2026-03-11 07:31 - mark-task-complete
 Implemented LoadPidConfig with PidConfig/IsolationTypeConfig/ScriptEntry types. All 4 unit tests pass.
+
+### 2026-03-11 07:41 - mark-task-complete
+Added applyEnvVarDefaults in PersistentPreRunE. 7 unit tests verify precedence: explicit flag > env var > default.
