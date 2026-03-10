@@ -68,15 +68,15 @@ This plan implements `pid.yaml` support for isolarium — a project-level config
 
 This thread establishes the foundation: parsing `pid.yaml` and supporting `ISOLARIUM_NAME`/`ISOLARIUM_TYPE` environment variable defaults for `--name`/`--type` flags. These are prerequisites for all subsequent threads.
 
-- [ ] **Task 1.1: Parse pid.yaml and return typed configuration**
+- [x] **Task 1.1: Parse pid.yaml and return typed configuration**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/config/...`
   - Observable: A `LoadPidConfig(workDir string)` function reads `pid.yaml` from the given directory, returns a typed `PidConfig` struct with `Container` and `VM` sections each containing `IsolationScripts` and `HostScripts` (each script has `Path` and `Env` fields). Returns nil config (no error) when file is absent.
   - Evidence: Unit tests verify: (1) valid pid.yaml parses to correct struct, (2) missing file returns nil config without error, (3) missing required `path` field returns error, (4) script paths with `../` traversal above project root return error
   - Steps:
-    - [ ] Create `internal/config/pidconfig.go` with `PidConfig`, `IsolationTypeConfig`, `ScriptEntry` types and `LoadPidConfig()` function
-    - [ ] Create `internal/config/pidconfig_test.go` with tests using embedded YAML strings and `t.TempDir()`
-    - [ ] Validate that resolved script paths do not escape the project root (no `../` traversal above work directory)
+    - [x] Create `internal/config/pidconfig.go` with `PidConfig`, `IsolationTypeConfig`, `ScriptEntry` types and `LoadPidConfig()` function
+    - [x] Create `internal/config/pidconfig_test.go` with tests using embedded YAML strings and `t.TempDir()`
+    - [x] Validate that resolved script paths do not escape the project root (no `../` traversal above work directory)
 
 - [ ] **Task 1.2: ISOLARIUM_NAME and ISOLARIUM_TYPE env vars set flag defaults**
   - TaskType: OUTCOME
@@ -336,3 +336,6 @@ This thread validates the full pid.yaml machinery for the VM backend.
 - 9 steel threads covering: pid.yaml parsing, ISOLARIUM_NAME/TYPE env vars, container isolation_scripts, --env flag, host scripts, VM isolation_scripts, gradlew e2e, pytest e2e, pre-commit self-test (container + VM)
 - Ordered by causal dependency: parsing → container scripts → env flag → host scripts → VM scripts → e2e validation
 - Steps should be implemented using TDD
+
+### 2026-03-11 07:31 - mark-task-complete
+Implemented LoadPidConfig with PidConfig/IsolationTypeConfig/ScriptEntry types. All 4 unit tests pass.
