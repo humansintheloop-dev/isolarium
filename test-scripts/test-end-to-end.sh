@@ -31,6 +31,9 @@ if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
 
     echo ""
     "$SCRIPT_DIR/test-env-flag.sh"
+
+    echo ""
+    "$SCRIPT_DIR/test-host-scripts.sh"
 fi
 
 echo ""

@@ -210,16 +210,16 @@ This thread implements `host_scripts` execution after environment creation, with
     - [x] Integrate `RunHostScripts` into the VM create flow
     - [x] Create tests verifying VM create calls host scripts with correct parameters
 
-- [ ] **Task 4.3: Host scripts e2e smoke test**
+- [x] **Task 4.3: Host scripts e2e smoke test**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-host-scripts.sh`
   - Observable: A test creates a container from a test project with pid.yaml that has a `host_script` which creates a marker file. After create, the marker file exists on the host.
   - Evidence: `./test-scripts/test-host-scripts.sh` passes
   - Steps:
-    - [ ] Create a test fixture with pid.yaml defining a host_script that writes a marker file (e.g., `touch /tmp/isolarium-host-script-test-marker`)
-    - [ ] Create the host script
-    - [ ] Create `test-scripts/test-host-scripts.sh` that: runs create, checks marker file exists, cleans up
-    - [ ] Add to `test-scripts/test-end-to-end.sh`
+    - [x] Create a test fixture with pid.yaml defining a host_script that writes a marker file (e.g., `touch /tmp/isolarium-host-script-test-marker`)
+    - [x] Create the host script
+    - [x] Create `test-scripts/test-host-scripts.sh` that: runs create, checks marker file exists, cleans up
+    - [x] Add to `test-scripts/test-end-to-end.sh`
 
 ---
 
