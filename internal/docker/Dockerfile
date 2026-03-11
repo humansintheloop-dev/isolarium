@@ -31,8 +31,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user (stable) - remove ubuntu user that claims UID 1000 in Ubuntu 24.04
+# HOST_UID ensures container user matches host UID for bind mount write access
+ARG HOST_UID=1000
 RUN userdel -r ubuntu 2>/dev/null || true \
-    && useradd -m -s /bin/bash -u 1000 isolarium \
+    && useradd -m -s /bin/bash -u $HOST_UID isolarium \
     && echo "isolarium ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/isolarium
 
 # Git worktree support: create symlinks from host paths to container mount points

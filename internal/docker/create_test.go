@@ -2,6 +2,7 @@ package docker
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,8 @@ func TestCreateChecksDockerAndBuildsImageAndStartsContainerAndWritesMetadata(t *
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
-	runner.OnCommand("docker", "build", "-t", "isolarium:latest", metadataDir).Returns("")
+	hostUID := fmt.Sprintf("HOST_UID=%d", os.Getuid())
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUID, metadataDir).Returns("")
 	runner.OnCommand("docker", "run", "-d",
 		"--name", "my-env",
 		"--cap-drop=ALL",
@@ -61,7 +63,9 @@ func TestCreateWithWorktreePassesBuildArgsAndSecondVolume(t *testing.T) {
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
+	hostUID := fmt.Sprintf("HOST_UID=%d", os.Getuid())
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUID,
 		"--build-arg", "WORKTREE_HOST_PATH=/home/user/worktree",
 		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/main-repo",
 		metadataDir,

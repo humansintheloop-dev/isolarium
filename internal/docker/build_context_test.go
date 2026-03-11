@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -166,7 +167,9 @@ func TestCreatorPassesBuildArgsToDockerBuild(t *testing.T) {
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
+	hostUID := fmt.Sprintf("HOST_UID=%d", os.Getuid())
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUID,
 		"--build-arg", "MY_TOKEN=secret123",
 		metadataDir,
 	).Returns("")

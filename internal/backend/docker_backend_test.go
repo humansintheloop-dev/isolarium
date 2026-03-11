@@ -10,13 +10,17 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
+func hostUIDBuildArg() string {
+	return fmt.Sprintf("HOST_UID=%d", os.Getuid())
+}
+
 func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 	metadataDir := t.TempDir()
 	contextDir := t.TempDir()
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
-	runner.OnCommand("docker", "build", "-t", "isolarium:latest", contextDir).Returns("")
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), contextDir).Returns("")
 	runner.OnCommand("docker", "run", "-d",
 		"--name", "my-env",
 		"--cap-drop=ALL",
@@ -47,6 +51,7 @@ func TestDockerBackendCreateDetectsWorktreeAndPassesConfig(t *testing.T) {
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUIDBuildArg(),
 		"--build-arg", "WORKTREE_HOST_PATH=/home/user/worktree",
 		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/main-repo",
 		contextDir,
@@ -303,6 +308,7 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUIDBuildArg(),
 		"--build-arg", "MY_TOKEN=secret-value",
 		contextDir,
 	).Returns("")
