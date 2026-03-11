@@ -20,8 +20,8 @@ go test ./... -count=1
 
 echo "=== Running e2e-gradlew ==="
 
-"$SCRIPT_DIR/test-end-to-end-with-gradlew.sh" --force
+"$SCRIPT_DIR/test-end-to-end-with-gradlew.sh" --force nono container
 
 echo "=== Running e2e-pytest ==="
 
-"$SCRIPT_DIR/test-end-to-end-with-pytest.sh" --force
+"$SCRIPT_DIR/test-end-to-end-with-pytest.sh" --force nono container
