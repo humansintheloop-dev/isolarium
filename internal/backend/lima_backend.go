@@ -1,14 +1,37 @@
 package backend
 
 import (
+	"fmt"
+
+	"github.com/humansintheloop-dev/isolarium/internal/config"
+	"github.com/humansintheloop-dev/isolarium/internal/hostscript"
 	"github.com/humansintheloop-dev/isolarium/internal/lima"
 )
 
 // LimaBackend implements the Backend interface using Lima VMs.
-type LimaBackend struct{}
+type LimaBackend struct {
+	CreateVMFunc func(name string) error
+}
 
 func (b *LimaBackend) Create(name string, opts CreateOptions) error {
-	return lima.CreateVM(name)
+	createVM := b.CreateVMFunc
+	if createVM == nil {
+		createVM = lima.CreateVM
+	}
+
+	if err := createVM(name); err != nil {
+		return err
+	}
+
+	cfg, err := config.LoadPidConfig(opts.WorkDirectory)
+	if err != nil {
+		return fmt.Errorf("loading pid.yaml: %w", err)
+	}
+
+	if cfg != nil && len(cfg.VM.HostScripts) > 0 {
+		return hostscript.RunHostScripts(cfg.VM.HostScripts, opts.WorkDirectory, name, "vm")
+	}
+	return nil
 }
 
 func (b *LimaBackend) Destroy(name string) error {
