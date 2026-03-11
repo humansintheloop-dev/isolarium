@@ -8,12 +8,17 @@ import (
 	"testing"
 )
 
+const gradlewTestContainerName = "isolarium-gradlew-test"
+
 func TestGradlewBuildInContainer_EndToEnd(t *testing.T) {
 	binary := buildGradlewBinary(t)
 	projectRoot := gradlewProjectRoot(t)
 
+	createContainerForGradlew(t, binary, projectRoot)
+	t.Cleanup(func() { destroyContainerForGradlew(t, binary, projectRoot) })
+
 	gradlewCmd := "source ~/.sdkman/bin/sdkman-init.sh && cd testdata/spring-boot-app && ./gradlew clean build"
-	gradlewArgs := []string{"--type", "container", "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", gradlewCmd}
+	gradlewArgs := []string{"--type", "container", "--name", gradlewTestContainerName, "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", gradlewCmd}
 	cmd := exec.Command(binary, gradlewArgs...)
 	cmd.Dir = projectRoot
 	output, err := cmd.CombinedOutput()
@@ -23,5 +28,27 @@ func TestGradlewBuildInContainer_EndToEnd(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "BUILD SUCCESSFUL") {
 		t.Fatal("expected BUILD SUCCESSFUL in output")
+	}
+}
+
+func createContainerForGradlew(t *testing.T, binary, projectRoot string) {
+	t.Helper()
+	cmd := exec.Command(binary, "--type", "container", "--name", gradlewTestContainerName, "create")
+	cmd.Dir = projectRoot
+	output, err := cmd.CombinedOutput()
+	t.Logf("container create output:\n%s", output)
+	if err != nil {
+		t.Fatalf("container create failed: %v", err)
+	}
+}
+
+func destroyContainerForGradlew(t *testing.T, binary, projectRoot string) {
+	t.Helper()
+	cmd := exec.Command(binary, "--type", "container", "--name", gradlewTestContainerName, "destroy")
+	cmd.Dir = projectRoot
+	output, err := cmd.CombinedOutput()
+	t.Logf("container destroy output:\n%s", output)
+	if err != nil {
+		t.Logf("container destroy failed (ignoring): %v", err)
 	}
 }
