@@ -262,15 +262,15 @@ This thread extends the gradlew e2e test to support container isolation type, va
 
 This thread extends the pytest e2e test to support container isolation type.
 
-- [ ] **Task 7.1: Pytest e2e test script accepts isolation type parameter**
+- [x] **Task 7.1: Pytest e2e test script accepts isolation type parameter**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-end-to-end-with-pytest.sh container`
   - Observable: `test-end-to-end-with-pytest.sh` accepts `nono|container|vm|all` arguments. When called with `container`, it runs pytest e2e tests in a container.
   - Evidence: `./test-scripts/test-end-to-end-with-pytest.sh container` passes — creates container from `testdata/python-cli-app/`, runs `uv run pytest -v`, output contains "2 passed"
   - Steps:
-    - [ ] Modify `test-scripts/test-end-to-end-with-pytest.sh` to accept isolation type args (same pattern as claude script)
-    - [ ] Add Go e2e test functions `TestPytestInContainer_EndToEnd` and `TestGreeterCliInContainer_EndToEnd`
-    - [ ] Ensure the tests create a container, run pytest/greeter CLI, and assert expected output
+    - [x] Modify `test-scripts/test-end-to-end-with-pytest.sh` to accept isolation type args (same pattern as claude script)
+    - [x] Add Go e2e test functions `TestPytestInContainer_EndToEnd` and `TestGreeterCliInContainer_EndToEnd`
+    - [x] Ensure the tests create a container, run pytest/greeter CLI, and assert expected output
 
 ---
 
@@ -420,3 +420,6 @@ Test creates container, runs gradlew build, asserts BUILD SUCCESSFUL - verified 
 
 ### 2026-03-11 09:58 - mark-task-complete
 Gradlew e2e test script accepts isolation type parameter, container test passes with BUILD SUCCESSFUL
+
+### 2026-03-11 10:39 - mark-task-complete
+Added container isolation type support to pytest e2e script and Go container tests
