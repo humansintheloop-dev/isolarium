@@ -175,14 +175,14 @@ This thread adds the `--env` persistent flag on the root command for passing ad-
     - [x] Add env var flags to the limactl shell command
     - [x] Create unit tests verifying command construction
 
-- [ ] **Task 3.4: --env flag e2e smoke test**
+- [x] **Task 3.4: --env flag e2e smoke test**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-env-flag.sh`
   - Observable: A test passes `--env TEST_VAR=hello` to `isolarium run` in a container and verifies the variable is visible inside
   - Evidence: `./test-scripts/test-env-flag.sh` passes
   - Steps:
-    - [ ] Create `test-scripts/test-env-flag.sh` that: creates a container, runs `isolarium --env TEST_VAR=hello123 run --type container -- printenv TEST_VAR`, asserts output contains `hello123`, destroys container
-    - [ ] Add to `test-scripts/test-end-to-end.sh`
+    - [x] Create `test-scripts/test-env-flag.sh` that: creates a container, runs `isolarium --env TEST_VAR=hello123 run --type container -- printenv TEST_VAR`, asserts output contains `hello123`, destroys container
+    - [x] Add to `test-scripts/test-end-to-end.sh`
 
 ---
 
@@ -387,3 +387,12 @@ Merged GetEnvVars() into container run and shell env var maps; verified with 3 n
 
 ### 2026-03-11 08:55 - mark-task-complete
 All env var passing already implemented: buildEnvPrefix in exec.go, BuildExecCommand/BuildInteractiveExecCommand/BuildShellCommand all accept envVars, LimaBackend passes envVars through, CLI passes envVars to lima functions. 5 unit tests verify command construction with env vars.
+
+### 2026-03-11 09:03 - mark-step-complete
+Created test-scripts/test-env-flag.sh
+
+### 2026-03-11 09:03 - mark-step-complete
+Added to test-scripts/test-end-to-end.sh
+
+### 2026-03-11 09:04 - mark-task-complete
+test-env-flag.sh passes: creates container, runs printenv with --env TEST_VAR=hello123, asserts output
