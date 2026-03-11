@@ -1,6 +1,7 @@
 package docker
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,7 +22,8 @@ func TestBuildCheckDockerCommandProducesDockerInfoArgs(t *testing.T) {
 
 func TestBuildImageCommandProducesCorrectDockerBuildArgs(t *testing.T) {
 	args := BuildImageCommand("isolarium:latest", "/tmp/context", nil, nil)
-	expected := []string{"docker", "build", "-t", "isolarium:latest", "/tmp/context"}
+	hostUID := fmt.Sprintf("HOST_UID=%d", os.Getuid())
+	expected := []string{"docker", "build", "-t", "isolarium:latest", "--build-arg", hostUID, "/tmp/context"}
 	if len(args) != len(expected) {
 		t.Fatalf("expected %v, got %v", expected, args)
 	}
@@ -58,8 +60,10 @@ func TestBuildImageCommandIncludesBuildArgsForWorktree(t *testing.T) {
 		MainRepoHostPath: "/home/user/repos/myproject",
 	}
 	args := BuildImageCommand("isolarium:latest", "/tmp/context", wt, nil)
+	hostUID := fmt.Sprintf("HOST_UID=%d", os.Getuid())
 	expected := []string{
 		"docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUID,
 		"--build-arg", "WORKTREE_HOST_PATH=/home/user/repos/myproject/worktrees/feature-branch",
 		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/repos/myproject",
 		"/tmp/context",
