@@ -256,15 +256,15 @@ This thread extends the gradlew e2e test to support container isolation type, va
     - [x] Add Go e2e test function `TestGradlewBuildInContainer_EndToEnd` in the appropriate test file
     - [x] Ensure the test creates a container, runs gradlew build, and asserts BUILD SUCCESSFUL
 
-- [ ] **Task 6.2: Gradlew e2e test in VM with no-tests-to-run safeguard**
+- [x] **Task 6.2: Gradlew e2e test in VM with no-tests-to-run safeguard**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-end-to-end-with-gradlew.sh vm`
   - Observable: `test-end-to-end-with-gradlew.sh` detects `go test`'s "no tests to run" warning and exits non-zero instead of silently passing. The gradlew VM Go test exists and passes under this hardened script.
   - Evidence: `./test-scripts/test-end-to-end-with-gradlew.sh vm` passes — creates VM from `testdata/spring-boot-app/`, runs `./gradlew clean build`, output contains "BUILD SUCCESSFUL"
   - Steps:
-    - [ ] Update `run_test()` in `test-end-to-end-with-gradlew.sh` to capture `go test` output and fail if it contains "no tests to run"
-    - [ ] Create `cmd/isolarium/e2e_gradlew_vm_test.go` with `TestGradlewBuildInVM_EndToEnd` following the pattern from `e2e_gradlew_container_test.go` but using VM isolation type
-    - [ ] Ensure the test creates a VM, runs gradlew build, and asserts BUILD SUCCESSFUL
+    - [x] Update `run_test()` in `test-end-to-end-with-gradlew.sh` to capture `go test` output and fail if it contains "no tests to run"
+    - [x] Create `cmd/isolarium/e2e_gradlew_vm_test.go` with `TestGradlewBuildInVM_EndToEnd` following the pattern from `e2e_gradlew_container_test.go` but using VM isolation type
+    - [x] Ensure the test creates a VM, runs gradlew build, and asserts BUILD SUCCESSFUL
 
 ---
 
@@ -470,3 +470,15 @@ VM section added to pid.yaml with all 4 isolation scripts and tests pass
 
 ### 2026-03-11 11:36 - mark-task-complete
 Created test-precommit-in-vm.sh and added to test-end-to-end.sh conditionally
+
+### 2026-03-11 13:15 - mark-step-complete
+Updated run_test() to capture go test output and fail if it contains 'no tests to run'
+
+### 2026-03-11 13:15 - mark-step-complete
+Created e2e_gradlew_vm_test.go with TestGradlewBuildInVM_EndToEnd following the container test pattern
+
+### 2026-03-11 13:15 - mark-step-complete
+Test creates VM, runs gradlew build, and asserts BUILD SUCCESSFUL
+
+### 2026-03-11 13:15 - mark-task-complete
+Hardened run_test() with no-tests-to-run detection and created VM gradlew e2e test
