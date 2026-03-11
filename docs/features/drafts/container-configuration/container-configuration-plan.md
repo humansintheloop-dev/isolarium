@@ -306,18 +306,18 @@ This is the primary validation thread that exercises the full pid.yaml machinery
 
 This thread validates the full pid.yaml machinery for the VM backend.
 
-- [ ] **Task 9.1: Create isolarium repo's pid.yaml VM section with isolation_scripts**
+- [x] **Task 9.1: Create isolarium repo's pid.yaml VM section with isolation_scripts**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/config/...`
   - Observable: The isolarium repo's `pid.yaml` includes a `vm` section with `isolation_scripts` entries for: `scripts/vm/install-go.sh`, `scripts/vm/install-linters.sh`, `scripts/vm/install-pre-commit.sh`, `scripts/vm/install-codescene.sh` (with `env: [CS_ACCESS_TOKEN, CS_ACE_ACCESS_TOKEN]`)
   - Evidence: Existing pid.yaml parsing tests pass with the updated file
   - Steps:
-    - [ ] Add `vm` section to `pid.yaml` with VM-appropriate scripts
-    - [ ] Create `scripts/vm/install-go.sh` — installs Go in the VM (may use brew or direct download)
-    - [ ] Create `scripts/vm/install-linters.sh` — installs golangci-lint, shellcheck
-    - [ ] Create `scripts/vm/install-pre-commit.sh` — installs pre-commit
-    - [ ] Create `scripts/vm/install-codescene.sh` — installs codescene CLI with env var access
-    - [ ] Verify pid.yaml parsing tests still pass
+    - [x] Add `vm` section to `pid.yaml` with VM-appropriate scripts
+    - [x] Create `scripts/vm/install-go.sh` — installs Go in the VM (may use brew or direct download)
+    - [x] Create `scripts/vm/install-linters.sh` — installs golangci-lint, shellcheck
+    - [x] Create `scripts/vm/install-pre-commit.sh` — installs pre-commit
+    - [x] Create `scripts/vm/install-codescene.sh` — installs codescene CLI with env var access
+    - [x] Verify pid.yaml parsing tests still pass
 
 - [ ] **Task 9.2: Pre-commit self-test runs all hooks in VM**
   - TaskType: OUTCOME
@@ -426,3 +426,24 @@ Added container isolation type support to pytest e2e script and Go container tes
 
 ### 2026-03-11 10:56 - mark-task-complete
 Created pid.yaml with 4 container isolation_scripts, created install scripts, added test verifying repo pid.yaml parses correctly
+
+### 2026-03-11 11:28 - mark-step-complete
+Added vm section to pid.yaml
+
+### 2026-03-11 11:28 - mark-step-complete
+Created scripts/vm/install-go.sh
+
+### 2026-03-11 11:28 - mark-step-complete
+Created scripts/vm/install-linters.sh
+
+### 2026-03-11 11:28 - mark-step-complete
+Created scripts/vm/install-pre-commit.sh
+
+### 2026-03-11 11:28 - mark-step-complete
+Created scripts/vm/install-codescene.sh
+
+### 2026-03-11 11:28 - mark-step-complete
+All pid.yaml parsing tests pass
+
+### 2026-03-11 11:28 - mark-task-complete
+VM section added to pid.yaml with all 4 isolation scripts and tests pass
