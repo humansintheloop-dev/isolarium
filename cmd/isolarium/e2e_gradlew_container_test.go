@@ -13,7 +13,7 @@ func TestGradlewBuildInContainer_EndToEnd(t *testing.T) {
 	projectRoot := gradlewProjectRoot(t)
 
 	gradlewCmd := "source ~/.sdkman/bin/sdkman-init.sh && cd testdata/spring-boot-app && ./gradlew clean build"
-	gradlewArgs := []string{"--type", "container", "run", "--no-gh-token", "--", "bash", "-c", gradlewCmd}
+	gradlewArgs := []string{"--type", "container", "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", gradlewCmd}
 	cmd := exec.Command(binary, gradlewArgs...)
 	cmd.Dir = projectRoot
 	output, err := cmd.CombinedOutput()
