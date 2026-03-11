@@ -57,4 +57,12 @@ When fixing issues caused by naming conventions or patterns:
 2. Fix ALL instances in a single commit
 3. Never commit partial fixes for pattern-based problems
 
+## Test Script Integrity
+
+IMPORTANT: Test scripts must never silently succeed when they have nothing to test.
+
+- If a test script accepts parameters (e.g., isolation types) that imply specific tests will run, it MUST fail if no tests actually execute. For `go test -run`, check for "no tests to run" in output and exit non-zero.
+- Conditional skips in test suites (e.g., "skip if secrets not set") must fail. A skipped test is not a passing test.
+- When adding a new test type/variant to a shell script's accepted arguments, the corresponding test implementation must exist before the argument is accepted.
+
 <!-- claude-config-files-sha: 9f09e6290c311e4a8e7f96329f1e9c28d53aacf4 -->

@@ -350,6 +350,33 @@ This thread validates the full pid.yaml machinery for the VM backend.
 
 ---
 
+## Steel Thread 10: Remove Conditional Skips and Run Pre-commit Tests
+
+The pre-commit tests in `test-end-to-end.sh` are conditionally skipped when `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN` are not set. This means the primary validation of the pid.yaml machinery (Threads 8 and 9) silently never runs. This thread removes the conditional skips so the tests fail when secrets are missing, sets up `.env.local` in the worktree, and verifies the tests actually pass.
+
+- [ ] **Task 10.1: Pre-commit in container test passes with secrets**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
+  - Observable: The conditional skip around `test-precommit-in-container.sh` in `test-end-to-end.sh` is removed so the test runs unconditionally. With `.env.local` providing `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`, the test creates a container, runs all pre-commit hooks including CodeScene, and passes.
+  - Evidence: `./test-scripts/test-precommit-in-container.sh` exits 0. `test-end-to-end.sh` calls it unconditionally (no `SKIP` guard).
+  - Steps:
+    - [ ] Remove the `if/else` conditional around `test-precommit-in-container.sh` in `test-end-to-end.sh`, call it unconditionally
+    - [ ] Ensure `.env.local` exists with `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`
+    - [ ] Run `./test-scripts/test-precommit-in-container.sh` and verify it passes
+    - [ ] Run `./test-scripts/test-end-to-end.sh` and verify it passes
+
+- [ ] **Task 10.2: Pre-commit in VM test passes with secrets**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-precommit-in-vm.sh`
+  - Observable: The conditional skip around `test-precommit-in-vm.sh` in `test-end-to-end.sh` is removed so the test runs unconditionally. With `.env.local` providing `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`, the test creates a VM, runs all pre-commit hooks including CodeScene, and passes.
+  - Evidence: `./test-scripts/test-precommit-in-vm.sh` exits 0. `test-end-to-end.sh` calls it unconditionally (no `SKIP` guard).
+  - Steps:
+    - [ ] Remove the `if/else` conditional around `test-precommit-in-vm.sh` in `test-end-to-end.sh`, call it unconditionally
+    - [ ] Run `./test-scripts/test-precommit-in-vm.sh` and verify it passes
+    - [ ] Run `./test-scripts/test-end-to-end.sh` and verify it passes
+
+---
+
 ## Change History
 
 ### 2026-03-10: Initial plan created
