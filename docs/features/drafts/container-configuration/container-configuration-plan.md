@@ -377,6 +377,40 @@ The pre-commit tests in `test-end-to-end.sh` are conditionally skipped when `CS_
 
 ---
 
+## Steel Thread 11: Fix --env Flag Ignored by VM and Nono Run
+
+The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.go` only calls `GetEnvVars()` in the container path. The VM and nono `run` paths never merge `--env` vars, so `isolarium --env FOO=bar run --type vm -- printenv FOO` silently drops the variable. The `shell` command works correctly for all types.
+
+- [ ] **Task 11.1: VM run passes --env vars to backend**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/cli/... ./internal/lima/...`
+  - Observable: When `isolarium --env FOO=bar run --type vm -- printenv FOO` is executed, the `limactl shell` command includes `FOO=bar` in its environment variables.
+  - Evidence: Unit test verifies that `GetEnvVars()` values are merged into the env vars map passed to the VM backend's `Exec` method in `cmd_run.go`.
+  - Steps:
+    - [ ] Add `GetEnvVars()` merge into the VM path in `cmd_run.go` (same pattern as container path at line 221)
+    - [ ] Add unit test verifying VM run passes --env vars to backend
+
+- [ ] **Task 11.2: Nono run passes --env vars to backend**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/cli/... ./internal/nono/...`
+  - Observable: When `isolarium --env FOO=bar run --type nono -- printenv FOO` is executed, the command's environment includes `FOO=bar`.
+  - Evidence: Unit test verifies that `GetEnvVars()` values are merged into the env vars map passed to the nono backend's `Exec` method in `cmd_run.go`.
+  - Steps:
+    - [ ] Add `GetEnvVars()` merge into the nono path in `cmd_run.go` (same pattern as container path at line 221)
+    - [ ] Add unit test verifying nono run passes --env vars to backend
+
+- [ ] **Task 11.3: --env flag e2e test covers VM and nono run**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-env-flag.sh`
+  - Observable: The existing `test-env-flag.sh` (or an extended version) verifies `--env` works for `run` across all isolation types, not just container.
+  - Evidence: `./test-scripts/test-env-flag.sh` passes with VM and nono coverage added.
+  - Steps:
+    - [ ] Extend `test-env-flag.sh` to test `--env` with `run --type nono`
+    - [ ] Extend `test-env-flag.sh` to test `--env` with `run --type vm`
+    - [ ] Verify the script passes
+
+---
+
 ## Change History
 
 ### 2026-03-10: Initial plan created
