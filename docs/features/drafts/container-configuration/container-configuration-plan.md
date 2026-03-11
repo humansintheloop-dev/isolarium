@@ -190,16 +190,16 @@ This thread adds the `--env` persistent flag on the root command for passing ad-
 
 This thread implements `host_scripts` execution after environment creation, with `ISOLARIUM_NAME` and `ISOLARIUM_TYPE` set in the script environment.
 
-- [ ] **Task 4.1: Host scripts execute after container create with ISOLARIUM_NAME/TYPE set**
+- [x] **Task 4.1: Host scripts execute after container create with ISOLARIUM_NAME/TYPE set**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/...`
   - Observable: After container start, if pid.yaml defines `host_scripts`, each script is executed on the host with `ISOLARIUM_NAME` and `ISOLARIUM_TYPE` env vars set, plus each script's declared `env` vars read from the process environment. Scripts execute in order. If any script fails, create fails but the container is left running.
   - Evidence: Unit tests verify: (1) host scripts are invoked with correct env vars, (2) scripts execute in declared order, (3) script failure causes create to return error, (4) declared env vars missing from process env cause create to fail before running scripts
   - Steps:
-    - [ ] Create a `RunHostScripts(scripts []config.ScriptEntry, workDir, name, isolationType string) error` function
-    - [ ] Set `ISOLARIUM_NAME`, `ISOLARIUM_TYPE`, and per-script `env` vars in each script's `exec.Cmd.Env`
-    - [ ] Integrate into the container create flow after container start
-    - [ ] Create unit tests that use real temp scripts (small shell scripts that write marker files)
+    - [x] Create a `RunHostScripts(scripts []config.ScriptEntry, workDir, name, isolationType string) error` function
+    - [x] Set `ISOLARIUM_NAME`, `ISOLARIUM_TYPE`, and per-script `env` vars in each script's `exec.Cmd.Env`
+    - [x] Integrate into the container create flow after container start
+    - [x] Create unit tests that use real temp scripts (small shell scripts that write marker files)
 
 - [ ] **Task 4.2: Host scripts execute after VM create**
   - TaskType: OUTCOME
@@ -396,3 +396,6 @@ Added to test-scripts/test-end-to-end.sh
 
 ### 2026-03-11 09:04 - mark-task-complete
 test-env-flag.sh passes: creates container, runs printenv with --env TEST_VAR=hello123, asserts output
+
+### 2026-03-11 09:13 - mark-task-complete
+RunHostScripts function created with unit tests, integrated into docker backend create flow
