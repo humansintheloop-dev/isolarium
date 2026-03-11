@@ -17,7 +17,7 @@ func TestPytestInContainer_EndToEnd(t *testing.T) {
 	createContainerForPytest(t, binary, projectRoot)
 	t.Cleanup(func() { destroyContainerForPytest(t, binary, projectRoot) })
 
-	pytestCmd := "export PATH=$HOME/.local/bin:$PATH && cd testdata/python-cli-app && uv run pytest -v"
+	pytestCmd := "export PATH=$HOME/.local/bin:$PATH && cd testdata/python-cli-app && rm -rf .venv && uv run pytest -v"
 	pytestArgs := []string{"--type", "container", "--name", pytestTestContainerName, "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", pytestCmd}
 	cmd := exec.Command(binary, pytestArgs...)
 	cmd.Dir = projectRoot
@@ -38,7 +38,7 @@ func TestGreeterCliInContainer_EndToEnd(t *testing.T) {
 	createContainerForPytest(t, binary, projectRoot)
 	t.Cleanup(func() { destroyContainerForPytest(t, binary, projectRoot) })
 
-	greeterCmd := "export PATH=$HOME/.local/bin:$PATH && cd testdata/python-cli-app && uv run greeter Container"
+	greeterCmd := "export PATH=$HOME/.local/bin:$PATH && cd testdata/python-cli-app && rm -rf .venv && uv run greeter Container"
 	greeterArgs := []string{"--type", "container", "--name", pytestTestContainerName, "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", greeterCmd}
 	cmd := exec.Command(binary, greeterArgs...)
 	cmd.Dir = projectRoot
