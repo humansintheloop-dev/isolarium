@@ -28,6 +28,9 @@ if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
 
     echo ""
     "$SCRIPT_DIR/test-container-isolation-scripts.sh"
+
+    echo ""
+    "$SCRIPT_DIR/test-env-flag.sh"
 fi
 
 echo ""
