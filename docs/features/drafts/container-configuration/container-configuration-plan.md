@@ -201,14 +201,14 @@ This thread implements `host_scripts` execution after environment creation, with
     - [x] Integrate into the container create flow after container start
     - [x] Create unit tests that use real temp scripts (small shell scripts that write marker files)
 
-- [ ] **Task 4.2: Host scripts execute after VM create**
+- [x] **Task 4.2: Host scripts execute after VM create**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/...`
   - Observable: After VM creation and isolation_scripts (if any), host_scripts execute on the host with the same env var behavior as container host_scripts
   - Evidence: Unit tests verify host scripts are invoked during VM create with correct env vars
   - Steps:
-    - [ ] Integrate `RunHostScripts` into the VM create flow
-    - [ ] Create tests verifying VM create calls host scripts with correct parameters
+    - [x] Integrate `RunHostScripts` into the VM create flow
+    - [x] Create tests verifying VM create calls host scripts with correct parameters
 
 - [ ] **Task 4.3: Host scripts e2e smoke test**
   - TaskType: INFRA
@@ -399,3 +399,6 @@ test-env-flag.sh passes: creates container, runs printenv with --env TEST_VAR=he
 
 ### 2026-03-11 09:13 - mark-task-complete
 RunHostScripts function created with unit tests, integrated into docker backend create flow
+
+### 2026-03-11 09:24 - mark-task-complete
+Integrated RunHostScripts into LimaBackend.Create with 3 unit tests verifying host scripts run after VM create with correct env vars
