@@ -291,14 +291,14 @@ This is the primary validation thread that exercises the full pid.yaml machinery
     - [x] Create `scripts/container/install-codescene.sh` — installs codescene CLI (uses `ARG CS_ACCESS_TOKEN` / `ARG CS_ACE_ACCESS_TOKEN` for build-time access if needed)
     - [x] Add a test that verifies the repo's own `pid.yaml` parses correctly
 
-- [ ] **Task 8.2: Pre-commit self-test runs all hooks in container**
+- [x] **Task 8.2: Pre-commit self-test runs all hooks in container**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
   - Observable: Creates a container for the isolarium repo using pid.yaml, makes a harmless file change, runs `pre-commit run --all-files` with codescene tokens passed via `--env`, all hooks pass (exit 0)
   - Evidence: `./test-scripts/test-precommit-in-container.sh` passes. Requires `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN` in the environment.
   - Steps:
-    - [ ] Create `test-scripts/test-precommit-in-container.sh` that: (1) checks CS_ACCESS_TOKEN and CS_ACE_ACCESS_TOKEN are set, (2) runs `isolarium create --type container`, (3) makes a harmless change (e.g., add comment to a .go file), (4) runs `isolarium --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN run --type container -- pre-commit run --all-files`, (5) asserts exit code 0, (6) cleans up
-    - [ ] Add to `test-scripts/test-end-to-end.sh` (conditionally, only when secrets are available)
+    - [x] Create `test-scripts/test-precommit-in-container.sh` that: (1) checks CS_ACCESS_TOKEN and CS_ACE_ACCESS_TOKEN are set, (2) runs `isolarium create --type container`, (3) makes a harmless change (e.g., add comment to a .go file), (4) runs `isolarium --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN run --type container -- pre-commit run --all-files`, (5) asserts exit code 0, (6) cleans up
+    - [x] Add to `test-scripts/test-end-to-end.sh` (conditionally, only when secrets are available)
 
 ---
 
