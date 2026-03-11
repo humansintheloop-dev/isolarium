@@ -142,6 +142,13 @@ func TestLoadRepoPidYAML(t *testing.T) {
 	assertScriptPath(t, cfg.Container.IsolationScripts[2], "scripts/container/install-pre-commit.sh")
 	assertScriptPath(t, cfg.Container.IsolationScripts[3], "scripts/container/install-codescene.sh")
 	assertEnvVars(t, cfg.Container.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+
+	assertScriptCount(t, cfg.VM.IsolationScripts, 4, "vm.isolation_scripts")
+	assertScriptPath(t, cfg.VM.IsolationScripts[0], "scripts/vm/install-go.sh")
+	assertScriptPath(t, cfg.VM.IsolationScripts[1], "scripts/vm/install-linters.sh")
+	assertScriptPath(t, cfg.VM.IsolationScripts[2], "scripts/vm/install-pre-commit.sh")
+	assertScriptPath(t, cfg.VM.IsolationScripts[3], "scripts/vm/install-codescene.sh")
+	assertEnvVars(t, cfg.VM.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
 }
 
 func findRepoRoot(t *testing.T) string {
