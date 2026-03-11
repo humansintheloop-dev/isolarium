@@ -1,0 +1,10 @@
+isolarium:
+  container:
+    isolation_scripts:
+      - path: scripts/container/install-go.sh
+      - path: scripts/container/install-linters.sh
+      - path: scripts/container/install-pre-commit.sh
+      - path: scripts/container/install-codescene.sh
+        env:
+          - CS_ACCESS_TOKEN
+          - CS_ACE_ACCESS_TOKEN
