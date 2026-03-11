@@ -97,7 +97,7 @@ jobs:
         run: mkdir -p ~/.gradle
 
       - name: Run gradlew e2e test
-        run: ./test-scripts/test-end-to-end-with-gradlew.sh --force
+        run: ./test-scripts/test-end-to-end-with-gradlew.sh --force nono container
 
   e2e-pytest:
     needs: lint
@@ -119,4 +119,4 @@ jobs:
           sudo mv nono /usr/local/bin/
 
       - name: Run pytest e2e test
-        run: ./test-scripts/test-end-to-end-with-pytest.sh --force
+        run: ./test-scripts/test-end-to-end-with-pytest.sh --force nono container
