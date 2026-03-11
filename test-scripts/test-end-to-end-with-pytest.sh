@@ -48,7 +48,16 @@ run_test() {
     local type="$1"
     local test_name="$2"
     echo "=== Running pytest and greeter CLI in $type ==="
-    go test "${GOTEST_FLAGS[@]}" -run "$test_name" ./cmd/isolarium/...
+    local output
+    output=$(go test "${GOTEST_FLAGS[@]}" -run "$test_name" ./cmd/isolarium/... 2>&1) || {
+        echo "$output"
+        exit 1
+    }
+    echo "$output"
+    if echo "$output" | grep -q "no tests to run"; then
+        echo "FAIL: 'no tests to run' detected — missing test for $type"
+        exit 1
+    fi
 }
 
 for TYPE in "${TYPES[@]}"; do
