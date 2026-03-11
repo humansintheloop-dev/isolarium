@@ -319,14 +319,14 @@ This thread validates the full pid.yaml machinery for the VM backend.
     - [x] Create `scripts/vm/install-codescene.sh` — installs codescene CLI with env var access
     - [x] Verify pid.yaml parsing tests still pass
 
-- [ ] **Task 9.2: Pre-commit self-test runs all hooks in VM**
+- [x] **Task 9.2: Pre-commit self-test runs all hooks in VM**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-vm.sh`
   - Observable: Creates a VM for the isolarium repo using pid.yaml, makes a harmless file change, runs `pre-commit run --all-files` with codescene tokens passed via `--env`, all hooks pass (exit 0)
   - Evidence: `./test-scripts/test-precommit-in-vm.sh` passes. Requires `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN` in the environment.
   - Steps:
-    - [ ] Create `test-scripts/test-precommit-in-vm.sh` following the same pattern as the container variant but using `--type vm`
-    - [ ] Add to `test-scripts/test-end-to-end.sh` (conditionally, only when secrets are available)
+    - [x] Create `test-scripts/test-precommit-in-vm.sh` following the same pattern as the container variant but using `--type vm`
+    - [x] Add to `test-scripts/test-end-to-end.sh` (conditionally, only when secrets are available)
 
 ---
 
@@ -447,3 +447,6 @@ All pid.yaml parsing tests pass
 
 ### 2026-03-11 11:28 - mark-task-complete
 VM section added to pid.yaml with all 4 isolation scripts and tests pass
+
+### 2026-03-11 11:36 - mark-task-complete
+Created test-precommit-in-vm.sh and added to test-end-to-end.sh conditionally
