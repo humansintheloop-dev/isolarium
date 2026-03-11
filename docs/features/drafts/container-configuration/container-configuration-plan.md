@@ -278,18 +278,18 @@ This thread extends the pytest e2e test to support container isolation type.
 
 This is the primary validation thread that exercises the full pid.yaml machinery — isolation_scripts installing real tools (Go, linters, pre-commit, codescene CLI) and --env passing secrets at runtime.
 
-- [ ] **Task 8.1: Create isolarium repo's pid.yaml with container isolation_scripts**
+- [x] **Task 8.1: Create isolarium repo's pid.yaml with container isolation_scripts**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/config/...`
   - Observable: The isolarium repo root contains a `pid.yaml` with container `isolation_scripts` entries for: `scripts/container/install-go.sh`, `scripts/container/install-linters.sh`, `scripts/container/install-pre-commit.sh`, `scripts/container/install-codescene.sh` (with `env: [CS_ACCESS_TOKEN, CS_ACE_ACCESS_TOKEN]`)
   - Evidence: Existing pid.yaml parsing tests pass with this file as input (add a test that loads the actual repo's pid.yaml)
   - Steps:
-    - [ ] Create `pid.yaml` in project root with the container section per spec
-    - [ ] Create `scripts/container/install-go.sh` — installs Go in the container
-    - [ ] Create `scripts/container/install-linters.sh` — installs golangci-lint, shellcheck
-    - [ ] Create `scripts/container/install-pre-commit.sh` — installs pre-commit
-    - [ ] Create `scripts/container/install-codescene.sh` — installs codescene CLI (uses `ARG CS_ACCESS_TOKEN` / `ARG CS_ACE_ACCESS_TOKEN` for build-time access if needed)
-    - [ ] Add a test that verifies the repo's own `pid.yaml` parses correctly
+    - [x] Create `pid.yaml` in project root with the container section per spec
+    - [x] Create `scripts/container/install-go.sh` — installs Go in the container
+    - [x] Create `scripts/container/install-linters.sh` — installs golangci-lint, shellcheck
+    - [x] Create `scripts/container/install-pre-commit.sh` — installs pre-commit
+    - [x] Create `scripts/container/install-codescene.sh` — installs codescene CLI (uses `ARG CS_ACCESS_TOKEN` / `ARG CS_ACE_ACCESS_TOKEN` for build-time access if needed)
+    - [x] Add a test that verifies the repo's own `pid.yaml` parses correctly
 
 - [ ] **Task 8.2: Pre-commit self-test runs all hooks in container**
   - TaskType: OUTCOME
@@ -423,3 +423,6 @@ Gradlew e2e test script accepts isolation type parameter, container test passes 
 
 ### 2026-03-11 10:39 - mark-task-complete
 Added container isolation type support to pytest e2e script and Go container tests
+
+### 2026-03-11 10:56 - mark-task-complete
+Created pid.yaml with 4 container isolation_scripts, created install scripts, added test verifying repo pid.yaml parses correctly

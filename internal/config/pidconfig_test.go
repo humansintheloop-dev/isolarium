@@ -125,6 +125,43 @@ func assertScriptPath(t *testing.T, script ScriptEntry, expected string) {
 	}
 }
 
+func TestLoadRepoPidYAML(t *testing.T) {
+	repoRoot := findRepoRoot(t)
+
+	cfg, err := LoadPidConfig(repoRoot)
+	if err != nil {
+		t.Fatalf("failed to parse repo pid.yaml: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected repo pid.yaml to exist and parse")
+	}
+
+	assertScriptCount(t, cfg.Container.IsolationScripts, 4, "container.isolation_scripts")
+	assertScriptPath(t, cfg.Container.IsolationScripts[0], "scripts/container/install-go.sh")
+	assertScriptPath(t, cfg.Container.IsolationScripts[1], "scripts/container/install-linters.sh")
+	assertScriptPath(t, cfg.Container.IsolationScripts[2], "scripts/container/install-pre-commit.sh")
+	assertScriptPath(t, cfg.Container.IsolationScripts[3], "scripts/container/install-codescene.sh")
+	assertEnvVars(t, cfg.Container.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+}
+
+func findRepoRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find repo root (no go.mod found)")
+		}
+		dir = parent
+	}
+}
+
 func assertEnvVars(t *testing.T, script ScriptEntry, expected []string) {
 	t.Helper()
 	if len(script.Env) != len(expected) {

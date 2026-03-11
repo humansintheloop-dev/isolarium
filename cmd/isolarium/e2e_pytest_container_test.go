@@ -4,6 +4,7 @@ package main
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -13,14 +14,15 @@ const pytestTestContainerName = "isolarium-pytest-test"
 func TestPytestInContainer_EndToEnd(t *testing.T) {
 	binary := buildPytestBinary(t)
 	projectRoot := pytestProjectRoot(t)
+	pythonCliDir := filepath.Join(projectRoot, "testdata", "python-cli-app")
 
-	createContainerForPytest(t, binary, projectRoot)
-	t.Cleanup(func() { destroyContainerForPytest(t, binary, projectRoot) })
+	createContainerForPytest(t, binary, pythonCliDir)
+	t.Cleanup(func() { destroyContainerForPytest(t, binary, pythonCliDir) })
 
-	pytestCmd := "export PATH=$HOME/.local/bin:$PATH && cd testdata/python-cli-app && rm -rf .venv && uv run pytest -v"
+	pytestCmd := "export PATH=$HOME/.local/bin:$PATH && rm -rf .venv && uv run pytest -v"
 	pytestArgs := []string{"--type", "container", "--name", pytestTestContainerName, "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", pytestCmd}
 	cmd := exec.Command(binary, pytestArgs...)
-	cmd.Dir = projectRoot
+	cmd.Dir = pythonCliDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("pytest output:\n%s", output)
 	if err != nil {
@@ -34,14 +36,15 @@ func TestPytestInContainer_EndToEnd(t *testing.T) {
 func TestGreeterCliInContainer_EndToEnd(t *testing.T) {
 	binary := buildPytestBinary(t)
 	projectRoot := pytestProjectRoot(t)
+	pythonCliDir := filepath.Join(projectRoot, "testdata", "python-cli-app")
 
-	createContainerForPytest(t, binary, projectRoot)
-	t.Cleanup(func() { destroyContainerForPytest(t, binary, projectRoot) })
+	createContainerForPytest(t, binary, pythonCliDir)
+	t.Cleanup(func() { destroyContainerForPytest(t, binary, pythonCliDir) })
 
-	greeterCmd := "export PATH=$HOME/.local/bin:$PATH && cd testdata/python-cli-app && rm -rf .venv && uv run greeter Container"
+	greeterCmd := "export PATH=$HOME/.local/bin:$PATH && rm -rf .venv && uv run greeter Container"
 	greeterArgs := []string{"--type", "container", "--name", pytestTestContainerName, "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", greeterCmd}
 	cmd := exec.Command(binary, greeterArgs...)
-	cmd.Dir = projectRoot
+	cmd.Dir = pythonCliDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("greeter output:\n%s", output)
 	if err != nil {
@@ -52,10 +55,10 @@ func TestGreeterCliInContainer_EndToEnd(t *testing.T) {
 	}
 }
 
-func createContainerForPytest(t *testing.T, binary, projectRoot string) {
+func createContainerForPytest(t *testing.T, binary, workDir string) {
 	t.Helper()
 	cmd := exec.Command(binary, "--type", "container", "--name", pytestTestContainerName, "create")
-	cmd.Dir = projectRoot
+	cmd.Dir = workDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("container create output:\n%s", output)
 	if err != nil {
@@ -63,10 +66,10 @@ func createContainerForPytest(t *testing.T, binary, projectRoot string) {
 	}
 }
 
-func destroyContainerForPytest(t *testing.T, binary, projectRoot string) {
+func destroyContainerForPytest(t *testing.T, binary, workDir string) {
 	t.Helper()
 	cmd := exec.Command(binary, "--type", "container", "--name", pytestTestContainerName, "destroy")
-	cmd.Dir = projectRoot
+	cmd.Dir = workDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("container destroy output:\n%s", output)
 	if err != nil {

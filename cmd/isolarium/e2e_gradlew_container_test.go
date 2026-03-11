@@ -4,6 +4,7 @@ package main
 
 import (
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -13,14 +14,15 @@ const gradlewTestContainerName = "isolarium-gradlew-test"
 func TestGradlewBuildInContainer_EndToEnd(t *testing.T) {
 	binary := buildGradlewBinary(t)
 	projectRoot := gradlewProjectRoot(t)
+	springBootDir := filepath.Join(projectRoot, "testdata", "spring-boot-app")
 
-	createContainerForGradlew(t, binary, projectRoot)
-	t.Cleanup(func() { destroyContainerForGradlew(t, binary, projectRoot) })
+	createContainerForGradlew(t, binary, springBootDir)
+	t.Cleanup(func() { destroyContainerForGradlew(t, binary, springBootDir) })
 
-	gradlewCmd := "source ~/.sdkman/bin/sdkman-init.sh && cd testdata/spring-boot-app && ./gradlew clean build"
+	gradlewCmd := "source ~/.sdkman/bin/sdkman-init.sh && ./gradlew clean build"
 	gradlewArgs := []string{"--type", "container", "--name", gradlewTestContainerName, "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", gradlewCmd}
 	cmd := exec.Command(binary, gradlewArgs...)
-	cmd.Dir = projectRoot
+	cmd.Dir = springBootDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("gradlew output:\n%s", output)
 	if err != nil {
@@ -31,10 +33,10 @@ func TestGradlewBuildInContainer_EndToEnd(t *testing.T) {
 	}
 }
 
-func createContainerForGradlew(t *testing.T, binary, projectRoot string) {
+func createContainerForGradlew(t *testing.T, binary, workDir string) {
 	t.Helper()
 	cmd := exec.Command(binary, "--type", "container", "--name", gradlewTestContainerName, "create")
-	cmd.Dir = projectRoot
+	cmd.Dir = workDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("container create output:\n%s", output)
 	if err != nil {
@@ -42,10 +44,10 @@ func createContainerForGradlew(t *testing.T, binary, projectRoot string) {
 	}
 }
 
-func destroyContainerForGradlew(t *testing.T, binary, projectRoot string) {
+func destroyContainerForGradlew(t *testing.T, binary, workDir string) {
 	t.Helper()
 	cmd := exec.Command(binary, "--type", "container", "--name", gradlewTestContainerName, "destroy")
-	cmd.Dir = projectRoot
+	cmd.Dir = workDir
 	output, err := cmd.CombinedOutput()
 	t.Logf("container destroy output:\n%s", output)
 	if err != nil {
