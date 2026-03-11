@@ -227,17 +227,17 @@ This thread implements `host_scripts` execution after environment creation, with
 
 This thread implements `isolation_scripts` for VMs — executing scripts inside the VM via limactl shell during `isolarium create --type vm`.
 
-- [ ] **Task 5.1: VM isolation_scripts execute via limactl shell during create**
+- [x] **Task 5.1: VM isolation_scripts execute via limactl shell during create**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/lima/...`
   - Observable: During `isolarium create --type vm`, when pid.yaml has vm `isolation_scripts`: each script is executed inside the VM via `limactl shell` (or existing lima exec mechanism). Each script's declared `env` vars are passed as environment variables. Missing declared env vars cause create to fail. Script failure causes create to fail but VM is left running.
   - Evidence: Unit tests verify: (1) limactl shell commands are constructed correctly for each script, (2) env vars are passed through, (3) missing env vars cause error, (4) script failure propagates as create error
   - Steps:
-    - [ ] Find the existing VM create flow (likely `internal/lima/backend.go`)
-    - [ ] After VM creation/start, load pid.yaml and iterate vm `isolation_scripts`
-    - [ ] For each script, execute via limactl shell with env vars
-    - [ ] Validate declared env vars are present before execution
-    - [ ] Create unit tests mocking the limactl shell execution
+    - [x] Find the existing VM create flow (likely `internal/lima/backend.go`)
+    - [x] After VM creation/start, load pid.yaml and iterate vm `isolation_scripts`
+    - [x] For each script, execute via limactl shell with env vars
+    - [x] Validate declared env vars are present before execution
+    - [x] Create unit tests mocking the limactl shell execution
 
 ---
 
@@ -402,3 +402,6 @@ RunHostScripts function created with unit tests, integrated into docker backend 
 
 ### 2026-03-11 09:24 - mark-task-complete
 Integrated RunHostScripts into LimaBackend.Create with 3 unit tests verifying host scripts run after VM create with correct env vars
+
+### 2026-03-11 09:45 - mark-task-complete
+Implemented RunVMIsolationScripts in internal/lima and integrated into LimaBackend.Create(). 11 unit tests verify command construction, env var passing, missing env var errors, and script failure propagation.
