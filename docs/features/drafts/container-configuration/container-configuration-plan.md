@@ -245,16 +245,16 @@ This thread implements `isolation_scripts` for VMs — executing scripts inside 
 
 This thread extends the gradlew e2e test to support container isolation type, validating that the base container image works for Java/Gradle projects without pid.yaml customization.
 
-- [ ] **Task 6.1: Gradlew e2e test script accepts isolation type parameter**
+- [x] **Task 6.1: Gradlew e2e test script accepts isolation type parameter**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-end-to-end-with-gradlew.sh container`
   - Observable: `test-end-to-end-with-gradlew.sh` accepts `nono|container|vm|all` arguments (following `test-end-to-end-with-claude.sh` pattern). When called with `container`, it runs the gradlew build e2e test in a container.
   - Evidence: `./test-scripts/test-end-to-end-with-gradlew.sh container` passes — creates container from `testdata/spring-boot-app/`, runs `./gradlew clean build`, output contains "BUILD SUCCESSFUL"
   - Steps:
-    - [ ] Read `test-scripts/test-end-to-end-with-claude.sh` to understand the isolation type argument pattern
-    - [ ] Modify `test-scripts/test-end-to-end-with-gradlew.sh` to accept isolation type args
-    - [ ] Add Go e2e test function `TestGradlewBuildInContainer_EndToEnd` in the appropriate test file
-    - [ ] Ensure the test creates a container, runs gradlew build, and asserts BUILD SUCCESSFUL
+    - [x] Read `test-scripts/test-end-to-end-with-claude.sh` to understand the isolation type argument pattern
+    - [x] Modify `test-scripts/test-end-to-end-with-gradlew.sh` to accept isolation type args
+    - [x] Add Go e2e test function `TestGradlewBuildInContainer_EndToEnd` in the appropriate test file
+    - [x] Ensure the test creates a container, runs gradlew build, and asserts BUILD SUCCESSFUL
 
 ---
 
@@ -405,3 +405,18 @@ Integrated RunHostScripts into LimaBackend.Create with 3 unit tests verifying ho
 
 ### 2026-03-11 09:45 - mark-task-complete
 Implemented RunVMIsolationScripts in internal/lima and integrated into LimaBackend.Create(). 11 unit tests verify command construction, env var passing, missing env var errors, and script failure propagation.
+
+### 2026-03-11 09:53 - mark-step-complete
+Read test-end-to-end-with-claude.sh to understand isolation type argument pattern
+
+### 2026-03-11 09:53 - mark-step-complete
+Modified test-end-to-end-with-gradlew.sh to accept isolation type args
+
+### 2026-03-11 09:53 - mark-step-complete
+Added Go e2e test function TestGradlewBuildInContainer_EndToEnd
+
+### 2026-03-11 09:57 - mark-step-complete
+Test creates container, runs gradlew build, asserts BUILD SUCCESSFUL - verified passing
+
+### 2026-03-11 09:58 - mark-task-complete
+Gradlew e2e test script accepts isolation type parameter, container test passes with BUILD SUCCESSFUL
