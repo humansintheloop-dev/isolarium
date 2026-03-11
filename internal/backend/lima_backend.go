@@ -10,7 +10,9 @@ import (
 
 // LimaBackend implements the Backend interface using Lima VMs.
 type LimaBackend struct {
-	CreateVMFunc func(name string) error
+	CreateVMFunc   func(name string) error
+	VMExecFunc     lima.VMExecFunc
+	VMHomeDirFunc  func(name string) (string, error)
 }
 
 func (b *LimaBackend) Create(name string, opts CreateOptions) error {
@@ -28,10 +30,38 @@ func (b *LimaBackend) Create(name string, opts CreateOptions) error {
 		return fmt.Errorf("loading pid.yaml: %w", err)
 	}
 
+	if err := b.runIsolationScripts(cfg, name); err != nil {
+		return err
+	}
+
 	if cfg != nil && len(cfg.VM.HostScripts) > 0 {
 		return hostscript.RunHostScripts(cfg.VM.HostScripts, opts.WorkDirectory, name, "vm")
 	}
 	return nil
+}
+
+func (b *LimaBackend) runIsolationScripts(cfg *config.PidConfig, name string) error {
+	if cfg == nil || len(cfg.VM.IsolationScripts) == 0 {
+		return nil
+	}
+
+	executor := b.VMExecFunc
+	if executor == nil {
+		executor = func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
+			return lima.ExecCommand(vm, workdir, envVars, args)
+		}
+	}
+
+	getHomeDir := b.VMHomeDirFunc
+	if getHomeDir == nil {
+		getHomeDir = lima.GetVMHomeDir
+	}
+	homeDir, err := getHomeDir(name)
+	if err != nil {
+		return fmt.Errorf("getting VM home directory: %w", err)
+	}
+
+	return lima.RunVMIsolationScripts(cfg.VM.IsolationScripts, name, homeDir+"/repo", executor)
 }
 
 func (b *LimaBackend) Destroy(name string) error {
