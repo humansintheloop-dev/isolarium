@@ -282,15 +282,15 @@ This thread extends the pytest e2e test to support container isolation type.
     - [x] Add Go e2e test functions `TestPytestInContainer_EndToEnd` and `TestGreeterCliInContainer_EndToEnd`
     - [x] Ensure the tests create a container, run pytest/greeter CLI, and assert expected output
 
-- [ ] **Task 7.2: Pytest e2e test in VM with no-tests-to-run safeguard**
+- [x] **Task 7.2: Pytest e2e test in VM with no-tests-to-run safeguard**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-end-to-end-with-pytest.sh vm`
   - Observable: `test-end-to-end-with-pytest.sh` detects `go test`'s "no tests to run" warning and exits non-zero instead of silently passing. The pytest VM Go tests exist and pass under this hardened script.
   - Evidence: `./test-scripts/test-end-to-end-with-pytest.sh vm` passes — creates VM from `testdata/python-cli-app/`, runs `uv run pytest -v` (output contains "2 passed") and `uv run greeter` (output contains greeting)
   - Steps:
-    - [ ] Update `run_test()` in `test-end-to-end-with-pytest.sh` to capture `go test` output and fail if it contains "no tests to run"
-    - [ ] Create `cmd/isolarium/e2e_pytest_vm_test.go` with `TestPytestInVM_EndToEnd` and `TestGreeterCliInVM_EndToEnd` following the pattern from `e2e_pytest_container_test.go` but using VM isolation type
-    - [ ] Ensure the tests create a VM, run pytest/greeter CLI, and assert expected output
+    - [x] Update `run_test()` in `test-end-to-end-with-pytest.sh` to capture `go test` output and fail if it contains "no tests to run"
+    - [x] Create `cmd/isolarium/e2e_pytest_vm_test.go` with `TestPytestInVM_EndToEnd` and `TestGreeterCliInVM_EndToEnd` following the pattern from `e2e_pytest_container_test.go` but using VM isolation type
+    - [x] Ensure the tests create a VM, run pytest/greeter CLI, and assert expected output
 
 ---
 
