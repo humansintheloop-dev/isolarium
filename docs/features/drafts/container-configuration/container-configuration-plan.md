@@ -371,7 +371,7 @@ The pre-commit tests in `test-end-to-end.sh` are conditionally skipped when `CS_
   - Observable: The conditional skip around `test-precommit-in-vm.sh` in `test-end-to-end.sh` is removed so the test runs unconditionally. With `.env.local` providing `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`, the test creates a VM, runs all pre-commit hooks including CodeScene, and passes.
   - Evidence: `./test-scripts/test-precommit-in-vm.sh` exits 0. `test-end-to-end.sh` calls it unconditionally (no `SKIP` guard).
   - Steps:
-    - [ ] Remove the `if/else` conditional around `test-precommit-in-vm.sh` in `test-end-to-end.sh`, call it unconditionally
+    - [x] Remove the `if/else` conditional around `test-precommit-in-vm.sh` in `test-end-to-end.sh`, call it unconditionally
     - [ ] Run `./test-scripts/test-precommit-in-vm.sh` and verify it passes
     - [ ] Run `./test-scripts/test-end-to-end.sh` and verify it passes
 
@@ -558,3 +558,6 @@ test-end-to-end.sh calls test-precommit-in-container.sh unconditionally
 
 ### 2026-03-12 10:28 - mark-task-complete
 Pre-commit in container test passes with all hooks including CodeScene
+
+### 2026-03-12 10:53 - mark-step-complete
+Removed if/else conditional, now calls test-precommit-in-vm.sh unconditionally

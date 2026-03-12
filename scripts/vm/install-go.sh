@@ -12,4 +12,7 @@ rm /tmp/go.tar.gz
 echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> "$HOME/.bashrc"
 export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
 
+sudo ln -sf /usr/local/go/bin/go /usr/local/bin/go
+sudo ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+
 go version
