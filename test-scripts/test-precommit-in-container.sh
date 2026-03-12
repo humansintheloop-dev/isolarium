@@ -6,6 +6,17 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+loadEnvLocalIfPresent() {
+    if [ -f ".env.local" ]; then
+        set -a
+        # shellcheck source=/dev/null
+        . ".env.local"
+        set +a
+    fi
+}
+
+loadEnvLocalIfPresent
+
 echo "=== Testing pre-commit runs all hooks in container ==="
 
 CONTAINER_NAME="isolarium-test-precommit"

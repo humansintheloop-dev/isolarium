@@ -35,13 +35,8 @@ if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
     echo ""
     "$SCRIPT_DIR/test-host-scripts.sh"
 
-    if [ -n "${CS_ACCESS_TOKEN:-}" ] && [ -n "${CS_ACE_ACCESS_TOKEN:-}" ]; then
-        echo ""
-        "$SCRIPT_DIR/test-precommit-in-container.sh"
-    else
-        echo ""
-        echo "SKIP: test-precommit-in-container.sh (CS_ACCESS_TOKEN and CS_ACE_ACCESS_TOKEN not set)"
-    fi
+    echo ""
+    "$SCRIPT_DIR/test-precommit-in-container.sh"
 fi
 
 if [ -n "${CS_ACCESS_TOKEN:-}" ] && [ -n "${CS_ACE_ACCESS_TOKEN:-}" ]; then

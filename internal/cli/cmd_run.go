@@ -146,7 +146,9 @@ func prepareVMSession(opts runOptions, cmd *cobra.Command) error {
 	return nil
 }
 
-func runInVM(opts runOptions, cmd *cobra.Command) error {
+var runInVM = runInVMImpl
+
+func runInVMImpl(opts runOptions, cmd *cobra.Command) error {
 	if err := prepareVMSession(opts, cmd); err != nil {
 		return err
 	}

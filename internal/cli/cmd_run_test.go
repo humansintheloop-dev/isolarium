@@ -6,11 +6,13 @@ import (
 	"testing"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
+	"github.com/spf13/cobra"
 )
 
 func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
 	spy := &backendSpy{}
 	resolverCalledWithType := ""
+	vmPathReached := false
 	rootCmd := newRootCmdWithResolvers(
 		func(envType string) (backend.Backend, error) {
 			resolverCalledWithType = envType
@@ -27,15 +29,22 @@ func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
 	}
 	defer func() { execCommandOutput = origExec }()
 
+	origRunInVM := runInVM
+	runInVM = func(opts runOptions, cmd *cobra.Command) error {
+		vmPathReached = true
+		return nil
+	}
+	defer func() { runInVM = origRunInVM }()
+
 	rootCmd.SetArgs([]string{"run", "--name", "my-env", "--copy-session=false", "--", "echo", "hello"})
 	err := rootCmd.Execute()
 
-	// The command will fail because there's no actual VM, but it should NOT fail
-	// with "no environment found" — it should fall back to "vm" type.
-	// Since we're using a spy backend, the VM path will call runInVM which
-	// needs limactl. The key verification is that the resolver was NOT called
-	// with "container" — it should default to "vm".
-	_ = err
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !vmPathReached {
+		t.Error("expected VM path to be reached after fallback")
+	}
 	if resolverCalledWithType == "container" {
 		t.Error("expected fallback to 'vm' type, but resolver was called with 'container'")
 	}

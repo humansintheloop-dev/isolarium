@@ -354,16 +354,16 @@ This thread validates the full pid.yaml machinery for the VM backend.
 
 The pre-commit tests in `test-end-to-end.sh` are conditionally skipped when `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN` are not set. This means the primary validation of the pid.yaml machinery (Threads 8 and 9) silently never runs. This thread removes the conditional skips so the tests fail when secrets are missing, sets up `.env.local` in the worktree, and verifies the tests actually pass.
 
-- [ ] **Task 10.1: Pre-commit in container test passes with secrets**
+- [x] **Task 10.1: Pre-commit in container test passes with secrets**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
   - Observable: The conditional skip around `test-precommit-in-container.sh` in `test-end-to-end.sh` is removed so the test runs unconditionally. With `.env.local` providing `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`, the test creates a container, runs all pre-commit hooks including CodeScene, and passes.
   - Evidence: `./test-scripts/test-precommit-in-container.sh` exits 0. `test-end-to-end.sh` calls it unconditionally (no `SKIP` guard).
   - Steps:
-    - [ ] Remove the `if/else` conditional around `test-precommit-in-container.sh` in `test-end-to-end.sh`, call it unconditionally
-    - [ ] Ensure `.env.local` exists with `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`
-    - [ ] Run `./test-scripts/test-precommit-in-container.sh` and verify it passes
-    - [ ] Run `./test-scripts/test-end-to-end.sh` and verify it passes
+    - [x] Remove the `if/else` conditional around `test-precommit-in-container.sh` in `test-end-to-end.sh`, call it unconditionally
+    - [x] Ensure `.env.local` exists with `CS_ACCESS_TOKEN` and `CS_ACE_ACCESS_TOKEN`
+    - [x] Run `./test-scripts/test-precommit-in-container.sh` and verify it passes
+    - [x] Run `./test-scripts/test-end-to-end.sh` and verify it passes
 
 - [ ] **Task 10.2: Pre-commit in VM test passes with secrets**
   - TaskType: OUTCOME
@@ -543,3 +543,18 @@ Test creates VM, runs gradlew build, and asserts BUILD SUCCESSFUL
 
 ### 2026-03-11 13:15 - mark-task-complete
 Hardened run_test() with no-tests-to-run detection and created VM gradlew e2e test
+
+### 2026-03-12 10:27 - mark-step-complete
+Removed if/else conditional around test-precommit-in-container.sh in test-end-to-end.sh
+
+### 2026-03-12 10:27 - mark-step-complete
+test-precommit-in-container.sh loads .env.local via loadEnvLocalIfPresent
+
+### 2026-03-12 10:27 - mark-step-complete
+test-precommit-in-container.sh exits 0 with all hooks passing
+
+### 2026-03-12 10:27 - mark-step-complete
+test-end-to-end.sh calls test-precommit-in-container.sh unconditionally
+
+### 2026-03-12 10:28 - mark-task-complete
+Pre-commit in container test passes with all hooks including CodeScene

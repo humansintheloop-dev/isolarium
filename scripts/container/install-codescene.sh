@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh | sh
+mkdir -p "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+
+curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh -o /tmp/install-cs.sh
+
+sed -i '/\/dev\/tty/d' /tmp/install-cs.sh
+
+sh /tmp/install-cs.sh
+rm -f /tmp/install-cs.sh
 
 cs --version

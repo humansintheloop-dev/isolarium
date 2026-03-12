@@ -58,6 +58,9 @@ RUN if [ -n "$WORKTREE_HOST_PATH" ] && [ -n "$MAIN_REPO_HOST_PATH" ]; then \
 
 # Switch to non-root user for remaining installs
 USER isolarium
+ENV PATH="/home/isolarium/.local/bin:/usr/local/go/bin:/home/isolarium/go/bin:/home/isolarium/.sdkman/candidates/java/current/bin:/home/isolarium/.sdkman/candidates/gradle/current/bin:${PATH}"
+ENV JAVA_HOME="/home/isolarium/.sdkman/candidates/java/current"
+ENV SDKMAN_DIR="/home/isolarium/.sdkman"
 WORKDIR /home/isolarium
 
 # Claude Code via npm (user-level tool)
