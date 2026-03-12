@@ -399,15 +399,15 @@ The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.
     - [x] Add `GetEnvVars()` merge into the nono path in `cmd_run.go` (same pattern as container path at line 221)
     - [x] Add unit test verifying nono run passes --env vars to backend
 
-- [ ] **Task 11.3: --env flag e2e test covers VM and nono run**
+- [x] **Task 11.3: --env flag e2e test covers VM and nono run**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-env-flag.sh`
   - Observable: The existing `test-env-flag.sh` (or an extended version) verifies `--env` works for `run` across all isolation types, not just container.
   - Evidence: `./test-scripts/test-env-flag.sh` passes with VM and nono coverage added.
   - Steps:
-    - [ ] Extend `test-env-flag.sh` to test `--env` with `run --type nono`
-    - [ ] Extend `test-env-flag.sh` to test `--env` with `run --type vm`
-    - [ ] Verify the script passes
+    - [x] Extend `test-env-flag.sh` to test `--env` with `run --type nono`
+    - [x] Extend `test-env-flag.sh` to test `--env` with `run --type vm`
+    - [x] Verify the script passes
 
 ---
 
@@ -561,3 +561,15 @@ Pre-commit in container test passes with all hooks including CodeScene
 
 ### 2026-03-12 10:53 - mark-step-complete
 Removed if/else conditional, now calls test-precommit-in-vm.sh unconditionally
+
+### 2026-03-12 13:43 - mark-step-complete
+Added testEnvFlagWithNono function
+
+### 2026-03-12 13:43 - mark-step-complete
+Added testEnvFlagWithVM function
+
+### 2026-03-12 13:43 - mark-step-complete
+All 3 isolation types tested and passed
+
+### 2026-03-12 13:43 - mark-task-complete
+Extended test-env-flag.sh to cover container, nono, and VM; all 3 pass
