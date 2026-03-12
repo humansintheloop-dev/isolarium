@@ -6,7 +6,8 @@ export SDKMAN_DIR="$HOME/.sdkman"
 # shellcheck source=/dev/null
 [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
 
-# Configure to auto-answer
+# Configure to auto-answer (create etc dir if SDKMAN provisioning left it incomplete)
+mkdir -p "$SDKMAN_DIR/etc"
 echo "sdkman_auto_answer=true" > "$SDKMAN_DIR/etc/config"
 echo "sdkman_selfupdate_feature=false" >> "$SDKMAN_DIR/etc/config"
 

@@ -43,6 +43,18 @@ go build -o bin/isolarium ./cmd/isolarium
 echo "--- Creating VM for isolarium repo ---"
 ./bin/isolarium create --type vm --name "$VM_NAME"
 
+echo "--- Syncing local test scripts to VM ---"
+syncLocalChangesToVM() {
+    local vm_home
+    # shellcheck disable=SC2016
+    vm_home=$(limactl shell "$VM_NAME" -- bash -c 'echo $HOME')
+    local vm_repo="$vm_home/repo"
+    for f in test-scripts/*.sh; do
+        limactl copy "$f" "$VM_NAME:$vm_repo/$f"
+    done
+}
+syncLocalChangesToVM
+
 echo "--- Making a harmless file change inside VM ---"
 ./bin/isolarium run --type vm --name "$VM_NAME" --copy-session=false --no-gh-token -- \
     sh -c 'echo "// harmless test change" >> cmd/isolarium/main.go'
