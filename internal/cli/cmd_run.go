@@ -211,6 +211,9 @@ func runInNono(opts runOptions, resolver BackendResolver) error {
 		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
 		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
 	}
+	for k, v := range GetEnvVars() {
+		envVars[k] = v
+	}
 	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, nonoTokenVars); err != nil {
 		return err
 	}

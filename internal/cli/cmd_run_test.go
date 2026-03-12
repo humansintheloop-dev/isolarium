@@ -444,6 +444,26 @@ func TestRunCommand_VMPassesEnvFlagVarsToBackend(t *testing.T) {
 	}
 }
 
+func TestRunCommand_NonoPassesEnvFlagVarsToBackend(t *testing.T) {
+	stubMintGitHubToken(t)
+
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"--env", "FOO=bar", "--env", "BAZ=qux", "run", "--type", "nono", "--", "printenv", "FOO"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if spy.execEnvVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", spy.execEnvVars["FOO"])
+	}
+	if spy.execEnvVars["BAZ"] != "qux" {
+		t.Errorf("expected BAZ='qux', got '%s'", spy.execEnvVars["BAZ"])
+	}
+}
+
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{}
