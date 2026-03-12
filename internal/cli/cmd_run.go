@@ -146,6 +146,7 @@ func prepareVMSession(opts runOptions, cmd *cobra.Command) error {
 	return nil
 }
 
+// test seam: tests swap this in cmd_run_test.go to stub VM execution
 var runInVM = runInVMImpl
 
 func runInVMImpl(opts runOptions, cmd *cobra.Command) error {
