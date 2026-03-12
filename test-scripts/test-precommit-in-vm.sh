@@ -19,6 +19,11 @@ loadEnvLocalIfPresent
 
 echo "=== Testing pre-commit runs all hooks in VM ==="
 
+if ! command -v limactl &> /dev/null; then
+    echo "SKIP: Lima not installed, skipping pre-commit in VM test"
+    exit 0
+fi
+
 VM_NAME="isolarium-test-precommit"
 
 verifyRequiredSecretsAreSet() {
