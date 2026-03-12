@@ -18,10 +18,21 @@ echo "=== Running Go tests ==="
 
 go test ./... -count=1
 
-echo "=== Running e2e-gradlew ==="
+runE2eTestsIfToolsAvailable() {
+    if ! command -v nono &> /dev/null; then
+        echo "=== SKIP e2e tests: nono not available ==="
+        return
+    fi
+    if ! docker info &> /dev/null; then
+        echo "=== SKIP e2e tests: docker not available ==="
+        return
+    fi
 
-"$SCRIPT_DIR/test-end-to-end-with-gradlew.sh" --force nono container
+    echo "=== Running e2e-gradlew ==="
+    "$SCRIPT_DIR/test-end-to-end-with-gradlew.sh" --force nono container
 
-echo "=== Running e2e-pytest ==="
+    echo "=== Running e2e-pytest ==="
+    "$SCRIPT_DIR/test-end-to-end-with-pytest.sh" --force nono container
+}
 
-"$SCRIPT_DIR/test-end-to-end-with-pytest.sh" --force nono container
+runE2eTestsIfToolsAvailable
