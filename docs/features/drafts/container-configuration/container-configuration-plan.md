@@ -390,14 +390,14 @@ The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.
     - [x] Add `GetEnvVars()` merge into the VM path in `cmd_run.go` (same pattern as container path at line 221)
     - [x] Add unit test verifying VM run passes --env vars to backend
 
-- [ ] **Task 11.2: Nono run passes --env vars to backend**
+- [x] **Task 11.2: Nono run passes --env vars to backend**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/... ./internal/nono/...`
   - Observable: When `isolarium --env FOO=bar run --type nono -- printenv FOO` is executed, the command's environment includes `FOO=bar`.
   - Evidence: Unit test verifies that `GetEnvVars()` values are merged into the env vars map passed to the nono backend's `Exec` method in `cmd_run.go`.
   - Steps:
-    - [ ] Add `GetEnvVars()` merge into the nono path in `cmd_run.go` (same pattern as container path at line 221)
-    - [ ] Add unit test verifying nono run passes --env vars to backend
+    - [x] Add `GetEnvVars()` merge into the nono path in `cmd_run.go` (same pattern as container path at line 221)
+    - [x] Add unit test verifying nono run passes --env vars to backend
 
 - [ ] **Task 11.3: --env flag e2e test covers VM and nono run**
   - TaskType: OUTCOME
