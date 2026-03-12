@@ -424,6 +424,26 @@ func TestRunCommand_ContainerPassesEnvFlagVarsToBackendExecInteractive(t *testin
 	}
 }
 
+func TestRunCommand_VMPassesEnvFlagVarsToBackend(t *testing.T) {
+	stubMintGitHubToken(t)
+
+	origParsed := parsedEnvVars
+	parsedEnvVars = map[string]string{"FOO": "bar", "BAZ": "qux"}
+	defer func() { parsedEnvVars = origParsed }()
+
+	envVars, err := buildVMEnvVars(false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if envVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", envVars["FOO"])
+	}
+	if envVars["BAZ"] != "qux" {
+		t.Errorf("expected BAZ='qux', got '%s'", envVars["BAZ"])
+	}
+}
+
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{}

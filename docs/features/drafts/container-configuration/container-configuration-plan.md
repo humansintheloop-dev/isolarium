@@ -381,14 +381,14 @@ The pre-commit tests in `test-end-to-end.sh` are conditionally skipped when `CS_
 
 The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.go` only calls `GetEnvVars()` in the container path. The VM and nono `run` paths never merge `--env` vars, so `isolarium --env FOO=bar run --type vm -- printenv FOO` silently drops the variable. The `shell` command works correctly for all types.
 
-- [ ] **Task 11.1: VM run passes --env vars to backend**
+- [x] **Task 11.1: VM run passes --env vars to backend**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/... ./internal/lima/...`
   - Observable: When `isolarium --env FOO=bar run --type vm -- printenv FOO` is executed, the `limactl shell` command includes `FOO=bar` in its environment variables.
   - Evidence: Unit test verifies that `GetEnvVars()` values are merged into the env vars map passed to the VM backend's `Exec` method in `cmd_run.go`.
   - Steps:
-    - [ ] Add `GetEnvVars()` merge into the VM path in `cmd_run.go` (same pattern as container path at line 221)
-    - [ ] Add unit test verifying VM run passes --env vars to backend
+    - [x] Add `GetEnvVars()` merge into the VM path in `cmd_run.go` (same pattern as container path at line 221)
+    - [x] Add unit test verifying VM run passes --env vars to backend
 
 - [ ] **Task 11.2: Nono run passes --env vars to backend**
   - TaskType: OUTCOME
