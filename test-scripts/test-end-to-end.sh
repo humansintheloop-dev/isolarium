@@ -39,13 +39,8 @@ if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
     "$SCRIPT_DIR/test-precommit-in-container.sh"
 fi
 
-if [ -n "${CS_ACCESS_TOKEN:-}" ] && [ -n "${CS_ACE_ACCESS_TOKEN:-}" ]; then
-    echo ""
-    "$SCRIPT_DIR/test-precommit-in-vm.sh"
-else
-    echo ""
-    echo "SKIP: test-precommit-in-vm.sh (CS_ACCESS_TOKEN and CS_ACE_ACCESS_TOKEN not set)"
-fi
+echo ""
+"$SCRIPT_DIR/test-precommit-in-vm.sh"
 
 echo ""
 "$SCRIPT_DIR/test-lima-integration.sh"

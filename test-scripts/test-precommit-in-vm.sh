@@ -6,6 +6,17 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+loadEnvLocalIfPresent() {
+    if [ -f ".env.local" ]; then
+        set -a
+        # shellcheck source=/dev/null
+        . ".env.local"
+        set +a
+    fi
+}
+
+loadEnvLocalIfPresent
+
 echo "=== Testing pre-commit runs all hooks in VM ==="
 
 VM_NAME="isolarium-test-precommit"
@@ -30,7 +41,7 @@ echo "--- Building isolarium ---"
 go build -o bin/isolarium ./cmd/isolarium
 
 echo "--- Creating VM for isolarium repo ---"
-./bin/isolarium create --type vm --name "$VM_NAME" --work-directory "$PROJECT_ROOT"
+./bin/isolarium create --type vm --name "$VM_NAME"
 
 echo "--- Making a harmless file change inside VM ---"
 ./bin/isolarium run --type vm --name "$VM_NAME" --copy-session=false --no-gh-token -- \

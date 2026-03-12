@@ -154,23 +154,38 @@ func runInVMImpl(opts runOptions, cmd *cobra.Command) error {
 		return err
 	}
 
-	envVars := map[string]string{}
-	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, vmTokenVars); err != nil {
+	envVars, err := buildVMEnvVars(opts.noGHToken)
+	if err != nil {
 		return err
 	}
 
-	homeDir, homeErr := lima.GetVMHomeDir(opts.name)
-	if homeErr != nil {
-		return fmt.Errorf("failed to get VM home directory: %w", homeErr)
+	return execInVM(opts.name, envVars, opts.args, opts.interactive)
+}
+
+func buildVMEnvVars(noGHToken bool) (map[string]string, error) {
+	envVars := map[string]string{}
+	for k, v := range GetEnvVars() {
+		envVars[k] = v
+	}
+	if err := addTokenEnvVars(envVars, noGHToken, mintGitHubToken, vmTokenVars); err != nil {
+		return nil, err
+	}
+	return envVars, nil
+}
+
+func execInVM(name string, envVars map[string]string, args []string, interactive bool) error {
+	homeDir, err := lima.GetVMHomeDir(name)
+	if err != nil {
+		return fmt.Errorf("failed to get VM home directory: %w", err)
 	}
 	workdir := homeDir + "/repo"
 
 	var exitCode int
 	var execErr error
-	if opts.interactive {
-		exitCode, execErr = lima.ExecInteractiveCommand(opts.name, workdir, envVars, opts.args)
+	if interactive {
+		exitCode, execErr = lima.ExecInteractiveCommand(name, workdir, envVars, args)
 	} else {
-		exitCode, execErr = lima.ExecCommand(opts.name, workdir, envVars, opts.args)
+		exitCode, execErr = lima.ExecCommand(name, workdir, envVars, args)
 	}
 	if execErr != nil {
 		return fmt.Errorf("failed to execute command: %w", execErr)
@@ -178,7 +193,6 @@ func runInVMImpl(opts runOptions, cmd *cobra.Command) error {
 	if exitCode != 0 {
 		os.Exit(exitCode)
 	}
-
 	return nil
 }
 
