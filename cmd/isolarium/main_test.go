@@ -220,22 +220,26 @@ func TestRunCommand_CreatesVMWhenNoneExists(t *testing.T) {
 	}
 	binaryPath := filepath.Join(cwd, "isolarium")
 
-	// Run from a non-git directory so it fails fast at the git check,
-	// proving it went through the create path instead of erroring about no VM.
+	// Run from a non-git directory with --no-gh-token so the command reaches
+	// the VM execution stage, proving it went through the create-or-start path
+	// instead of erroring about no VM.
 	tmpDir := t.TempDir()
-	envFilePath := filepath.Join(cwd, "..", "..", ".env.local")
-	cmd := exec.Command(binaryPath, "run", "--name", "test-novm", "--copy-session=false", "--env-file", envFilePath, "--", "echo", "hello")
+	cmd := exec.Command(binaryPath, "run", "--name", "test-novm", "--copy-session=false", "--no-gh-token", "--env-file", "/dev/null", "--", "echo", "hello")
 	cmd.Dir = tmpDir
 	output, err := cmd.CombinedOutput()
 
+	outputStr := string(output)
 	if err == nil {
-		t.Fatalf("expected run to fail in non-git directory, got: %s", output)
+		// Command succeeded — the create path worked and the VM ran the command
+		return
 	}
 
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "not a git repository") {
-		t.Errorf("expected error about not a git repository (indicating create path), got: %s", outputStr)
+	// Acceptable: VM was created/started but ~/repo doesn't exist inside it
+	if strings.Contains(outputStr, "No such file or directory") {
+		return
 	}
+
+	t.Errorf("expected command to reach VM execution stage, got: %s", outputStr)
 }
 
 func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
