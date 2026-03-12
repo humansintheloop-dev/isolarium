@@ -31,9 +31,18 @@ runNonoE2eTestsIfAvailable() {
     "$SCRIPT_DIR/test-end-to-end-with-pytest.sh" --force nono
 }
 
+isRootlessDocker() {
+    docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q rootless
+}
+
 runContainerE2eTestsIfAvailable() {
     if ! docker info &> /dev/null; then
         echo "=== SKIP container e2e tests: docker not available ==="
+        return
+    fi
+
+    if isRootlessDocker; then
+        echo "=== SKIP container e2e tests: rootless Docker (UID remapping breaks bind mount writes) ==="
         return
     fi
 
