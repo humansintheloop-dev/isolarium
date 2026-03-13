@@ -36,6 +36,7 @@ type IsolationTypeConfig struct {
 type PidConfig struct {
 	Container IsolationTypeConfig `yaml:"container"`
 	VM        IsolationTypeConfig `yaml:"vm"`
+	Nono      IsolationTypeConfig `yaml:"nono"`
 }
 
 type pidFile struct {

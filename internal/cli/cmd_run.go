@@ -32,6 +32,8 @@ func loadRunEnvVarsImpl(isolationType string) (map[string]string, error) {
 		envNames = cfg.Container.Run.Env
 	case "vm":
 		envNames = cfg.VM.Run.Env
+	case "nono":
+		envNames = cfg.Nono.Run.Env
 	}
 
 	result := make(map[string]string, len(envNames))

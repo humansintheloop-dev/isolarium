@@ -449,15 +449,15 @@ Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env 
     - [x] Write tests verifying run.env vars are injected for container, VM, and nono
     - [x] Update runInContainer, runInVM, and runInNono to read run.env from PidConfig and inject vars
     - [x] Run go test ./internal/cli/... and verify it passes
-- [ ] **Task 12.5: Update pid.yaml to new lifecycle structure**
+- [x] **Task 12.5: Update pid.yaml to new lifecycle structure**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/config/...`
   - Observable: pid.yaml uses create/run grouping with run.env for all three environment types
   - Evidence: `go test ./internal/config/... passes. pid.yaml has container.create, vm.create, and nono.run sections`
   - Steps:
-    - [ ] Rewrite pid.yaml with create.isolation_scripts, create.host_scripts, and run.env sections
-    - [ ] Add nono section with run.env only
-    - [ ] Run go test ./... and verify it passes
+    - [x] Rewrite pid.yaml with create.isolation_scripts, create.host_scripts, and run.env sections
+    - [x] Add nono section with run.env only
+    - [x] Run go test ./... and verify it passes
 - [ ] **Task 12.6: Remove manual --env flags from precommit test scripts**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
@@ -676,3 +676,6 @@ Updated docker backend, lima backend, and vm_setup CLI to read from create.isola
 
 ### 2026-03-13 16:50 - mark-task-complete
 Added loadRunEnvVars function that reads run.env from pid.yaml and injects vars into all three run paths (container, VM, nono). 4 tests verify injection and --env flag override precedence.
+
+### 2026-03-13 17:04 - mark-task-complete
+Rewrote pid.yaml with create/run lifecycle grouping, added nono section with run.env, all tests pass
