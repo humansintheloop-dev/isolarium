@@ -410,68 +410,95 @@ The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.
     - [x] Verify the script passes
 
 ## Steel Thread 12: Restructure pid.yaml with Lifecycle Grouping and run.env
+Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env for runtime environment variables.
 
-- **Goal:** Reorganize pid.yaml to group by lifecycle phase (`create` vs `run`) and add `run.env` for runtime environment variables
-- **Why:** Currently `isolation_scripts` and `host_scripts` are siblings at the top level, obscuring that both run during create. Runtime env vars (e.g., CodeScene tokens for pre-commit) must be passed manually via `--env` flags, duplicating knowledge that belongs in pid.yaml.
-- Entrypoint: `pid.yaml`, `internal/config/`
-- Observable: pid.yaml uses new structure; `isolarium run` automatically passes `run.env` vars into the environment
-- Evidence: Existing tests pass with new structure. `test-precommit-in-container.sh` no longer needs explicit `--env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN`.
-
-**New pid.yaml structure:**
-```yaml
-isolarium:
-  container:
-    create:
-      isolation_scripts:
-        - path: scripts/container/install-codescene.sh
-          env:
-            - CS_ACCESS_TOKEN
-      host_scripts: []
-    run:
-      env:
-        - CS_ACCESS_TOKEN
-        - CS_ACE_ACCESS_TOKEN
-  vm:
-    create:
-      isolation_scripts:
-        - path: scripts/vm/install-codescene.sh
-          env:
-            - CS_ACCESS_TOKEN
-      host_scripts: []
-    run:
-      env:
-        - CS_ACCESS_TOKEN
-        - CS_ACE_ACCESS_TOKEN
-  nono:
-    run:
-      env:
-        - CS_ACCESS_TOKEN
-        - CS_ACE_ACCESS_TOKEN
-```
-
-- [ ] 12.1 Add `cs check cmd/isolarium/main.go` verification to `test-precommit-in-container.sh` — run after container create, assert output contains "Code health score"
-- [ ] 12.2 Update `PidConfig` struct and YAML parsing in `internal/config/` to support nested `create.isolation_scripts`, `create.host_scripts`, and `run.env`
-- [ ] 12.3 Update all consumers of `PidConfig` (backend, docker, lima) to read from new paths
-- [ ] 12.4 Update `isolarium run` to automatically inject `run.env` vars into the execution environment
-- [ ] 12.5 Update pid.yaml to new structure
-- [ ] 12.6 Remove explicit `--env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN` from test-precommit-in-container.sh and test-precommit-in-vm.sh
-- [ ] 12.7 Verify all tests pass
-
+- [ ] **Task 12.1: Verify CodeScene runs inside container**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
+  - Observable: After container create, `cs check cmd/isolarium/main.go` produces a code health score
+  - Evidence: `test-precommit-in-container.sh output includes 'Code health score'`
+  - Steps:
+    - [ ] Add verifyCodeSceneCanAnalyzeCode function to test-precommit-in-container.sh that runs `cs check cmd/isolarium/main.go` and asserts output contains 'Code health score'
+    - [ ] Call verifyCodeSceneCanAnalyzeCode after container create, before pre-commit run
+    - [ ] Run test-precommit-in-container.sh and verify it passes
+- [ ] **Task 12.2: Update PidConfig to support lifecycle grouping**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/config/...`
+  - Observable: PidConfig struct supports nested `create.isolation_scripts`, `create.host_scripts`, and `run.env`
+  - Evidence: `go test ./internal/config/... passes with tests for new structure`
+  - Steps:
+    - [ ] Write tests for new PidConfig struct with create.isolation_scripts, create.host_scripts, and run.env
+    - [ ] Update PidConfig struct and YAML parsing in internal/config/
+    - [ ] Run go test ./internal/config/... and verify it passes
+- [ ] **Task 12.3: Update PidConfig consumers to read from new paths**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./...`
+  - Observable: All consumers of PidConfig (backend, docker, lima) read from create.isolation_scripts, create.host_scripts instead of top-level fields
+  - Evidence: `go test ./... passes`
+  - Steps:
+    - [ ] Update docker backend to read create.isolation_scripts and create.host_scripts
+    - [ ] Update lima backend to read create.isolation_scripts
+    - [ ] Update any other PidConfig consumers
+    - [ ] Run go test ./... and verify it passes
+- [ ] **Task 12.4: Inject run.env vars automatically during isolarium run**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/cli/...`
+  - Observable: `isolarium run` reads run.env from pid.yaml and passes those environment variables into the execution environment for all isolation types (container, VM, nono)
+  - Evidence: `go test ./internal/cli/... passes with tests verifying run.env injection`
+  - Steps:
+    - [ ] Write tests verifying run.env vars are injected for container, VM, and nono
+    - [ ] Update runInContainer, runInVM, and runInNono to read run.env from PidConfig and inject vars
+    - [ ] Run go test ./internal/cli/... and verify it passes
+- [ ] **Task 12.5: Update pid.yaml to new lifecycle structure**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/config/...`
+  - Observable: pid.yaml uses create/run grouping with run.env for all three environment types
+  - Evidence: `go test ./internal/config/... passes. pid.yaml has container.create, vm.create, and nono.run sections`
+  - Steps:
+    - [ ] Rewrite pid.yaml with create.isolation_scripts, create.host_scripts, and run.env sections
+    - [ ] Add nono section with run.env only
+    - [ ] Run go test ./... and verify it passes
+- [ ] **Task 12.6: Remove manual --env flags from precommit test scripts**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
+  - Observable: test-precommit-in-container.sh and test-precommit-in-vm.sh no longer pass explicit --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN; run.env handles it
+  - Evidence: `Both test scripts pass without explicit --env flags for CodeScene tokens`
+  - Steps:
+    - [ ] Remove --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-container.sh
+    - [ ] Remove --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-vm.sh
+    - [ ] Run both test scripts and verify they pass
 ## Steel Thread 13: Consolidate Duplicate Isolation Scripts
+Refactor scripts/container/ and scripts/vm/ to share common scripts under scripts/isolation/, keeping only environment-specific scripts separate.
 
-- **Goal:** Refactor `scripts/container/` and `scripts/vm/` to share common scripts under `scripts/isolation/`, keeping only environment-specific scripts separate
-- **Why:** `install-go.sh`, `install-linters.sh`, `install-pre-commit.sh`, and `install-codescene.sh` are duplicated across container and VM with only minor differences (e.g., TTY workaround in container's install-codescene.sh). This duplication means fixes must be applied twice.
-- Observable: Common scripts live in `scripts/isolation/`. `pid.yaml` references `scripts/isolation/` for shared scripts and `scripts/container/` or `scripts/vm/` only for environment-specific ones.
-- Evidence: All tests pass. No duplicate script logic remains.
-
-- [ ] 13.1 Diff each script pair (container vs VM) and identify which are identical and which have environment-specific differences
-- [ ] 13.2 Move identical scripts to `scripts/isolation/`
-- [ ] 13.3 Refactor `install-codescene.sh` to handle both container (no TTY) and VM environments in a single script (e.g., detect TTY availability)
-- [ ] 13.4 Update `pid.yaml` to reference `scripts/isolation/` for shared scripts
-- [ ] 13.5 Verify all tests pass
-
----
-
+- [ ] **Task 13.1: Identify shared and environment-specific scripts**
+  - TaskType: INFRA
+  - Entrypoint: `diff scripts/container/ scripts/vm/`
+  - Observable: A list of which scripts are identical across container/VM and which have environment-specific differences
+  - Evidence: `Diff output reviewed and documented`
+  - Steps:
+    - [ ] Diff each script pair (install-go.sh, install-linters.sh, install-pre-commit.sh, install-codescene.sh) between container and VM
+    - [ ] Document which are identical and which differ
+- [ ] **Task 13.2: Move identical scripts to scripts/isolation/**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./...`
+  - Observable: Identical scripts live in scripts/isolation/. pid.yaml references scripts/isolation/ for shared scripts
+  - Evidence: `go test ./... passes. scripts/isolation/ contains the shared scripts`
+  - Steps:
+    - [ ] Create scripts/isolation/ directory
+    - [ ] Move identical scripts from scripts/container/ and scripts/vm/ to scripts/isolation/
+    - [ ] Update pid.yaml to reference scripts/isolation/ for shared scripts
+    - [ ] Run go test ./... and verify it passes
+- [ ] **Task 13.3: Unify install-codescene.sh across environments**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
+  - Observable: A single install-codescene.sh in scripts/isolation/ handles both container (no TTY) and VM environments
+  - Evidence: `test-precommit-in-container.sh and test-precommit-in-vm.sh both pass with the unified script`
+  - Steps:
+    - [ ] Refactor install-codescene.sh to detect TTY availability instead of hardcoding /dev/tty or /dev/stdin
+    - [ ] Move unified script to scripts/isolation/install-codescene.sh
+    - [ ] Remove scripts/container/install-codescene.sh and scripts/vm/install-codescene.sh
+    - [ ] Update pid.yaml to reference scripts/isolation/install-codescene.sh
+    - [ ] Run both precommit test scripts and verify they pass
 ## Change History
 
 ### 2026-03-10: Initial plan created
@@ -634,3 +661,9 @@ All 3 isolation types tested and passed
 
 ### 2026-03-12 13:43 - mark-task-complete
 Extended test-env-flag.sh to cover container, nono, and VM; all 3 pass
+
+### 2026-03-13 15:59 - replace-thread
+Replace informal tasks with structured plan tasks
+
+### 2026-03-13 15:59 - replace-thread
+Replace informal tasks with structured plan tasks
