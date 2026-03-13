@@ -46,9 +46,9 @@ IMPORTANT: Always run git commands from the project root directory. If you need 
 
 IMPORTANT: After writing or modifying code, always run the tests before presenting the work as complete. When writing scripts, run the scripts. Every written artifact should be exercised.
 
-## Present Options for Non-Trivial Fixes
+## Present Options for Non-Trivial Decisions
 
-IMPORTANT: When a test or build failure has multiple possible fixes involving different trade-offs (security, complexity, scope), present the options with trade-offs before implementing. Do not jump to the first working solution.
+IMPORTANT: When a task involves a design choice with multiple valid approaches that have different trade-offs (security, complexity, correctness, scope), present the options with trade-offs before implementing. This applies to new code, not just bug fixes. Do not jump to the first working solution.
 
 ## Pattern-Based Fixes
 
