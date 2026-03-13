@@ -478,16 +478,16 @@ Refactor scripts/container/ and scripts/vm/ to share common scripts under script
   - Steps:
     - [x] Diff each script pair (install-go.sh, install-linters.sh, install-pre-commit.sh, install-codescene.sh) between container and VM
     - [x] Document which are identical and which differ
-- [ ] **Task 13.2: Move identical scripts to scripts/isolation/**
+- [x] **Task 13.2: Move identical scripts to scripts/isolation/**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: Identical scripts live in scripts/isolation/. pid.yaml references scripts/isolation/ for shared scripts
   - Evidence: `go test ./... passes. scripts/isolation/ contains the shared scripts`
   - Steps:
-    - [ ] Create scripts/isolation/ directory
-    - [ ] Move identical scripts from scripts/container/ and scripts/vm/ to scripts/isolation/
-    - [ ] Update pid.yaml to reference scripts/isolation/ for shared scripts
-    - [ ] Run go test ./... and verify it passes
+    - [x] Create scripts/isolation/ directory
+    - [x] Move identical scripts from scripts/container/ and scripts/vm/ to scripts/isolation/
+    - [x] Update pid.yaml to reference scripts/isolation/ for shared scripts
+    - [x] Run go test ./... and verify it passes
 - [ ] **Task 13.3: Unify install-codescene.sh across environments**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
