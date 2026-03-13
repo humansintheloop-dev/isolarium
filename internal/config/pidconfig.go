@@ -15,7 +15,20 @@ type ScriptEntry struct {
 	Env  []string `yaml:"env"`
 }
 
+type CreateConfig struct {
+	IsolationScripts []ScriptEntry `yaml:"isolation_scripts"`
+	HostScripts      []ScriptEntry `yaml:"host_scripts"`
+}
+
+type RunConfig struct {
+	Env []string `yaml:"env"`
+}
+
 type IsolationTypeConfig struct {
+	Create CreateConfig `yaml:"create"`
+	Run    RunConfig    `yaml:"run"`
+
+	// Legacy flat fields for backward compatibility with old pid.yaml format
 	IsolationScripts []ScriptEntry `yaml:"isolation_scripts"`
 	HostScripts      []ScriptEntry `yaml:"host_scripts"`
 }
@@ -45,6 +58,7 @@ func LoadPidConfig(workDir string) (*PidConfig, error) {
 	}
 
 	cfg := &pf.Isolarium
+	normalizeLegacyFields(cfg)
 	if err := validateConfig(cfg, workDir); err != nil {
 		return nil, err
 	}
@@ -52,15 +66,29 @@ func LoadPidConfig(workDir string) (*PidConfig, error) {
 	return cfg, nil
 }
 
+func normalizeLegacyFields(cfg *PidConfig) {
+	normalizeType(&cfg.Container)
+	normalizeType(&cfg.VM)
+}
+
+func normalizeType(tc *IsolationTypeConfig) {
+	if len(tc.IsolationScripts) > 0 && len(tc.Create.IsolationScripts) == 0 {
+		tc.Create.IsolationScripts = tc.IsolationScripts
+	}
+	if len(tc.HostScripts) > 0 && len(tc.Create.HostScripts) == 0 {
+		tc.Create.HostScripts = tc.HostScripts
+	}
+}
+
 func validateConfig(cfg *PidConfig, workDir string) error {
 	sections := []struct {
 		name    string
 		scripts []ScriptEntry
 	}{
-		{"container.isolation_scripts", cfg.Container.IsolationScripts},
-		{"container.host_scripts", cfg.Container.HostScripts},
-		{"vm.isolation_scripts", cfg.VM.IsolationScripts},
-		{"vm.host_scripts", cfg.VM.HostScripts},
+		{"container.create.isolation_scripts", cfg.Container.Create.IsolationScripts},
+		{"container.create.host_scripts", cfg.Container.Create.HostScripts},
+		{"vm.create.isolation_scripts", cfg.VM.Create.IsolationScripts},
+		{"vm.create.host_scripts", cfg.VM.Create.HostScripts},
 	}
 
 	absWorkDir, err := filepath.Abs(workDir)

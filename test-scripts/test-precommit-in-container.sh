@@ -51,6 +51,21 @@ go build -o bin/isolarium ./cmd/isolarium
 echo "--- Creating container for isolarium repo ---"
 ./bin/isolarium create --type container --name "$CONTAINER_NAME" --work-directory "$PROJECT_ROOT"
 
+verifyCodeSceneCanAnalyzeCode() {
+    echo "--- Verifying CodeScene can analyze code inside container ---"
+    local output
+    output=$(./bin/isolarium --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
+        cs check cmd/isolarium/main.go 2>&1)
+    echo "$output"
+    if ! echo "$output" | grep -q 'Code health score'; then
+        echo "FAIL: Expected 'Code health score' in cs check output"
+        exit 1
+    fi
+    echo "CodeScene analysis verified"
+}
+
+verifyCodeSceneCanAnalyzeCode
+
 echo "--- Making a harmless file change inside container ---"
 ./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
     sh -c 'echo "// harmless test change" >> cmd/isolarium/main.go'

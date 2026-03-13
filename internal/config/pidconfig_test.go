@@ -7,23 +7,32 @@ import (
 	"testing"
 )
 
-func TestLoadPidConfigParsesValidYAML(t *testing.T) {
+func TestLoadPidConfigParsesLifecycleGroupedYAML(t *testing.T) {
 	dir := t.TempDir()
 	yaml := `isolarium:
   container:
-    isolation_scripts:
-      - path: scripts/container/install-go.sh
-      - path: scripts/container/install-codescene.sh
-        env:
-          - CS_ACCESS_TOKEN
-          - CS_ACE_ACCESS_TOKEN
-    host_scripts:
-      - path: scripts/setup-mcp.sh
-        env:
-          - CS_ACCESS_TOKEN
+    create:
+      isolation_scripts:
+        - path: scripts/container/install-go.sh
+        - path: scripts/container/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+            - CS_ACE_ACCESS_TOKEN
+      host_scripts:
+        - path: scripts/setup-mcp.sh
+          env:
+            - CS_ACCESS_TOKEN
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
   vm:
-    isolation_scripts:
-      - path: scripts/vm/install-go.sh
+    create:
+      isolation_scripts:
+        - path: scripts/vm/install-go.sh
+    run:
+      env:
+        - CS_ACCESS_TOKEN
 `
 	writeFile(t, dir, "pid.yaml", yaml)
 
@@ -35,18 +44,22 @@ func TestLoadPidConfigParsesValidYAML(t *testing.T) {
 		t.Fatal("expected non-nil config")
 	}
 
-	assertScriptCount(t, cfg.Container.IsolationScripts, 2, "container.isolation_scripts")
-	assertScriptPath(t, cfg.Container.IsolationScripts[0], "scripts/container/install-go.sh")
-	assertScriptPath(t, cfg.Container.IsolationScripts[1], "scripts/container/install-codescene.sh")
-	assertEnvVars(t, cfg.Container.IsolationScripts[1], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+	assertScriptCount(t, cfg.Container.Create.IsolationScripts, 2, "container.create.isolation_scripts")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[0], "scripts/container/install-go.sh")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[1], "scripts/container/install-codescene.sh")
+	assertEnvVars(t, cfg.Container.Create.IsolationScripts[1], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
 
-	assertScriptCount(t, cfg.Container.HostScripts, 1, "container.host_scripts")
-	assertScriptPath(t, cfg.Container.HostScripts[0], "scripts/setup-mcp.sh")
-	assertEnvVars(t, cfg.Container.HostScripts[0], []string{"CS_ACCESS_TOKEN"})
+	assertScriptCount(t, cfg.Container.Create.HostScripts, 1, "container.create.host_scripts")
+	assertScriptPath(t, cfg.Container.Create.HostScripts[0], "scripts/setup-mcp.sh")
+	assertEnvVars(t, cfg.Container.Create.HostScripts[0], []string{"CS_ACCESS_TOKEN"})
 
-	assertScriptCount(t, cfg.VM.IsolationScripts, 1, "vm.isolation_scripts")
-	assertScriptPath(t, cfg.VM.IsolationScripts[0], "scripts/vm/install-go.sh")
-	assertScriptCount(t, cfg.VM.HostScripts, 0, "vm.host_scripts")
+	assertRunEnv(t, cfg.Container.Run.Env, []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"}, "container.run.env")
+
+	assertScriptCount(t, cfg.VM.Create.IsolationScripts, 1, "vm.create.isolation_scripts")
+	assertScriptPath(t, cfg.VM.Create.IsolationScripts[0], "scripts/vm/install-go.sh")
+	assertScriptCount(t, cfg.VM.Create.HostScripts, 0, "vm.create.host_scripts")
+
+	assertRunEnv(t, cfg.VM.Run.Env, []string{"CS_ACCESS_TOKEN"}, "vm.run.env")
 }
 
 func TestLoadPidConfigReturnsNilWhenFileAbsent(t *testing.T) {
@@ -136,19 +149,19 @@ func TestLoadRepoPidYAML(t *testing.T) {
 		t.Fatal("expected repo pid.yaml to exist and parse")
 	}
 
-	assertScriptCount(t, cfg.Container.IsolationScripts, 4, "container.isolation_scripts")
-	assertScriptPath(t, cfg.Container.IsolationScripts[0], "scripts/container/install-go.sh")
-	assertScriptPath(t, cfg.Container.IsolationScripts[1], "scripts/container/install-linters.sh")
-	assertScriptPath(t, cfg.Container.IsolationScripts[2], "scripts/container/install-pre-commit.sh")
-	assertScriptPath(t, cfg.Container.IsolationScripts[3], "scripts/container/install-codescene.sh")
-	assertEnvVars(t, cfg.Container.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+	assertScriptCount(t, cfg.Container.Create.IsolationScripts, 4, "container.create.isolation_scripts")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[0], "scripts/container/install-go.sh")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[1], "scripts/container/install-linters.sh")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[2], "scripts/container/install-pre-commit.sh")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[3], "scripts/container/install-codescene.sh")
+	assertEnvVars(t, cfg.Container.Create.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
 
-	assertScriptCount(t, cfg.VM.IsolationScripts, 4, "vm.isolation_scripts")
-	assertScriptPath(t, cfg.VM.IsolationScripts[0], "scripts/vm/install-go.sh")
-	assertScriptPath(t, cfg.VM.IsolationScripts[1], "scripts/vm/install-linters.sh")
-	assertScriptPath(t, cfg.VM.IsolationScripts[2], "scripts/vm/install-pre-commit.sh")
-	assertScriptPath(t, cfg.VM.IsolationScripts[3], "scripts/vm/install-codescene.sh")
-	assertEnvVars(t, cfg.VM.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+	assertScriptCount(t, cfg.VM.Create.IsolationScripts, 4, "vm.create.isolation_scripts")
+	assertScriptPath(t, cfg.VM.Create.IsolationScripts[0], "scripts/vm/install-go.sh")
+	assertScriptPath(t, cfg.VM.Create.IsolationScripts[1], "scripts/vm/install-linters.sh")
+	assertScriptPath(t, cfg.VM.Create.IsolationScripts[2], "scripts/vm/install-pre-commit.sh")
+	assertScriptPath(t, cfg.VM.Create.IsolationScripts[3], "scripts/vm/install-codescene.sh")
+	assertEnvVars(t, cfg.VM.Create.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
 }
 
 func findRepoRoot(t *testing.T) string {
@@ -166,6 +179,51 @@ func findRepoRoot(t *testing.T) string {
 			t.Fatal("could not find repo root (no go.mod found)")
 		}
 		dir = parent
+	}
+}
+
+func TestLoadPidConfigBackwardCompatWithFlatStructure(t *testing.T) {
+	dir := t.TempDir()
+	yaml := `isolarium:
+  container:
+    isolation_scripts:
+      - path: scripts/container/install-go.sh
+    host_scripts:
+      - path: scripts/setup-mcp.sh
+  vm:
+    isolation_scripts:
+      - path: scripts/vm/install-go.sh
+`
+	writeFile(t, dir, "pid.yaml", yaml)
+
+	cfg, err := LoadPidConfig(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+
+	assertScriptCount(t, cfg.Container.Create.IsolationScripts, 1, "container.create.isolation_scripts")
+	assertScriptPath(t, cfg.Container.Create.IsolationScripts[0], "scripts/container/install-go.sh")
+
+	assertScriptCount(t, cfg.Container.Create.HostScripts, 1, "container.create.host_scripts")
+	assertScriptPath(t, cfg.Container.Create.HostScripts[0], "scripts/setup-mcp.sh")
+
+	assertScriptCount(t, cfg.VM.Create.IsolationScripts, 1, "vm.create.isolation_scripts")
+	assertScriptPath(t, cfg.VM.Create.IsolationScripts[0], "scripts/vm/install-go.sh")
+}
+
+func assertRunEnv(t *testing.T, actual, expected []string, label string) {
+	t.Helper()
+	if len(actual) != len(expected) {
+		t.Errorf("%s: expected %d env vars, got %d", label, len(expected), len(actual))
+		return
+	}
+	for i, v := range expected {
+		if actual[i] != v {
+			t.Errorf("%s: expected env[%d] = %q, got %q", label, i, v, actual[i])
+		}
 	}
 }
 
