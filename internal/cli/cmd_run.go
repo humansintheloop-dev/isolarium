@@ -6,9 +6,40 @@ import (
 	"path/filepath"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
+	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/lima"
 	"github.com/spf13/cobra"
 )
+
+var loadRunEnvVars = loadRunEnvVarsImpl
+
+func loadRunEnvVarsImpl(isolationType string) (map[string]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+	cfg, err := config.LoadPidConfig(cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pid.yaml: %w", err)
+	}
+	if cfg == nil {
+		return map[string]string{}, nil
+	}
+
+	var envNames []string
+	switch isolationType {
+	case "container":
+		envNames = cfg.Container.Run.Env
+	case "vm":
+		envNames = cfg.VM.Run.Env
+	}
+
+	result := make(map[string]string, len(envNames))
+	for _, name := range envNames {
+		result[name] = os.Getenv(name)
+	}
+	return result, nil
+}
 
 type runOptions struct {
 	name        string
@@ -162,15 +193,29 @@ func runInVMImpl(opts runOptions, cmd *cobra.Command) error {
 	return execInVM(opts.name, envVars, opts.args, opts.interactive)
 }
 
-func buildVMEnvVars(noGHToken bool) (map[string]string, error) {
-	envVars := map[string]string{}
+func buildRunEnvVars(isolationType string, baseVars map[string]string, noGHToken bool, fetch tokenFetcher, buildVars func(string) map[string]string) (map[string]string, error) {
+	pidEnvVars, err := loadRunEnvVars(isolationType)
+	if err != nil {
+		return nil, err
+	}
+	envVars := make(map[string]string, len(baseVars)+len(pidEnvVars))
+	for k, v := range baseVars {
+		envVars[k] = v
+	}
+	for k, v := range pidEnvVars {
+		envVars[k] = v
+	}
 	for k, v := range GetEnvVars() {
 		envVars[k] = v
 	}
-	if err := addTokenEnvVars(envVars, noGHToken, mintGitHubToken, vmTokenVars); err != nil {
+	if err := addTokenEnvVars(envVars, noGHToken, fetch, buildVars); err != nil {
 		return nil, err
 	}
 	return envVars, nil
+}
+
+func buildVMEnvVars(noGHToken bool) (map[string]string, error) {
+	return buildRunEnvVars("vm", nil, noGHToken, mintGitHubToken, vmTokenVars)
 }
 
 func execInVM(name string, envVars map[string]string, args []string, interactive bool) error {
@@ -196,6 +241,15 @@ func execInVM(name string, envVars map[string]string, args []string, interactive
 	return nil
 }
 
+func buildNonoEnvVars(noGHToken bool) (map[string]string, error) {
+	baseVars := map[string]string{
+		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
+		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
+		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
+	}
+	return buildRunEnvVars("nono", baseVars, noGHToken, mintGitHubToken, nonoTokenVars)
+}
+
 func runInNono(opts runOptions, resolver BackendResolver) error {
 	b, err := resolver("nono")
 	if err != nil {
@@ -206,19 +260,16 @@ func runInNono(opts runOptions, resolver BackendResolver) error {
 		nb.ExtraReadPaths = opts.readPaths
 	}
 
-	envVars := map[string]string{
-		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
-		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
-		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
-	}
-	for k, v := range GetEnvVars() {
-		envVars[k] = v
-	}
-	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, nonoTokenVars); err != nil {
+	envVars, err := buildNonoEnvVars(opts.noGHToken)
+	if err != nil {
 		return err
 	}
 
 	return execBackendCommand(b, opts, envVars)
+}
+
+func buildContainerEnvVars(noGHToken bool) (map[string]string, error) {
+	return buildRunEnvVars("container", nil, noGHToken, extractGitHubToken, containerTokenVars)
 }
 
 func runInContainer(opts runOptions, resolver BackendResolver, envType string) error {
@@ -237,11 +288,8 @@ func runInContainer(opts runOptions, resolver BackendResolver, envType string) e
 		}
 	}
 
-	envVars := map[string]string{}
-	for k, v := range GetEnvVars() {
-		envVars[k] = v
-	}
-	if err := addTokenEnvVars(envVars, opts.noGHToken, extractGitHubToken, containerTokenVars); err != nil {
+	envVars, err := buildContainerEnvVars(opts.noGHToken)
+	if err != nil {
 		return err
 	}
 

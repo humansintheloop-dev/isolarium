@@ -440,15 +440,15 @@ Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env 
     - [x] Update lima backend to read create.isolation_scripts
     - [x] Update any other PidConfig consumers
     - [x] Run go test ./... and verify it passes
-- [ ] **Task 12.4: Inject run.env vars automatically during isolarium run**
+- [x] **Task 12.4: Inject run.env vars automatically during isolarium run**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/...`
   - Observable: `isolarium run` reads run.env from pid.yaml and passes those environment variables into the execution environment for all isolation types (container, VM, nono)
   - Evidence: `go test ./internal/cli/... passes with tests verifying run.env injection`
   - Steps:
-    - [ ] Write tests verifying run.env vars are injected for container, VM, and nono
-    - [ ] Update runInContainer, runInVM, and runInNono to read run.env from PidConfig and inject vars
-    - [ ] Run go test ./internal/cli/... and verify it passes
+    - [x] Write tests verifying run.env vars are injected for container, VM, and nono
+    - [x] Update runInContainer, runInVM, and runInNono to read run.env from PidConfig and inject vars
+    - [x] Run go test ./internal/cli/... and verify it passes
 - [ ] **Task 12.5: Update pid.yaml to new lifecycle structure**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/config/...`
@@ -673,3 +673,6 @@ Added CreateConfig/RunConfig structs with lifecycle grouping, backward compat no
 
 ### 2026-03-13 16:37 - mark-task-complete
 Updated docker backend, lima backend, and vm_setup CLI to read from create.isolation_scripts and create.host_scripts instead of top-level fields
+
+### 2026-03-13 16:50 - mark-task-complete
+Added loadRunEnvVars function that reads run.env from pid.yaml and injects vars into all three run paths (container, VM, nono). 4 tests verify injection and --env flag override precedence.

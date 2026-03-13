@@ -464,6 +464,72 @@ func TestRunCommand_NonoPassesEnvFlagVarsToBackend(t *testing.T) {
 	}
 }
 
+func stubLoadRunEnvVars(t *testing.T, vars map[string]string) {
+	t.Helper()
+	orig := loadRunEnvVars
+	loadRunEnvVars = func(isolationType string) (map[string]string, error) {
+		return vars, nil
+	}
+	t.Cleanup(func() { loadRunEnvVars = orig })
+}
+
+func TestRunCommand_ContainerInjectsRunEnvVarsFromPidYaml(t *testing.T) {
+	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value", "OTHER_VAR": "other_value"})
+	spy := containerRunWithEnvFlags(t, nil, []string{"--", "env"})
+
+	if spy.execEnvVars["PID_VAR"] != "pid_value" {
+		t.Errorf("expected PID_VAR='pid_value', got '%s'", spy.execEnvVars["PID_VAR"])
+	}
+	if spy.execEnvVars["OTHER_VAR"] != "other_value" {
+		t.Errorf("expected OTHER_VAR='other_value', got '%s'", spy.execEnvVars["OTHER_VAR"])
+	}
+}
+
+func TestRunCommand_NonoInjectsRunEnvVarsFromPidYaml(t *testing.T) {
+	stubMintGitHubToken(t)
+	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value"})
+
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "printenv", "PID_VAR"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if spy.execEnvVars["PID_VAR"] != "pid_value" {
+		t.Errorf("expected PID_VAR='pid_value', got '%s'", spy.execEnvVars["PID_VAR"])
+	}
+}
+
+func TestRunCommand_VMInjectsRunEnvVarsFromPidYaml(t *testing.T) {
+	stubMintGitHubToken(t)
+	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value"})
+
+	origParsed := parsedEnvVars
+	parsedEnvVars = map[string]string{}
+	defer func() { parsedEnvVars = origParsed }()
+
+	envVars, err := buildVMEnvVars(false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if envVars["PID_VAR"] != "pid_value" {
+		t.Errorf("expected PID_VAR='pid_value', got '%s'", envVars["PID_VAR"])
+	}
+}
+
+func TestRunCommand_EnvFlagOverridesRunEnvFromPidYaml(t *testing.T) {
+	stubLoadRunEnvVars(t, map[string]string{"FOO": "from_pid"})
+	spy := containerRunWithEnvFlags(t, []string{"FOO=from_flag"}, []string{"--", "env"})
+
+	if spy.execEnvVars["FOO"] != "from_flag" {
+		t.Errorf("expected --env flag to override run.env: got '%s'", spy.execEnvVars["FOO"])
+	}
+}
+
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{}
