@@ -470,14 +470,14 @@ Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env 
 ## Steel Thread 13: Consolidate Duplicate Isolation Scripts
 Refactor scripts/container/ and scripts/vm/ to share common scripts under scripts/isolation/, keeping only environment-specific scripts separate.
 
-- [ ] **Task 13.1: Identify shared and environment-specific scripts**
+- [x] **Task 13.1: Identify shared and environment-specific scripts**
   - TaskType: INFRA
   - Entrypoint: `diff scripts/container/ scripts/vm/`
   - Observable: A list of which scripts are identical across container/VM and which have environment-specific differences
   - Evidence: `Diff output reviewed and documented`
   - Steps:
-    - [ ] Diff each script pair (install-go.sh, install-linters.sh, install-pre-commit.sh, install-codescene.sh) between container and VM
-    - [ ] Document which are identical and which differ
+    - [x] Diff each script pair (install-go.sh, install-linters.sh, install-pre-commit.sh, install-codescene.sh) between container and VM
+    - [x] Document which are identical and which differ
 - [ ] **Task 13.2: Move identical scripts to scripts/isolation/**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
@@ -691,3 +691,12 @@ Both test scripts pass without explicit --env flags
 
 ### 2026-03-13 17:16 - mark-task-complete
 Removed --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from both test scripts; run.env handles injection; both tests pass
+
+### 2026-03-13 17:26 - mark-step-complete
+Diffed all four script pairs between container/ and vm/
+
+### 2026-03-13 17:26 - mark-step-complete
+Documented findings in script-diff-analysis.md
+
+### 2026-03-13 17:26 - mark-task-complete
+Diffed all 4 script pairs and documented analysis in script-diff-analysis.md
