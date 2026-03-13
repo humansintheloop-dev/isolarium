@@ -54,7 +54,7 @@ echo "--- Creating container for isolarium repo ---"
 verifyCodeSceneCanAnalyzeCode() {
     echo "--- Verifying CodeScene can analyze code inside container ---"
     local output
-    output=$(./bin/isolarium --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
+    output=$(./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
         cs check cmd/isolarium/main.go 2>&1)
     echo "$output"
     if ! echo "$output" | grep -q 'Code health score'; then
@@ -71,7 +71,7 @@ echo "--- Making a harmless file change inside container ---"
     sh -c 'echo "// harmless test change" >> cmd/isolarium/main.go'
 
 echo "--- Running pre-commit run --all-files with codescene tokens ---"
-./bin/isolarium --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
+./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
     pre-commit run --all-files
 
 echo "--- Destroying container ---"

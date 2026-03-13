@@ -65,7 +65,7 @@ echo "--- Making a harmless file change inside VM ---"
     sh -c 'echo "// harmless test change" >> cmd/isolarium/main.go'
 
 echo "--- Running pre-commit run --all-files with codescene tokens ---"
-./bin/isolarium --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN run --type vm --name "$VM_NAME" --copy-session=false --no-gh-token -- \
+./bin/isolarium run --type vm --name "$VM_NAME" --copy-session=false --no-gh-token -- \
     pre-commit run --all-files
 
 echo "--- Destroying VM ---"

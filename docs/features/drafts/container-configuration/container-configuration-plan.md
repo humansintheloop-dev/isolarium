@@ -458,15 +458,15 @@ Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env 
     - [x] Rewrite pid.yaml with create.isolation_scripts, create.host_scripts, and run.env sections
     - [x] Add nono section with run.env only
     - [x] Run go test ./... and verify it passes
-- [ ] **Task 12.6: Remove manual --env flags from precommit test scripts**
+- [x] **Task 12.6: Remove manual --env flags from precommit test scripts**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
   - Observable: test-precommit-in-container.sh and test-precommit-in-vm.sh no longer pass explicit --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN; run.env handles it
   - Evidence: `Both test scripts pass without explicit --env flags for CodeScene tokens`
   - Steps:
-    - [ ] Remove --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-container.sh
-    - [ ] Remove --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-vm.sh
-    - [ ] Run both test scripts and verify they pass
+    - [x] Remove --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-container.sh
+    - [x] Remove --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-vm.sh
+    - [x] Run both test scripts and verify they pass
 ## Steel Thread 13: Consolidate Duplicate Isolation Scripts
 Refactor scripts/container/ and scripts/vm/ to share common scripts under scripts/isolation/, keeping only environment-specific scripts separate.
 
@@ -679,3 +679,15 @@ Added loadRunEnvVars function that reads run.env from pid.yaml and injects vars 
 
 ### 2026-03-13 17:04 - mark-task-complete
 Rewrote pid.yaml with create/run lifecycle grouping, added nono section with run.env, all tests pass
+
+### 2026-03-13 17:12 - mark-step-complete
+Removed --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from two locations in test-precommit-in-container.sh
+
+### 2026-03-13 17:12 - mark-step-complete
+Removed --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from test-precommit-in-vm.sh
+
+### 2026-03-13 17:16 - mark-step-complete
+Both test scripts pass without explicit --env flags
+
+### 2026-03-13 17:16 - mark-task-complete
+Removed --env CS_ACCESS_TOKEN --env CS_ACE_ACCESS_TOKEN from both test scripts; run.env handles injection; both tests pass
