@@ -1,5 +1,6 @@
 isolarium:
   container:
+    # Scripts that run inside the container/VM during isolarium create
     isolation_scripts:
       - path: scripts/container/install-go.sh
       - path: scripts/container/install-linters.sh
@@ -8,7 +9,10 @@ isolarium:
         env:
           - CS_ACCESS_TOKEN
           - CS_ACE_ACCESS_TOKEN
+    # Scripts that run on the host after isolarium create
+    host_scripts: []
   vm:
+    # Scripts that run inside the container/VM during isolarium create
     isolation_scripts:
       - path: scripts/vm/install-go.sh
       - path: scripts/vm/install-linters.sh
@@ -17,3 +21,5 @@ isolarium:
         env:
           - CS_ACCESS_TOKEN
           - CS_ACE_ACCESS_TOKEN
+    # Scripts that run on the host after isolarium create
+    host_scripts: []
