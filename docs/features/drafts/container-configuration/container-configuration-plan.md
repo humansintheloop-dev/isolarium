@@ -412,15 +412,15 @@ The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.
 ## Steel Thread 12: Restructure pid.yaml with Lifecycle Grouping and run.env
 Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env for runtime environment variables.
 
-- [ ] **Task 12.1: Verify CodeScene runs inside container**
+- [x] **Task 12.1: Verify CodeScene runs inside container**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
   - Observable: After container create, `cs check cmd/isolarium/main.go` produces a code health score
   - Evidence: `test-precommit-in-container.sh output includes 'Code health score'`
   - Steps:
-    - [ ] Add verifyCodeSceneCanAnalyzeCode function to test-precommit-in-container.sh that runs `cs check cmd/isolarium/main.go` and asserts output contains 'Code health score'
-    - [ ] Call verifyCodeSceneCanAnalyzeCode after container create, before pre-commit run
-    - [ ] Run test-precommit-in-container.sh and verify it passes
+    - [x] Add verifyCodeSceneCanAnalyzeCode function to test-precommit-in-container.sh that runs `cs check cmd/isolarium/main.go` and asserts output contains 'Code health score'
+    - [x] Call verifyCodeSceneCanAnalyzeCode after container create, before pre-commit run
+    - [x] Run test-precommit-in-container.sh and verify it passes
 - [ ] **Task 12.2: Update PidConfig to support lifecycle grouping**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/config/...`
