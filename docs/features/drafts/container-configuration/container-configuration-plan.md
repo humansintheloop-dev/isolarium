@@ -430,16 +430,16 @@ Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env 
     - [x] Write tests for new PidConfig struct with create.isolation_scripts, create.host_scripts, and run.env
     - [x] Update PidConfig struct and YAML parsing in internal/config/
     - [x] Run go test ./internal/config/... and verify it passes
-- [ ] **Task 12.3: Update PidConfig consumers to read from new paths**
+- [x] **Task 12.3: Update PidConfig consumers to read from new paths**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
   - Observable: All consumers of PidConfig (backend, docker, lima) read from create.isolation_scripts, create.host_scripts instead of top-level fields
   - Evidence: `go test ./... passes`
   - Steps:
-    - [ ] Update docker backend to read create.isolation_scripts and create.host_scripts
-    - [ ] Update lima backend to read create.isolation_scripts
-    - [ ] Update any other PidConfig consumers
-    - [ ] Run go test ./... and verify it passes
+    - [x] Update docker backend to read create.isolation_scripts and create.host_scripts
+    - [x] Update lima backend to read create.isolation_scripts
+    - [x] Update any other PidConfig consumers
+    - [x] Run go test ./... and verify it passes
 - [ ] **Task 12.4: Inject run.env vars automatically during isolarium run**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/...`
@@ -670,3 +670,6 @@ Replace informal tasks with structured plan tasks
 
 ### 2026-03-13 16:24 - mark-task-complete
 Added CreateConfig/RunConfig structs with lifecycle grouping, backward compat normalization, and 2 new tests
+
+### 2026-03-13 16:37 - mark-task-complete
+Updated docker backend, lima backend, and vm_setup CLI to read from create.isolation_scripts and create.host_scripts instead of top-level fields
