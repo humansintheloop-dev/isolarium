@@ -155,6 +155,7 @@ func TestLoadRepoPidYAML(t *testing.T) {
 	assertScriptPath(t, cfg.Container.Create.IsolationScripts[2], "scripts/container/install-pre-commit.sh")
 	assertScriptPath(t, cfg.Container.Create.IsolationScripts[3], "scripts/container/install-codescene.sh")
 	assertEnvVars(t, cfg.Container.Create.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+	assertRunEnv(t, cfg.Container.Run.Env, []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"}, "container.run.env")
 
 	assertScriptCount(t, cfg.VM.Create.IsolationScripts, 4, "vm.create.isolation_scripts")
 	assertScriptPath(t, cfg.VM.Create.IsolationScripts[0], "scripts/vm/install-go.sh")
@@ -162,6 +163,9 @@ func TestLoadRepoPidYAML(t *testing.T) {
 	assertScriptPath(t, cfg.VM.Create.IsolationScripts[2], "scripts/vm/install-pre-commit.sh")
 	assertScriptPath(t, cfg.VM.Create.IsolationScripts[3], "scripts/vm/install-codescene.sh")
 	assertEnvVars(t, cfg.VM.Create.IsolationScripts[3], []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"})
+	assertRunEnv(t, cfg.VM.Run.Env, []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"}, "vm.run.env")
+
+	assertRunEnv(t, cfg.Nono.Run.Env, []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"}, "nono.run.env")
 }
 
 func findRepoRoot(t *testing.T) string {

@@ -1,25 +1,36 @@
 isolarium:
   container:
-    # Scripts that run inside the container/VM during isolarium create
-    isolation_scripts:
-      - path: scripts/container/install-go.sh
-      - path: scripts/container/install-linters.sh
-      - path: scripts/container/install-pre-commit.sh
-      - path: scripts/container/install-codescene.sh
-        env:
-          - CS_ACCESS_TOKEN
-          - CS_ACE_ACCESS_TOKEN
-    # Scripts that run on the host after isolarium create
-    host_scripts: []
+    create:
+      isolation_scripts:
+        - path: scripts/container/install-go.sh
+        - path: scripts/container/install-linters.sh
+        - path: scripts/container/install-pre-commit.sh
+        - path: scripts/container/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+            - CS_ACE_ACCESS_TOKEN
+      host_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
   vm:
-    # Scripts that run inside the container/VM during isolarium create
-    isolation_scripts:
-      - path: scripts/vm/install-go.sh
-      - path: scripts/vm/install-linters.sh
-      - path: scripts/vm/install-pre-commit.sh
-      - path: scripts/vm/install-codescene.sh
-        env:
-          - CS_ACCESS_TOKEN
-          - CS_ACE_ACCESS_TOKEN
-    # Scripts that run on the host after isolarium create
-    host_scripts: []
+    create:
+      isolation_scripts:
+        - path: scripts/vm/install-go.sh
+        - path: scripts/vm/install-linters.sh
+        - path: scripts/vm/install-pre-commit.sh
+        - path: scripts/vm/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+            - CS_ACE_ACCESS_TOKEN
+      host_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
+  nono:
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
