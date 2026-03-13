@@ -412,24 +412,24 @@ The `--env` flag is a persistent flag accepted by all subcommands, but `cmd_run.
 ## Steel Thread 12: Restructure pid.yaml with Lifecycle Grouping and run.env
 Reorganize pid.yaml to group by lifecycle phase (create vs run) and add run.env for runtime environment variables.
 
-- [ ] **Task 12.1: Verify CodeScene runs inside container**
+- [x] **Task 12.1: Verify CodeScene runs inside container**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-precommit-in-container.sh`
   - Observable: After container create, `cs check cmd/isolarium/main.go` produces a code health score
   - Evidence: `test-precommit-in-container.sh output includes 'Code health score'`
   - Steps:
-    - [ ] Add verifyCodeSceneCanAnalyzeCode function to test-precommit-in-container.sh that runs `cs check cmd/isolarium/main.go` and asserts output contains 'Code health score'
-    - [ ] Call verifyCodeSceneCanAnalyzeCode after container create, before pre-commit run
-    - [ ] Run test-precommit-in-container.sh and verify it passes
-- [ ] **Task 12.2: Update PidConfig to support lifecycle grouping**
+    - [x] Add verifyCodeSceneCanAnalyzeCode function to test-precommit-in-container.sh that runs `cs check cmd/isolarium/main.go` and asserts output contains 'Code health score'
+    - [x] Call verifyCodeSceneCanAnalyzeCode after container create, before pre-commit run
+    - [x] Run test-precommit-in-container.sh and verify it passes
+- [x] **Task 12.2: Update PidConfig to support lifecycle grouping**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/config/...`
   - Observable: PidConfig struct supports nested `create.isolation_scripts`, `create.host_scripts`, and `run.env`
   - Evidence: `go test ./internal/config/... passes with tests for new structure`
   - Steps:
-    - [ ] Write tests for new PidConfig struct with create.isolation_scripts, create.host_scripts, and run.env
-    - [ ] Update PidConfig struct and YAML parsing in internal/config/
-    - [ ] Run go test ./internal/config/... and verify it passes
+    - [x] Write tests for new PidConfig struct with create.isolation_scripts, create.host_scripts, and run.env
+    - [x] Update PidConfig struct and YAML parsing in internal/config/
+    - [x] Run go test ./internal/config/... and verify it passes
 - [ ] **Task 12.3: Update PidConfig consumers to read from new paths**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./...`
@@ -667,3 +667,6 @@ Replace informal tasks with structured plan tasks
 
 ### 2026-03-13 15:59 - replace-thread
 Replace informal tasks with structured plan tasks
+
+### 2026-03-13 16:24 - mark-task-complete
+Added CreateConfig/RunConfig structs with lifecycle grouping, backward compat normalization, and 2 new tests
