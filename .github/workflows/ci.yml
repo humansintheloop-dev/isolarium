@@ -67,6 +67,9 @@ jobs:
           go-version: '1.22'
 
       - name: Run Docker integration tests
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+          CS_ACE_ACCESS_TOKEN: ${{ secrets.CS_ACE_ACCESS_TOKEN }}
         run: ./test-scripts/test-docker-integration.sh
 
   e2e-gradlew:
@@ -97,7 +100,7 @@ jobs:
         run: mkdir -p ~/.gradle
 
       - name: Run gradlew e2e test
-        run: ./test-scripts/test-end-to-end-with-gradlew.sh --force
+        run: ./test-scripts/test-end-to-end-with-gradlew.sh --force nono container
 
   e2e-pytest:
     needs: lint
@@ -119,4 +122,4 @@ jobs:
           sudo mv nono /usr/local/bin/
 
       - name: Run pytest e2e test
-        run: ./test-scripts/test-end-to-end-with-pytest.sh --force
+        run: ./test-scripts/test-end-to-end-with-pytest.sh --force nono container

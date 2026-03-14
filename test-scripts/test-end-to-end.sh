@@ -28,6 +28,9 @@ if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
 fi
 
 echo ""
+"$SCRIPT_DIR/test-precommit-in-vm.sh"
+
+echo ""
 "$SCRIPT_DIR/test-lima-integration.sh"
 
 echo ""

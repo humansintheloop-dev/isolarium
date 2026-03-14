@@ -11,6 +11,7 @@ type Creator struct {
 	MetadataDir string
 	ImageTag    string
 	Worktree    *WorktreeConfig
+	BuildArgs   map[string]string
 }
 
 func (c *Creator) Create(name, workDir, contextDir string) error {
@@ -40,9 +41,12 @@ func (c *Creator) checkDockerAvailable() error {
 }
 
 func (c *Creator) buildImage(contextDir string) error {
-	args := BuildImageCommand(c.ImageTag, contextDir, c.Worktree)
-	_, err := c.Runner.Run(args[0], args[1:]...)
-	return err
+	args := BuildImageCommand(c.ImageTag, contextDir, c.Worktree, c.BuildArgs)
+	output, err := c.Runner.Run(args[0], args[1:]...)
+	if err != nil {
+		return fmt.Errorf("%w\n%s", err, string(output))
+	}
+	return nil
 }
 
 func (c *Creator) startContainer(name, workDir string) error {

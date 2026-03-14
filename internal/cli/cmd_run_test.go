@@ -6,11 +6,13 @@ import (
 	"testing"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
+	"github.com/spf13/cobra"
 )
 
 func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
 	spy := &backendSpy{}
 	resolverCalledWithType := ""
+	vmPathReached := false
 	rootCmd := newRootCmdWithResolvers(
 		func(envType string) (backend.Backend, error) {
 			resolverCalledWithType = envType
@@ -27,15 +29,22 @@ func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
 	}
 	defer func() { execCommandOutput = origExec }()
 
+	origRunInVM := runInVM
+	runInVM = func(opts runOptions, cmd *cobra.Command) error {
+		vmPathReached = true
+		return nil
+	}
+	defer func() { runInVM = origRunInVM }()
+
 	rootCmd.SetArgs([]string{"run", "--name", "my-env", "--copy-session=false", "--", "echo", "hello"})
 	err := rootCmd.Execute()
 
-	// The command will fail because there's no actual VM, but it should NOT fail
-	// with "no environment found" — it should fall back to "vm" type.
-	// Since we're using a spy backend, the VM path will call runInVM which
-	// needs limactl. The key verification is that the resolver was NOT called
-	// with "container" — it should default to "vm".
-	_ = err
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !vmPathReached {
+		t.Error("expected VM path to be reached after fallback")
+	}
 	if resolverCalledWithType == "container" {
 		t.Error("expected fallback to 'vm' type, but resolver was called with 'container'")
 	}
@@ -367,6 +376,157 @@ func TestRunCommand_NonoReadFlagSetsExtraReadPaths(t *testing.T) {
 
 	if len(calledExtraReadPaths) != 2 || calledExtraReadPaths[0] != "/path/one" || calledExtraReadPaths[1] != "/path/two" {
 		t.Errorf("expected extraReadPaths [/path/one /path/two], got %v", calledExtraReadPaths)
+	}
+}
+
+func containerRunWithEnvFlags(t *testing.T, envFlags []string, runArgs []string) *backendSpy {
+	t.Helper()
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+
+	origFn := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	}
+	defer func() { execCommandOutput = origFn }()
+
+	args := []string{}
+	for _, ef := range envFlags {
+		args = append(args, "--env", ef)
+	}
+	args = append(args, "run", "--type", "container", "--copy-session=false")
+	args = append(args, runArgs...)
+	rootCmd.SetArgs(args)
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return spy
+}
+
+func TestRunCommand_ContainerPassesEnvFlagVarsToBackendExec(t *testing.T) {
+	spy := containerRunWithEnvFlags(t, []string{"FOO=bar", "BAZ=qux"}, []string{"--", "env"})
+
+	if spy.execEnvVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", spy.execEnvVars["FOO"])
+	}
+	if spy.execEnvVars["BAZ"] != "qux" {
+		t.Errorf("expected BAZ='qux', got '%s'", spy.execEnvVars["BAZ"])
+	}
+}
+
+func TestRunCommand_ContainerPassesEnvFlagVarsToBackendExecInteractive(t *testing.T) {
+	spy := containerRunWithEnvFlags(t, []string{"MY_VAR=hello"}, []string{"-i", "--", "bash"})
+
+	if spy.execInteractiveEnvVars["MY_VAR"] != "hello" {
+		t.Errorf("expected MY_VAR='hello', got '%s'", spy.execInteractiveEnvVars["MY_VAR"])
+	}
+}
+
+func TestRunCommand_VMPassesEnvFlagVarsToBackend(t *testing.T) {
+	stubMintGitHubToken(t)
+
+	origParsed := parsedEnvVars
+	parsedEnvVars = map[string]string{"FOO": "bar", "BAZ": "qux"}
+	defer func() { parsedEnvVars = origParsed }()
+
+	envVars, err := buildVMEnvVars(false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if envVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", envVars["FOO"])
+	}
+	if envVars["BAZ"] != "qux" {
+		t.Errorf("expected BAZ='qux', got '%s'", envVars["BAZ"])
+	}
+}
+
+func TestRunCommand_NonoPassesEnvFlagVarsToBackend(t *testing.T) {
+	stubMintGitHubToken(t)
+
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"--env", "FOO=bar", "--env", "BAZ=qux", "run", "--type", "nono", "--", "printenv", "FOO"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if spy.execEnvVars["FOO"] != "bar" {
+		t.Errorf("expected FOO='bar', got '%s'", spy.execEnvVars["FOO"])
+	}
+	if spy.execEnvVars["BAZ"] != "qux" {
+		t.Errorf("expected BAZ='qux', got '%s'", spy.execEnvVars["BAZ"])
+	}
+}
+
+func stubLoadRunEnvVars(t *testing.T, vars map[string]string) {
+	t.Helper()
+	orig := loadRunEnvVars
+	loadRunEnvVars = func(isolationType string) (map[string]string, error) {
+		return vars, nil
+	}
+	t.Cleanup(func() { loadRunEnvVars = orig })
+}
+
+func TestRunCommand_ContainerInjectsRunEnvVarsFromPidYaml(t *testing.T) {
+	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value", "OTHER_VAR": "other_value"})
+	spy := containerRunWithEnvFlags(t, nil, []string{"--", "env"})
+
+	if spy.execEnvVars["PID_VAR"] != "pid_value" {
+		t.Errorf("expected PID_VAR='pid_value', got '%s'", spy.execEnvVars["PID_VAR"])
+	}
+	if spy.execEnvVars["OTHER_VAR"] != "other_value" {
+		t.Errorf("expected OTHER_VAR='other_value', got '%s'", spy.execEnvVars["OTHER_VAR"])
+	}
+}
+
+func TestRunCommand_NonoInjectsRunEnvVarsFromPidYaml(t *testing.T) {
+	stubMintGitHubToken(t)
+	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value"})
+
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "printenv", "PID_VAR"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if spy.execEnvVars["PID_VAR"] != "pid_value" {
+		t.Errorf("expected PID_VAR='pid_value', got '%s'", spy.execEnvVars["PID_VAR"])
+	}
+}
+
+func TestRunCommand_VMInjectsRunEnvVarsFromPidYaml(t *testing.T) {
+	stubMintGitHubToken(t)
+	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value"})
+
+	origParsed := parsedEnvVars
+	parsedEnvVars = map[string]string{}
+	defer func() { parsedEnvVars = origParsed }()
+
+	envVars, err := buildVMEnvVars(false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if envVars["PID_VAR"] != "pid_value" {
+		t.Errorf("expected PID_VAR='pid_value', got '%s'", envVars["PID_VAR"])
+	}
+}
+
+func TestRunCommand_EnvFlagOverridesRunEnvFromPidYaml(t *testing.T) {
+	stubLoadRunEnvVars(t, map[string]string{"FOO": "from_pid"})
+	spy := containerRunWithEnvFlags(t, []string{"FOO=from_flag"}, []string{"--", "env"})
+
+	if spy.execEnvVars["FOO"] != "from_flag" {
+		t.Errorf("expected --env flag to override run.env: got '%s'", spy.execEnvVars["FOO"])
 	}
 }
 

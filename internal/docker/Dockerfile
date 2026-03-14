@@ -31,8 +31,10 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user (stable) - remove ubuntu user that claims UID 1000 in Ubuntu 24.04
+# HOST_UID ensures container user matches host UID for bind mount write access
+ARG HOST_UID=1000
 RUN userdel -r ubuntu 2>/dev/null || true \
-    && useradd -m -s /bin/bash -u 1000 isolarium \
+    && useradd -m -s /bin/bash -u $HOST_UID isolarium \
     && echo "isolarium ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/isolarium
 
 # Git worktree support: create symlinks from host paths to container mount points
@@ -56,6 +58,9 @@ RUN if [ -n "$WORKTREE_HOST_PATH" ] && [ -n "$MAIN_REPO_HOST_PATH" ]; then \
 
 # Switch to non-root user for remaining installs
 USER isolarium
+ENV PATH="/home/isolarium/.local/bin:/usr/local/go/bin:/home/isolarium/go/bin:/home/isolarium/.sdkman/candidates/java/current/bin:/home/isolarium/.sdkman/candidates/gradle/current/bin:${PATH}"
+ENV JAVA_HOME="/home/isolarium/.sdkman/candidates/java/current"
+ENV SDKMAN_DIR="/home/isolarium/.sdkman"
 WORKDIR /home/isolarium
 
 # Claude Code via npm (user-level tool)

@@ -1,0 +1,4 @@
+isolarium:
+  container:
+    host_scripts:
+      - path: scripts/create-host-marker.sh

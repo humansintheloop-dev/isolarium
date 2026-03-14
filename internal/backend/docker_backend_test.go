@@ -2,6 +2,7 @@ package backend
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -9,13 +10,17 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
+func hostUIDBuildArg() string {
+	return fmt.Sprintf("HOST_UID=%d", os.Getuid())
+}
+
 func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 	metadataDir := t.TempDir()
 	contextDir := t.TempDir()
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
-	runner.OnCommand("docker", "build", "-t", "isolarium:latest", contextDir).Returns("")
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), contextDir).Returns("")
 	runner.OnCommand("docker", "run", "-d",
 		"--name", "my-env",
 		"--cap-drop=ALL",
@@ -46,6 +51,7 @@ func TestDockerBackendCreateDetectsWorktreeAndPassesConfig(t *testing.T) {
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUIDBuildArg(),
 		"--build-arg", "WORKTREE_HOST_PATH=/home/user/worktree",
 		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/main-repo",
 		contextDir,
@@ -265,6 +271,111 @@ func TestDockerBackendExecInteractiveReturnsErrorWhenContainerStopped(t *testing
 	expectedMessage := "container 'my-container' is stopped, run 'isolarium create --type container' to recreate it"
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
+	}
+}
+
+func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T) {
+	metadataDir := t.TempDir()
+	workDir := t.TempDir()
+	contextDir := t.TempDir()
+
+	scriptsDir := workDir + "/scripts"
+	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(scriptsDir+"/install.sh", []byte("#!/bin/bash\necho hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pidYaml := `isolarium:
+  container:
+    isolation_scripts:
+      - path: scripts/install.sh
+        env:
+          - MY_TOKEN
+`
+	if err := os.WriteFile(workDir+"/pid.yaml", []byte(pidYaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	baseDockerfile := "FROM ubuntu:24.04\nUSER isolarium\nCMD [\"sleep\", \"infinity\"]\n"
+	if err := os.WriteFile(contextDir+"/Dockerfile", []byte(baseDockerfile), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("MY_TOKEN", "secret-value")
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "info").Returns("")
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
+		"--build-arg", hostUIDBuildArg(),
+		"--build-arg", "MY_TOKEN=secret-value",
+		contextDir,
+	).Returns("")
+	runner.OnCommand("docker", "run", "-d",
+		"--name", "my-env",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"-v", workDir+":/home/isolarium/repo",
+		"isolarium:latest",
+	).Returns("container-id\n")
+
+	b := &DockerBackend{
+		Runner:         runner,
+		MetadataDir:    metadataDir,
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+	}
+
+	err := b.Create("my-env", CreateOptions{WorkDirectory: workDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	runner.VerifyExecuted()
+}
+
+func TestDockerBackendCreateFailsWhenDeclaredEnvVarMissing(t *testing.T) {
+	workDir := t.TempDir()
+	contextDir := t.TempDir()
+
+	scriptsDir := workDir + "/scripts"
+	if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(scriptsDir+"/install.sh", []byte("#!/bin/bash"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	pidYaml := `isolarium:
+  container:
+    isolation_scripts:
+      - path: scripts/install.sh
+        env:
+          - MISSING_VAR_XYZ
+`
+	if err := os.WriteFile(workDir+"/pid.yaml", []byte(pidYaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	baseDockerfile := "FROM ubuntu:24.04\nCMD [\"sleep\", \"infinity\"]\n"
+	if err := os.WriteFile(contextDir+"/Dockerfile", []byte(baseDockerfile), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	b := &DockerBackend{
+		Runner:         command.NewFakeRunner(t),
+		MetadataDir:    t.TempDir(),
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+	}
+
+	err := b.Create("my-env", CreateOptions{WorkDirectory: workDir})
+	if err == nil {
+		t.Fatal("expected error for missing env var")
+	}
+	if !strings.Contains(err.Error(), "MISSING_VAR_XYZ") {
+		t.Errorf("expected error to mention MISSING_VAR_XYZ, got: %v", err)
 	}
 }
 

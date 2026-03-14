@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 //go:embed Dockerfile
@@ -20,11 +21,15 @@ type WorktreeConfig struct {
 	MainRepoDir      string
 }
 
-func BuildImageCommand(tag string, contextDir string, wt *WorktreeConfig) []string {
+func BuildImageCommand(tag string, contextDir string, wt *WorktreeConfig, buildArgs map[string]string) []string {
 	args := []string{"docker", "build", "-t", tag}
+	args = append(args, "--build-arg", "HOST_UID="+strconv.Itoa(os.Getuid()))
 	if wt != nil {
 		args = append(args, "--build-arg", "WORKTREE_HOST_PATH="+wt.WorktreeHostPath)
 		args = append(args, "--build-arg", "MAIN_REPO_HOST_PATH="+wt.MainRepoHostPath)
+	}
+	for k, v := range buildArgs {
+		args = append(args, "--build-arg", k+"="+v)
 	}
 	args = append(args, contextDir)
 	return args

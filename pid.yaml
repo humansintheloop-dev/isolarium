@@ -1,0 +1,36 @@
+isolarium:
+  container:
+    create:
+      isolation_scripts:
+        - path: scripts/isolation/install-go.sh
+        - path: scripts/isolation/install-linters.sh
+        - path: scripts/isolation/install-pre-commit.sh
+        - path: scripts/isolation/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+            - CS_ACE_ACCESS_TOKEN
+      host_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
+  vm:
+    create:
+      isolation_scripts:
+        - path: scripts/isolation/install-go.sh
+        - path: scripts/isolation/install-linters.sh
+        - path: scripts/isolation/install-pre-commit.sh
+        - path: scripts/isolation/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+            - CS_ACE_ACCESS_TOKEN
+      host_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
+  nono:
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN

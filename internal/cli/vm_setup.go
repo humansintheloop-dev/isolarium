@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 	"github.com/humansintheloop-dev/isolarium/internal/github"
 	"github.com/humansintheloop-dev/isolarium/internal/lima"
@@ -28,41 +29,18 @@ func createAndSetupVM(name string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	remoteURL, err := git.GetRemoteURL(cwd)
+	repoInfo, err := resolveRepoInfo(cwd)
 	if err != nil {
-		return fmt.Errorf("not a git repository (or no remote configured): %w", err)
+		return err
 	}
-
-	branch, err := git.GetCurrentBranch(cwd)
-	if err != nil {
-		return fmt.Errorf("failed to get current branch: %w", err)
-	}
-
-	fmt.Printf("Repository: %s\n", remoteURL)
-	fmt.Printf("Branch: %s\n", branch)
 
 	fmt.Println("Creating Lima VM...")
 	if err := lima.CreateVM(name); err != nil {
 		return fmt.Errorf("failed to create VM: %w", err)
 	}
 
-	owner, repo, err := github.ParseRepoURL(remoteURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse repository URL: %w", err)
-	}
-
-	token, err := mintGitHubToken()
-	if err != nil {
+	if err := cloneRepoIntoVM(name, cwd, repoInfo); err != nil {
 		return err
-	}
-
-	fmt.Println("Cloning repository...")
-	if err := lima.CloneRepo(name, cwd, remoteURL, branch, token); err != nil {
-		return fmt.Errorf("failed to clone repository: %w", err)
-	}
-
-	if err := lima.WriteRepoMetadata(name, owner, repo, branch); err != nil {
-		return fmt.Errorf("failed to write metadata: %w", err)
 	}
 
 	fmt.Println("Installing Java and Gradle via SDKMAN...")
@@ -74,8 +52,76 @@ func createAndSetupVM(name string) error {
 		return err
 	}
 
+	if err := runVMIsolationScriptsFromPidYaml(name, cwd); err != nil {
+		return err
+	}
+
 	fmt.Println("VM created successfully")
 	return nil
+}
+
+type repoInfo struct {
+	remoteURL string
+	branch    string
+	owner     string
+	repo      string
+}
+
+func resolveRepoInfo(cwd string) (*repoInfo, error) {
+	remoteURL, err := git.GetRemoteURL(cwd)
+	if err != nil {
+		return nil, fmt.Errorf("not a git repository (or no remote configured): %w", err)
+	}
+
+	branch, err := git.GetCurrentBranch(cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current branch: %w", err)
+	}
+
+	owner, repo, err := github.ParseRepoURL(remoteURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse repository URL: %w", err)
+	}
+
+	fmt.Printf("Repository: %s\n", remoteURL)
+	fmt.Printf("Branch: %s\n", branch)
+
+	return &repoInfo{remoteURL: remoteURL, branch: branch, owner: owner, repo: repo}, nil
+}
+
+func cloneRepoIntoVM(name, cwd string, info *repoInfo) error {
+	token, err := mintGitHubToken()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Cloning repository...")
+	if err := lima.CloneRepo(name, cwd, info.remoteURL, info.branch, token); err != nil {
+		return fmt.Errorf("failed to clone repository: %w", err)
+	}
+
+	return lima.WriteRepoMetadata(name, info.owner, info.repo, info.branch)
+}
+
+func runVMIsolationScriptsFromPidYaml(name, workDir string) error {
+	cfg, err := config.LoadPidConfig(workDir)
+	if err != nil {
+		return fmt.Errorf("loading pid.yaml: %w", err)
+	}
+	if cfg == nil || len(cfg.VM.Create.IsolationScripts) == 0 {
+		return nil
+	}
+
+	homeDir, err := lima.GetVMHomeDir(name)
+	if err != nil {
+		return fmt.Errorf("getting VM home directory: %w", err)
+	}
+
+	fmt.Println("Running VM isolation scripts...")
+	executor := func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
+		return lima.ExecCommand(vm, workdir, envVars, args)
+	}
+	return lima.RunVMIsolationScripts(cfg.VM.Create.IsolationScripts, name, homeDir+"/repo", executor)
 }
 
 func installWorkflowTools(name string) error {

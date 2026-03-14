@@ -13,3 +13,15 @@ if docker info &> /dev/null; then
 else
     echo "SKIP: Docker not available, skipping Docker integration tests"
 fi
+
+echo ""
+"$SCRIPT_DIR/test-container-isolation-scripts.sh"
+
+echo ""
+"$SCRIPT_DIR/test-env-flag.sh"
+
+echo ""
+"$SCRIPT_DIR/test-host-scripts.sh"
+
+echo ""
+"$SCRIPT_DIR/test-precommit-in-container.sh"

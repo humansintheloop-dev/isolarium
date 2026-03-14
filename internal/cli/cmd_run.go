@@ -6,9 +6,42 @@ import (
 	"path/filepath"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
+	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/lima"
 	"github.com/spf13/cobra"
 )
+
+var loadRunEnvVars = loadRunEnvVarsImpl
+
+func loadRunEnvVarsImpl(isolationType string) (map[string]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+	cfg, err := config.LoadPidConfig(cwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pid.yaml: %w", err)
+	}
+	if cfg == nil {
+		return map[string]string{}, nil
+	}
+
+	var envNames []string
+	switch isolationType {
+	case "container":
+		envNames = cfg.Container.Run.Env
+	case "vm":
+		envNames = cfg.VM.Run.Env
+	case "nono":
+		envNames = cfg.Nono.Run.Env
+	}
+
+	result := make(map[string]string, len(envNames))
+	for _, name := range envNames {
+		result[name] = os.Getenv(name)
+	}
+	return result, nil
+}
 
 type runOptions struct {
 	name        string
@@ -146,28 +179,60 @@ func prepareVMSession(opts runOptions, cmd *cobra.Command) error {
 	return nil
 }
 
-func runInVM(opts runOptions, cmd *cobra.Command) error {
+// test seam: tests swap this in cmd_run_test.go to stub VM execution
+var runInVM = runInVMImpl
+
+func runInVMImpl(opts runOptions, cmd *cobra.Command) error {
 	if err := prepareVMSession(opts, cmd); err != nil {
 		return err
 	}
 
-	envVars := map[string]string{}
-	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, vmTokenVars); err != nil {
+	envVars, err := buildVMEnvVars(opts.noGHToken)
+	if err != nil {
 		return err
 	}
 
-	homeDir, homeErr := lima.GetVMHomeDir(opts.name)
-	if homeErr != nil {
-		return fmt.Errorf("failed to get VM home directory: %w", homeErr)
+	return execInVM(opts.name, envVars, opts.args, opts.interactive)
+}
+
+func buildRunEnvVars(isolationType string, baseVars map[string]string, noGHToken bool, fetch tokenFetcher, buildVars func(string) map[string]string) (map[string]string, error) {
+	pidEnvVars, err := loadRunEnvVars(isolationType)
+	if err != nil {
+		return nil, err
+	}
+	envVars := make(map[string]string, len(baseVars)+len(pidEnvVars))
+	for k, v := range baseVars {
+		envVars[k] = v
+	}
+	for k, v := range pidEnvVars {
+		envVars[k] = v
+	}
+	for k, v := range GetEnvVars() {
+		envVars[k] = v
+	}
+	if err := addTokenEnvVars(envVars, noGHToken, fetch, buildVars); err != nil {
+		return nil, err
+	}
+	return envVars, nil
+}
+
+func buildVMEnvVars(noGHToken bool) (map[string]string, error) {
+	return buildRunEnvVars("vm", nil, noGHToken, mintGitHubToken, vmTokenVars)
+}
+
+func execInVM(name string, envVars map[string]string, args []string, interactive bool) error {
+	homeDir, err := lima.GetVMHomeDir(name)
+	if err != nil {
+		return fmt.Errorf("failed to get VM home directory: %w", err)
 	}
 	workdir := homeDir + "/repo"
 
 	var exitCode int
 	var execErr error
-	if opts.interactive {
-		exitCode, execErr = lima.ExecInteractiveCommand(opts.name, workdir, envVars, opts.args)
+	if interactive {
+		exitCode, execErr = lima.ExecInteractiveCommand(name, workdir, envVars, args)
 	} else {
-		exitCode, execErr = lima.ExecCommand(opts.name, workdir, envVars, opts.args)
+		exitCode, execErr = lima.ExecCommand(name, workdir, envVars, args)
 	}
 	if execErr != nil {
 		return fmt.Errorf("failed to execute command: %w", execErr)
@@ -175,8 +240,16 @@ func runInVM(opts runOptions, cmd *cobra.Command) error {
 	if exitCode != 0 {
 		os.Exit(exitCode)
 	}
-
 	return nil
+}
+
+func buildNonoEnvVars(noGHToken bool) (map[string]string, error) {
+	baseVars := map[string]string{
+		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
+		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
+		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
+	}
+	return buildRunEnvVars("nono", baseVars, noGHToken, mintGitHubToken, nonoTokenVars)
 }
 
 func runInNono(opts runOptions, resolver BackendResolver) error {
@@ -189,16 +262,16 @@ func runInNono(opts runOptions, resolver BackendResolver) error {
 		nb.ExtraReadPaths = opts.readPaths
 	}
 
-	envVars := map[string]string{
-		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
-		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
-		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
-	}
-	if err := addTokenEnvVars(envVars, opts.noGHToken, mintGitHubToken, nonoTokenVars); err != nil {
+	envVars, err := buildNonoEnvVars(opts.noGHToken)
+	if err != nil {
 		return err
 	}
 
 	return execBackendCommand(b, opts, envVars)
+}
+
+func buildContainerEnvVars(noGHToken bool) (map[string]string, error) {
+	return buildRunEnvVars("container", nil, noGHToken, extractGitHubToken, containerTokenVars)
 }
 
 func runInContainer(opts runOptions, resolver BackendResolver, envType string) error {
@@ -217,8 +290,8 @@ func runInContainer(opts runOptions, resolver BackendResolver, envType string) e
 		}
 	}
 
-	envVars := map[string]string{}
-	if err := addTokenEnvVars(envVars, opts.noGHToken, extractGitHubToken, containerTokenVars); err != nil {
+	envVars, err := buildContainerEnvVars(opts.noGHToken)
+	if err != nil {
 		return err
 	}
 

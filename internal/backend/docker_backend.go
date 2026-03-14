@@ -5,8 +5,10 @@ import (
 	"os"
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/docker"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/hostscript"
 )
 
 // ExecFunc is the function signature for executing commands in a container.
@@ -38,27 +40,71 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 	}
 	defer func() { _ = os.RemoveAll(contextDir) }()
 
+	creator, err := b.newCreator(opts)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := config.LoadPidConfig(opts.WorkDirectory)
+	if err != nil {
+		return fmt.Errorf("loading pid.yaml: %w", err)
+	}
+
+	if err := b.applyIsolationScripts(cfg, opts.WorkDirectory, contextDir, creator); err != nil {
+		return err
+	}
+
+	if err := creator.Create(name, opts.WorkDirectory, contextDir); err != nil {
+		return err
+	}
+
+	if cfg != nil && len(cfg.Container.Create.HostScripts) > 0 {
+		return hostscript.RunHostScripts(cfg.Container.Create.HostScripts, opts.WorkDirectory, name, "container")
+	}
+	return nil
+}
+
+func (b *DockerBackend) newCreator(opts CreateOptions) (*docker.Creator, error) {
 	creator := &docker.Creator{
 		Runner:      b.Runner,
 		MetadataDir: b.MetadataDir,
 		ImageTag:    b.ImageTag,
 	}
-
-	if b.DetectWorktreeFunc != nil {
-		wt, err := b.DetectWorktreeFunc(opts.WorkDirectory)
-		if err != nil {
-			return fmt.Errorf("failed to detect git worktree: %w", err)
-		}
-		if wt != nil {
-			creator.Worktree = &docker.WorktreeConfig{
-				WorktreeHostPath: wt.WorktreeDir,
-				MainRepoHostPath: wt.MainRepoDir,
-				MainRepoDir:      wt.MainRepoDir,
-			}
+	if b.DetectWorktreeFunc == nil {
+		return creator, nil
+	}
+	wt, err := b.DetectWorktreeFunc(opts.WorkDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect git worktree: %w", err)
+	}
+	if wt != nil {
+		creator.Worktree = &docker.WorktreeConfig{
+			WorktreeHostPath: wt.WorktreeDir,
+			MainRepoHostPath: wt.MainRepoDir,
+			MainRepoDir:      wt.MainRepoDir,
 		}
 	}
+	return creator, nil
+}
 
-	return creator.Create(name, opts.WorkDirectory, contextDir)
+func (b *DockerBackend) applyIsolationScripts(cfg *config.PidConfig, workDir, contextDir string, creator *docker.Creator) error {
+	if cfg == nil || len(cfg.Container.Create.IsolationScripts) == 0 {
+		return nil
+	}
+
+	scripts := cfg.Container.Create.IsolationScripts
+
+	buildArgs, err := docker.ValidateAndCollectBuildArgs(scripts)
+	if err != nil {
+		return err
+	}
+
+	if err := docker.PrepareBuildContext(contextDir, workDir, scripts); err != nil {
+		return fmt.Errorf("preparing build context: %w", err)
+	}
+
+	creator.BuildArgs = buildArgs
+	return nil
 }
 
 func (b *DockerBackend) Destroy(name string) error {
