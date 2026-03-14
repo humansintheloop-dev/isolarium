@@ -5,7 +5,7 @@ isolarium:
         - path: scripts/isolation/install-go.sh
         - path: scripts/isolation/install-linters.sh
         - path: scripts/isolation/install-pre-commit.sh
-        - path: scripts/container/install-codescene.sh
+        - path: scripts/isolation/install-codescene.sh
           env:
             - CS_ACCESS_TOKEN
             - CS_ACE_ACCESS_TOKEN
@@ -20,7 +20,7 @@ isolarium:
         - path: scripts/isolation/install-go.sh
         - path: scripts/isolation/install-linters.sh
         - path: scripts/isolation/install-pre-commit.sh
-        - path: scripts/vm/install-codescene.sh
+        - path: scripts/isolation/install-codescene.sh
           env:
             - CS_ACCESS_TOKEN
             - CS_ACE_ACCESS_TOKEN
