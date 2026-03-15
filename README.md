@@ -11,7 +11,7 @@ Isolarium protects your workstation when running AI coding agents like Claude Co
 ## Features
 
 - Three isolation backends with different security/speed tradeoffs:
-  - VM ([Lima](https://lima-vm.io/)) — strongest isolation, separate kernel, no host mounts
+  - VM ([Lima](https://lima-vm.io/)) — strongest isolation, separate kernel, no host mounts (macOS only)
   - Container (Docker) — fast provisioning, cross-platform, shared host directory
   - [Nono](https://nono.sh/) sandbox — lightweight process-level sandboxing, no provisioning overhead
 - Repo-scoped credentials — GitHub App installation tokens scoped to a single repository, minted fresh per command
@@ -27,7 +27,7 @@ Isolarium commands operate on the current **working tree** — run `isolarium cr
 - `run` — executes a command inside that environment with repo-scoped credentials
 - `destroy` — tears it down
 
-### VM isolation (Lima)
+### VM isolation (Lima, macOS only)
 
 The VM backend provides the strongest isolation.
 `isolarium create` provisions an Ubuntu 24.04 virtual machine via Lima (see [`template.yaml`](internal/lima/template.yaml)) and clones the repository inside it at `~/repo`.
@@ -83,7 +83,7 @@ The `--no-gh-token` flag disables all token injection for commands that should r
 | Tool | Install | Required for |
 |------|---------|-------------|
 | Go 1.22+ | [go.dev](https://go.dev/dl/) | Building from source |
-| Lima | `brew install lima` | VM mode |
+| Lima | `brew install lima` | VM mode (macOS only) |
 | Docker | `brew install docker` | Container mode |
 | nono | [nono](https://nono.sh/) | Nono sandbox mode |
 | GitHub App | [Creating a GitHub App](https://docs.github.com/en/apps/creating-github-apps) | Credential scoping |
