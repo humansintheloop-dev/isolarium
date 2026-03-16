@@ -331,8 +331,8 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 	stubI2CodeHeadSHA(runner)
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
 		"--build-arg", hostUIDBuildArg(),
-		"--build-arg", "MY_TOKEN=secret-value",
 		"--build-arg", i2CodeVersionBuildArg(),
+		"--build-arg", "MY_TOKEN=secret-value",
 		contextDir,
 	).Returns("")
 	runner.OnCommand("docker", "run", "-d",

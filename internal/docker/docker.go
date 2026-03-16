@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 )
 
@@ -38,8 +39,13 @@ func BuildImageCommand(tag string, contextDir string, wt *WorktreeConfig, buildA
 		args = append(args, "--build-arg", "WORKTREE_HOST_PATH="+wt.WorktreeHostPath)
 		args = append(args, "--build-arg", "MAIN_REPO_HOST_PATH="+wt.MainRepoHostPath)
 	}
-	for k, v := range buildArgs {
-		args = append(args, "--build-arg", k+"="+v)
+	sortedKeys := make([]string, 0, len(buildArgs))
+	for k := range buildArgs {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+	for _, k := range sortedKeys {
+		args = append(args, "--build-arg", k+"="+buildArgs[k])
 	}
 	args = append(args, contextDir)
 	return args

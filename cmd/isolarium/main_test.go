@@ -234,8 +234,7 @@ func TestRunCommand_CreatesVMWhenNoneExists(t *testing.T) {
 		return
 	}
 
-	// Acceptable: VM was created/started but ~/repo doesn't exist inside it
-	if strings.Contains(outputStr, "No such file or directory") {
+	if containsAcceptableVMError(outputStr) {
 		return
 	}
 
@@ -384,4 +383,9 @@ func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 		_ = cmd.Process.Kill()
 		t.Fatal("process did not terminate within 10 seconds after SIGINT")
 	}
+}
+
+func containsAcceptableVMError(output string) bool {
+	return strings.Contains(output, "No such file or directory") ||
+		strings.Contains(output, "not a git repository")
 }

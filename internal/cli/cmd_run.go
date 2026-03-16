@@ -156,7 +156,12 @@ func vmTokenVars(token string) map[string]string {
 }
 
 func containerTokenVars(token string) map[string]string {
-	return map[string]string{"GH_TOKEN": token}
+	return map[string]string{
+		"GH_TOKEN":           token,
+		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_KEY_0":   "url.https://x-access-token:" + token + "@github.com/.insteadOf",
+		"GIT_CONFIG_VALUE_0": "git@github.com:",
+	}
 }
 
 func nonoTokenVars(token string) map[string]string {
