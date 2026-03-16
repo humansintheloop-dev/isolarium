@@ -1,11 +1,18 @@
 package nono
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
+
+type MarketplaceEntry struct {
+	InstallLocation string `json:"installLocation"`
+}
 
 func PermissionFlags() []string {
 	flags := []string{
@@ -13,6 +20,7 @@ func PermissionFlags() []string {
 	}
 	flags = append(flags, linuxSystemPathFlags()...)
 	flags = append(flags, worktreeMainRepoDirFlags()...)
+	flags = append(flags, claudePluginMarketplaceFlags()...)
 	return flags
 }
 
@@ -40,6 +48,33 @@ func archLibDir() string {
 	default:
 		return "x86_64-linux-gnu"
 	}
+}
+
+func claudePluginMarketplaceFlags() []string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	claudeDir := filepath.Join(homeDir, ".claude")
+	data, err := os.ReadFile(filepath.Join(claudeDir, "plugins", "known_marketplaces.json"))
+	if err != nil {
+		return nil
+	}
+	var marketplaces map[string]MarketplaceEntry
+	if err := json.Unmarshal(data, &marketplaces); err != nil {
+		return nil
+	}
+	return marketplaceReadFlags(claudeDir, marketplaces)
+}
+
+func marketplaceReadFlags(claudeDir string, marketplaces map[string]MarketplaceEntry) []string {
+	var flags []string
+	for _, entry := range marketplaces {
+		if !strings.HasPrefix(entry.InstallLocation, claudeDir+"/") {
+			flags = append(flags, "--read", entry.InstallLocation)
+		}
+	}
+	return flags
 }
 
 func worktreeMainRepoDirFlags() []string {

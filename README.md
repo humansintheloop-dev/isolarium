@@ -61,6 +61,7 @@ The sandbox:
 
 - Grants read-write access to the current working tree and `~/.claude`
 - Grants read-only access to caches and configuration files (git, gh, SDKMAN)
+- Grants read-only access to Claude plugin marketplaces installed outside `~/.claude` (read from `~/.claude/plugins/known_marketplaces.json`)
 - Blocks everything else
 - Allows additional read-only paths at runtime with `--read`
 - Does not restrict networking

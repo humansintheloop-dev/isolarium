@@ -137,32 +137,43 @@ func TestBuildShellCommandDoesNotContainSeparatorOrExecFlag(t *testing.T) {
 func TestBuildRunCommandPermissionFlagsBeforeSeparator(t *testing.T) {
 	cmd := BuildRunCommand([]string{"ls"}, nil)
 
-	separatorIdx := -1
-	for i, v := range cmd {
-		if v == "--" {
-			separatorIdx = i
-			break
-		}
-	}
+	separatorIdx := findIndex(cmd, "--")
+	knownFlags := knownPermissionFlags()
+	knownValues := knownPermissionValues()
 
-	knownFlags := map[string]bool{
-		"--allow": true, "--read": true, "--profile": true, "--allow-cwd": true, "--override-deny": true,
-	}
-	knownValues := map[string]bool{
-		getProfilePath(): true,
-	}
-	for _, flag := range linuxSystemPathFlags() {
-		knownValues[flag] = true
-	}
-	for _, flag := range worktreeMainRepoDirFlags() {
-		knownValues[flag] = true
-	}
 	for i := 2; i < separatorIdx; i++ {
 		flag := cmd[i]
 		if !knownFlags[flag] && !knownValues[flag] {
 			t.Errorf("unexpected flag before separator: %s", flag)
 		}
 	}
+}
+
+func findIndex(slice []string, target string) int {
+	for i, v := range slice {
+		if v == target {
+			return i
+		}
+	}
+	return -1
+}
+
+func knownPermissionFlags() map[string]bool {
+	return map[string]bool{
+		"--allow": true, "--read": true, "--profile": true, "--allow-cwd": true, "--override-deny": true,
+	}
+}
+
+func knownPermissionValues() map[string]bool {
+	values := map[string]bool{
+		getProfilePath(): true,
+	}
+	for _, sources := range [][]string{linuxSystemPathFlags(), worktreeMainRepoDirFlags(), claudePluginMarketplaceFlags()} {
+		for _, flag := range sources {
+			values[flag] = true
+		}
+	}
+	return values
 }
 
 func TestBuildRunCommandIncludesExtraReadPaths(t *testing.T) {
