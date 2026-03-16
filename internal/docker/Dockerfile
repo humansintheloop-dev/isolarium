@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     unzip \
     zip \
     sudo \
+    python3 \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js LTS (stable - changes with LTS releases)
@@ -77,6 +79,15 @@ RUN bash -c '\
     && echo "sdkman_selfupdate_feature=false" >> "$HOME/.sdkman/etc/config" \
     && sdk install java 17.0.13-tem \
     && sdk install gradle 8.14'
+
+# pre-commit
+RUN uv tool install pre-commit
+
+# i2code workflow tools (ARG busts cache when HEAD changes)
+ARG I2CODE_VERSION=""
+RUN sudo mkdir -p /opt/i2code && sudo chown isolarium:isolarium /opt/i2code \
+    && git clone --depth 1 https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git /opt/i2code \
+    && uv tool install -e /opt/i2code
 
 # Configure git for container environment
 RUN git config --global credential.https://github.com.helper '!gh auth git-credential' \

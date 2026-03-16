@@ -211,11 +211,13 @@ type backendSpy struct {
 	copyCredentialsCalled      bool
 	copyCredentialsName        string
 	copyCredentialsCredentials string
+
+	state string
 }
 
-func (b *backendSpy) Create(name string, opts backend.CreateOptions) error {
+func (b *backendSpy) Create(opts backend.CreateOptions) error {
 	b.createCalled = true
-	b.createName = name
+	b.createName = opts.Name
 	b.createOpts = opts
 	return nil
 }
@@ -226,31 +228,31 @@ func (b *backendSpy) Destroy(name string) error {
 	return nil
 }
 
-func (b *backendSpy) Exec(name string, envVars map[string]string, args []string) (int, error) {
+func (b *backendSpy) Exec(req backend.ExecRequest) (int, error) {
 	b.execCalled = true
-	b.execName = name
-	b.execEnvVars = envVars
-	b.execArgs = args
+	b.execName = req.ContainerName
+	b.execEnvVars = req.EnvVars
+	b.execArgs = req.Args
 	return 0, nil
 }
 
-func (b *backendSpy) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
+func (b *backendSpy) ExecInteractive(req backend.ExecRequest) (int, error) {
 	b.execInteractiveCalled = true
-	b.execInteractiveName = name
-	b.execInteractiveEnvVars = envVars
-	b.execInteractiveArgs = args
+	b.execInteractiveName = req.ContainerName
+	b.execInteractiveEnvVars = req.EnvVars
+	b.execInteractiveArgs = req.Args
 	return 0, nil
 }
 
-func (b *backendSpy) OpenShell(name string, envVars map[string]string) (int, error) {
+func (b *backendSpy) OpenShell(req backend.ExecRequest) (int, error) {
 	b.openShellCalled = true
-	b.openShellName = name
-	b.openShellEnvVars = envVars
+	b.openShellName = req.ContainerName
+	b.openShellEnvVars = req.EnvVars
 	return 0, nil
 }
 
 func (b *backendSpy) GetState(name string) string {
-	return ""
+	return b.state
 }
 
 func (b *backendSpy) CopyCredentials(name string, credentials string) error {

@@ -34,6 +34,11 @@ func TestBuildImageCommandProducesCorrectDockerBuildArgs(t *testing.T) {
 	}
 }
 
+func knownHostsVolume() string {
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".ssh", "known_hosts") + ":/home/isolarium/.ssh/known_hosts:ro"
+}
+
 func TestBuildRunCommandProducesCorrectDockerRunArgs(t *testing.T) {
 	args := BuildRunCommand("my-container", "/home/user/project", "isolarium:latest", nil)
 	expected := []string{
@@ -42,6 +47,7 @@ func TestBuildRunCommandProducesCorrectDockerRunArgs(t *testing.T) {
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"isolarium:latest",
 	}
 	if len(args) != len(expected) {
@@ -91,6 +97,7 @@ func TestBuildRunCommandIncludesSecondVolumeForWorktree(t *testing.T) {
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"-v", "/home/user/repos/myproject:/home/isolarium/main-repo",
 		"isolarium:latest",
 	}
@@ -101,6 +108,14 @@ func TestBuildRunCommandIncludesSecondVolumeForWorktree(t *testing.T) {
 		if args[i] != v {
 			t.Fatalf("expected args[%d] = %q, got %q", i, v, args[i])
 		}
+	}
+}
+
+func TestImageTagForContainerPrefixesWithIsolarium(t *testing.T) {
+	tag := ImageTagForContainer("i2code-simple-banking")
+	expected := "isolarium-i2code-simple-banking:latest"
+	if tag != expected {
+		t.Errorf("expected %q, got %q", expected, tag)
 	}
 }
 

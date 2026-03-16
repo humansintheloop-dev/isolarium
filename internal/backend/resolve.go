@@ -37,7 +37,7 @@ func newNonoBackend() *NonoBackend {
 		MetadataDir:         filepath.Join(home, ".isolarium"),
 		ExecFunc:            nono.ExecCommand,
 		ExecInteractiveFunc: nono.ExecInteractiveCommand,
-		OpenShellFunc:       nono.OpenShell,
+		OpenShellFunc:       func(req ExecRequest) (int, error) { return nono.OpenShell(req.ContainerName, req.EnvVars) },
 	}
 }
 
@@ -49,11 +49,11 @@ func newDockerBackend() *DockerBackend {
 	return &DockerBackend{
 		Runner:              command.ExecRunner{},
 		MetadataDir:         filepath.Join(home, ".isolarium"),
-		ImageTag:            "isolarium:latest",
+		ImageTag:            "",
 		ContextDirFunc:      docker.WriteDockerTempfile,
-		ExecFunc:            docker.ExecCommand,
-		ExecInteractiveFunc: docker.ExecInteractiveCommand,
-		OpenShellFunc:       docker.OpenShell,
+		ExecFunc:            func(req ExecRequest) (int, error) { return docker.ExecCommand(req.ContainerName, req.EnvVars, req.Args) },
+		ExecInteractiveFunc: func(req ExecRequest) (int, error) { return docker.ExecInteractiveCommand(req.ContainerName, req.EnvVars, req.Args) },
+		OpenShellFunc:       func(req ExecRequest) (int, error) { return docker.OpenShell(req.ContainerName, req.EnvVars) },
 		CopyCredentialsFunc: docker.CopyClaudeCredentials,
 		DetectWorktreeFunc:  git.DetectWorktree,
 	}

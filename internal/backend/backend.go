@@ -1,17 +1,22 @@
 package backend
 
-// CreateOptions holds options for creating an environment.
 type CreateOptions struct {
+	Name          string
 	WorkDirectory string
 }
 
-// Backend defines the interface for isolation backends (VM or container).
+type ExecRequest struct {
+	ContainerName string
+	EnvVars       map[string]string
+	Args          []string
+}
+
 type Backend interface {
-	Create(name string, opts CreateOptions) error
+	Create(opts CreateOptions) error
 	Destroy(name string) error
-	Exec(name string, envVars map[string]string, args []string) (int, error)
-	ExecInteractive(name string, envVars map[string]string, args []string) (int, error)
-	OpenShell(name string, envVars map[string]string) (int, error)
+	Exec(req ExecRequest) (int, error)
+	ExecInteractive(req ExecRequest) (int, error)
+	OpenShell(req ExecRequest) (int, error)
 	GetState(name string) string
 	CopyCredentials(name string, credentials string) error
 }

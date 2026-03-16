@@ -178,6 +178,7 @@ func TestCreatorPassesBuildArgsToDockerBuild(t *testing.T) {
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"isolarium:latest",
 	).Returns("container-id\n")
 

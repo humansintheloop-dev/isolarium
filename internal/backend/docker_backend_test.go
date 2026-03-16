@@ -3,15 +3,30 @@ package backend
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/docker"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
 func hostUIDBuildArg() string {
 	return fmt.Sprintf("HOST_UID=%d", os.Getuid())
+}
+
+func knownHostsVolume() string {
+	homeDir, _ := os.UserHomeDir()
+	return filepath.Join(homeDir, ".ssh", "known_hosts") + ":/home/isolarium/.ssh/known_hosts:ro"
+}
+
+func stubI2CodeHeadSHA(runner *command.FakeRunner) {
+	runner.OnCommand("git", "ls-remote", "https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git", "HEAD").Returns("aabbcc\tHEAD\n")
+}
+
+func i2CodeVersionBuildArg() string {
+	return "I2CODE_VERSION=aabbcc"
 }
 
 func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
@@ -20,12 +35,14 @@ func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
-	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), contextDir).Returns("")
+	stubI2CodeHeadSHA(runner)
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), "--build-arg", i2CodeVersionBuildArg(), contextDir).Returns("")
 	runner.OnCommand("docker", "run", "-d",
 		"--name", "my-env",
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"isolarium:latest",
 	).Returns("container-id\n")
 
@@ -36,7 +53,7 @@ func TestDockerBackendCreateDelegatesToDockerCreator(t *testing.T) {
 		ContextDirFunc: func() (string, error) { return contextDir, nil },
 	}
 
-	err := b.Create("my-env", CreateOptions{WorkDirectory: "/home/user/project"})
+	err := b.Create(CreateOptions{Name: "my-env", WorkDirectory: "/home/user/project"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,10 +67,12 @@ func TestDockerBackendCreateDetectsWorktreeAndPassesConfig(t *testing.T) {
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
+	stubI2CodeHeadSHA(runner)
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
 		"--build-arg", hostUIDBuildArg(),
 		"--build-arg", "WORKTREE_HOST_PATH=/home/user/worktree",
 		"--build-arg", "MAIN_REPO_HOST_PATH=/home/user/main-repo",
+		"--build-arg", i2CodeVersionBuildArg(),
 		contextDir,
 	).Returns("")
 	runner.OnCommand("docker", "run", "-d",
@@ -61,6 +80,7 @@ func TestDockerBackendCreateDetectsWorktreeAndPassesConfig(t *testing.T) {
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/worktree:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"-v", "/home/user/main-repo:/home/isolarium/main-repo",
 		"isolarium:latest",
 	).Returns("container-id\n")
@@ -78,7 +98,7 @@ func TestDockerBackendCreateDetectsWorktreeAndPassesConfig(t *testing.T) {
 		},
 	}
 
-	err := b.Create("my-env", CreateOptions{WorkDirectory: "/home/user/worktree"})
+	err := b.Create(CreateOptions{Name: "my-env", WorkDirectory: "/home/user/worktree"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -101,7 +121,7 @@ func TestDockerBackendCreateHandlesWorktreeDetectionError(t *testing.T) {
 		},
 	}
 
-	err := b.Create("my-env", CreateOptions{WorkDirectory: "/home/user/project"})
+	err := b.Create(CreateOptions{Name: "my-env", WorkDirectory: "/home/user/project"})
 	if err == nil {
 		t.Fatal("expected error when worktree detection fails")
 	}
@@ -121,16 +141,16 @@ func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
 
 	b := &DockerBackend{
 		Runner: runner,
-		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
-			capturedName = name
-			capturedEnvVars = envVars
-			capturedArgs = args
+		ExecFunc: func(req ExecRequest) (int, error) {
+			capturedName = req.ContainerName
+			capturedEnvVars = req.EnvVars
+			capturedArgs = req.Args
 			return 42, nil
 		},
 	}
 
 	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
-	exitCode, err := b.Exec("my-container", envVars, []string{"echo", "hello"})
+	exitCode, err := b.Exec(ExecRequest{ContainerName: "my-container", EnvVars: envVars, Args: []string{"echo", "hello"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,16 +178,16 @@ func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *
 
 	b := &DockerBackend{
 		Runner: runner,
-		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string) (int, error) {
-			capturedName = name
-			capturedEnvVars = envVars
-			capturedArgs = args
+		ExecInteractiveFunc: func(req ExecRequest) (int, error) {
+			capturedName = req.ContainerName
+			capturedEnvVars = req.EnvVars
+			capturedArgs = req.Args
 			return 0, nil
 		},
 	}
 
 	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
-	exitCode, err := b.ExecInteractive("my-container", envVars, []string{"bash"})
+	exitCode, err := b.ExecInteractive(ExecRequest{ContainerName: "my-container", EnvVars: envVars, Args: []string{"bash"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -234,13 +254,13 @@ func TestDockerBackendExecReturnsErrorWhenContainerStopped(t *testing.T) {
 
 	b := &DockerBackend{
 		Runner: runner,
-		ExecFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+		ExecFunc: func(req ExecRequest) (int, error) {
 			t.Fatal("ExecFunc should not be called when container is stopped")
 			return 0, nil
 		},
 	}
 
-	_, err := b.Exec("my-container", nil, []string{"echo", "hello"})
+	_, err := b.Exec(ExecRequest{ContainerName: "my-container", Args: []string{"echo", "hello"}})
 	if err == nil {
 		t.Fatal("expected error when container is stopped")
 	}
@@ -257,13 +277,13 @@ func TestDockerBackendExecInteractiveReturnsErrorWhenContainerStopped(t *testing
 
 	b := &DockerBackend{
 		Runner: runner,
-		ExecInteractiveFunc: func(name string, envVars map[string]string, args []string) (int, error) {
+		ExecInteractiveFunc: func(req ExecRequest) (int, error) {
 			t.Fatal("ExecInteractiveFunc should not be called when container is stopped")
 			return 0, nil
 		},
 	}
 
-	_, err := b.ExecInteractive("my-container", nil, []string{"bash"})
+	_, err := b.ExecInteractive(ExecRequest{ContainerName: "my-container", Args: []string{"bash"}})
 	if err == nil {
 		t.Fatal("expected error when container is stopped")
 	}
@@ -307,9 +327,11 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "info").Returns("")
+	stubI2CodeHeadSHA(runner)
 	runner.OnCommand("docker", "build", "-t", "isolarium:latest",
 		"--build-arg", hostUIDBuildArg(),
 		"--build-arg", "MY_TOKEN=secret-value",
+		"--build-arg", i2CodeVersionBuildArg(),
 		contextDir,
 	).Returns("")
 	runner.OnCommand("docker", "run", "-d",
@@ -317,6 +339,7 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", workDir+":/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"isolarium:latest",
 	).Returns("container-id\n")
 
@@ -327,7 +350,7 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 		ContextDirFunc: func() (string, error) { return contextDir, nil },
 	}
 
-	err := b.Create("my-env", CreateOptions{WorkDirectory: workDir})
+	err := b.Create(CreateOptions{Name: "my-env", WorkDirectory: workDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -370,12 +393,103 @@ func TestDockerBackendCreateFailsWhenDeclaredEnvVarMissing(t *testing.T) {
 		ContextDirFunc: func() (string, error) { return contextDir, nil },
 	}
 
-	err := b.Create("my-env", CreateOptions{WorkDirectory: workDir})
+	err := b.Create(CreateOptions{Name: "my-env", WorkDirectory: workDir})
 	if err == nil {
 		t.Fatal("expected error for missing env var")
 	}
 	if !strings.Contains(err.Error(), "MISSING_VAR_XYZ") {
 		t.Errorf("expected error to mention MISSING_VAR_XYZ, got: %v", err)
+	}
+}
+
+func TestRebuildIfChangedSkipsRecreateWhenImageUnchanged(t *testing.T) {
+	metadataDir := t.TempDir()
+	contextDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.Image}}", "my-env").Returns("sha256:abc123\n")
+	stubI2CodeHeadSHA(runner)
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), "--build-arg", i2CodeVersionBuildArg(), contextDir).Returns("")
+	runner.OnCommand("docker", "inspect", "--format", "{{.Id}}", "isolarium:latest").Returns("sha256:abc123\n")
+
+	b := &DockerBackend{
+		Runner:         runner,
+		MetadataDir:    metadataDir,
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+	}
+
+	changed, err := b.RebuildIfChanged(CreateOptions{Name: "my-env", WorkDirectory: "/home/user/project"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if changed {
+		t.Error("expected no change when image IDs match")
+	}
+
+	runner.VerifyExecuted()
+}
+
+func TestRebuildIfChangedRecreatesContainerWhenImageChanged(t *testing.T) {
+	metadataDir := t.TempDir()
+	contextDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "inspect", "--format", "{{.Image}}", "my-env").Returns("sha256:old111\n")
+	stubI2CodeHeadSHA(runner)
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), "--build-arg", i2CodeVersionBuildArg(), contextDir).Returns("")
+	runner.OnCommand("docker", "inspect", "--format", "{{.Id}}", "isolarium:latest").Returns("sha256:new222\n")
+	runner.OnCommand("docker", "rm", "-f", "my-env").Returns("")
+	runner.OnCommand("docker", "run", "-d",
+		"--name", "my-env",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
+		"isolarium:latest",
+	).Returns("container-id\n")
+
+	b := &DockerBackend{
+		Runner:         runner,
+		MetadataDir:    metadataDir,
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+	}
+
+	changed, err := b.RebuildIfChanged(CreateOptions{Name: "my-env", WorkDirectory: "/home/user/project"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !changed {
+		t.Error("expected change when image IDs differ")
+	}
+
+	runner.VerifyExecuted()
+}
+
+func backendWithStoredWorkDirectory(t *testing.T, storedDir string) *DockerBackend {
+	t.Helper()
+	metadataDir := t.TempDir()
+	store := docker.NewMetadataStore(metadataDir, "my-env")
+	if err := store.Write("container", storedDir); err != nil {
+		t.Fatal(err)
+	}
+	return &DockerBackend{MetadataDir: metadataDir}
+}
+
+func TestWorkDirectoryChangedReturnsTrueWhenDirectoryDiffers(t *testing.T) {
+	b := backendWithStoredWorkDirectory(t, "/old/path")
+
+	if !b.WorkDirectoryChanged("my-env", "/new/path") {
+		t.Error("expected WorkDirectoryChanged to return true when directories differ")
+	}
+}
+
+func TestWorkDirectoryChangedReturnsFalseWhenDirectoryMatches(t *testing.T) {
+	b := backendWithStoredWorkDirectory(t, "/same/path")
+
+	if b.WorkDirectoryChanged("my-env", "/same/path") {
+		t.Error("expected WorkDirectoryChanged to return false when directories match")
 	}
 }
 

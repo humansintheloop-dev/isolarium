@@ -42,6 +42,14 @@ The specialized tools are faster, have correct permissions, and provide better o
 
 IMPORTANT: Always run git commands from the project root directory. If you need to operate on the repository, cd to the root directory first rather than using `git -C`. This prevents accidentally committing files outside the project root.
 
+## Build Verification
+
+IMPORTANT: After making changes, always run `make` to verify the build. This is the canonical build command and must succeed before presenting work as complete. Do not rely on individual `go test` or `go build` commands as substitutes.
+
+## Verify Before Claiming
+
+IMPORTANT: Never claim that a build, test, or command succeeded unless you have run it in the current conversation turn and shown the output. Stale results from earlier in the conversation do not count if code has changed since then.
+
 ## Verify After Writing
 
 IMPORTANT: After writing or modifying code, always run the tests before presenting the work as complete. When writing scripts, run the scripts. Every written artifact should be exercised.

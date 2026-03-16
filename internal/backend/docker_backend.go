@@ -3,6 +3,7 @@ package backend
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
 	"github.com/humansintheloop-dev/isolarium/internal/config"
@@ -11,14 +12,9 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/hostscript"
 )
 
-// ExecFunc is the function signature for executing commands in a container.
-type ExecFunc func(name string, envVars map[string]string, args []string) (int, error)
-
-// ShellFunc is the function signature for opening an interactive shell in a container.
-type ShellFunc func(name string, envVars map[string]string) (int, error)
-
-// CopyCredentialsFunc is the function signature for copying credentials into a container.
-type CopyCredentialsFunc func(name, credentials string) error
+type ExecFunc func(req ExecRequest) (int, error)
+type ShellFunc func(req ExecRequest) (int, error)
+type CopyCredentialsFunc func(containerName, credentials string) error
 
 // DockerBackend implements the Backend interface using Docker containers.
 type DockerBackend struct {
@@ -33,14 +29,15 @@ type DockerBackend struct {
 	DetectWorktreeFunc  func(string) (*git.WorktreeInfo, error)
 }
 
-func (b *DockerBackend) Create(name string, opts CreateOptions) error {
+func (b *DockerBackend) Create(opts CreateOptions) error {
+	name := opts.Name
 	contextDir, err := b.ContextDirFunc()
 	if err != nil {
 		return err
 	}
 	defer func() { _ = os.RemoveAll(contextDir) }()
 
-	creator, err := b.newCreator(opts)
+	creator, err := b.newCreatorForName(name, opts)
 	if err != nil {
 		return err
 	}
@@ -54,6 +51,9 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 		return err
 	}
 
+	b.injectI2CodeVersion(creator)
+
+	fmt.Printf("Building image %s for container %s...\n", creator.ImageTag, name)
 	if err := creator.Create(name, opts.WorkDirectory, contextDir); err != nil {
 		return err
 	}
@@ -64,11 +64,18 @@ func (b *DockerBackend) Create(name string, opts CreateOptions) error {
 	return nil
 }
 
-func (b *DockerBackend) newCreator(opts CreateOptions) (*docker.Creator, error) {
+func (b *DockerBackend) imageTagForName(name string) string {
+	if b.ImageTag != "" {
+		return b.ImageTag
+	}
+	return docker.ImageTagForContainer(name)
+}
+
+func (b *DockerBackend) newCreatorForName(name string, opts CreateOptions) (*docker.Creator, error) {
 	creator := &docker.Creator{
 		Runner:      b.Runner,
 		MetadataDir: b.MetadataDir,
-		ImageTag:    b.ImageTag,
+		ImageTag:    b.imageTagForName(name),
 	}
 	if b.DetectWorktreeFunc == nil {
 		return creator, nil
@@ -107,6 +114,98 @@ func (b *DockerBackend) applyIsolationScripts(cfg *config.PidConfig, workDir, co
 	return nil
 }
 
+func (b *DockerBackend) RebuildIfChanged(opts CreateOptions) (bool, error) {
+	name := opts.Name
+	contextDir, err := b.ContextDirFunc()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = os.RemoveAll(contextDir) }()
+
+	creator, err := b.newCreatorForName(name, opts)
+	if err != nil {
+		return false, err
+	}
+
+	cfg, err := config.LoadPidConfig(opts.WorkDirectory)
+	if err != nil {
+		return false, fmt.Errorf("loading pid.yaml: %w", err)
+	}
+
+	if err := b.applyIsolationScripts(cfg, opts.WorkDirectory, contextDir, creator); err != nil {
+		return false, err
+	}
+
+	b.injectI2CodeVersion(creator)
+
+	oldImageID := b.containerImageID(name)
+
+	if err := creator.BuildImage(contextDir); err != nil {
+		return false, fmt.Errorf("failed to build Docker image: %w", err)
+	}
+
+	newImageID := b.imageIDForTag(name)
+	if oldImageID == newImageID {
+		return false, nil
+	}
+
+	fmt.Printf("Image %s changed, recreating container %s...\n", creator.ImageTag, name)
+	return true, b.recreateContainer(name, opts, creator)
+}
+
+func (b *DockerBackend) recreateContainer(name string, opts CreateOptions, creator *docker.Creator) error {
+	if err := b.Destroy(name); err != nil {
+		return fmt.Errorf("failed to destroy old container: %w", err)
+	}
+	if err := creator.StartContainer(name, opts.WorkDirectory); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+	return creator.WriteMetadata(name, opts.WorkDirectory)
+}
+
+func (b *DockerBackend) injectI2CodeVersion(creator *docker.Creator) {
+	args := docker.BuildI2CodeHeadSHACommand()
+	output, err := b.Runner.Run(args[0], args[1:]...)
+	if err != nil {
+		return
+	}
+	sha := strings.Fields(strings.TrimSpace(string(output)))
+	if len(sha) == 0 {
+		return
+	}
+	if creator.BuildArgs == nil {
+		creator.BuildArgs = make(map[string]string)
+	}
+	creator.BuildArgs["I2CODE_VERSION"] = sha[0]
+}
+
+func (b *DockerBackend) containerImageID(name string) string {
+	args := docker.BuildContainerImageIDCommand(name)
+	output, err := b.Runner.Run(args[0], args[1:]...)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func (b *DockerBackend) imageIDForTag(name string) string {
+	args := docker.BuildImageIDCommand(b.imageTagForName(name))
+	output, err := b.Runner.Run(args[0], args[1:]...)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func (b *DockerBackend) WorkDirectoryChanged(name string, requestedDir string) bool {
+	store := docker.NewMetadataStore(b.MetadataDir, name)
+	meta, err := store.Read()
+	if err != nil {
+		return false
+	}
+	return meta.WorkDirectory != requestedDir
+}
+
 func (b *DockerBackend) Destroy(name string) error {
 	destroyer := &docker.Destroyer{
 		Runner:      b.Runner,
@@ -115,30 +214,30 @@ func (b *DockerBackend) Destroy(name string) error {
 	return destroyer.Destroy(name)
 }
 
-func (b *DockerBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {
-	if err := b.ensureContainerRunning(name); err != nil {
+func (b *DockerBackend) Exec(req ExecRequest) (int, error) {
+	if err := b.ensureContainerRunning(req.ContainerName); err != nil {
 		return 1, err
 	}
-	return b.ExecFunc(name, envVars, args)
+	return b.ExecFunc(req)
 }
 
-func (b *DockerBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
-	if err := b.ensureContainerRunning(name); err != nil {
+func (b *DockerBackend) ExecInteractive(req ExecRequest) (int, error) {
+	if err := b.ensureContainerRunning(req.ContainerName); err != nil {
 		return 1, err
 	}
-	return b.ExecInteractiveFunc(name, envVars, args)
+	return b.ExecInteractiveFunc(req)
 }
 
-func (b *DockerBackend) ensureContainerRunning(name string) error {
-	state := b.GetState(name)
+func (b *DockerBackend) ensureContainerRunning(containerName string) error {
+	state := b.GetState(containerName)
 	if state == "stopped" {
-		return fmt.Errorf("container '%s' is stopped, run 'isolarium create --type container' to recreate it", name)
+		return fmt.Errorf("container '%s' is stopped, run 'isolarium create --type container' to recreate it", containerName)
 	}
 	return nil
 }
 
-func (b *DockerBackend) OpenShell(name string, envVars map[string]string) (int, error) {
-	return b.OpenShellFunc(name, envVars)
+func (b *DockerBackend) OpenShell(req ExecRequest) (int, error) {
+	return b.OpenShellFunc(req)
 }
 
 func (b *DockerBackend) GetState(name string) string {

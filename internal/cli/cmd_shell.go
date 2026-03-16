@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/humansintheloop-dev/isolarium/internal/backend"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +49,7 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 				return err
 			}
 
-			exitCode, execErr := b.OpenShell(name, envVars)
+			exitCode, execErr := b.OpenShell(backend.ExecRequest{ContainerName: name, EnvVars: envVars})
 			if execErr != nil {
 				return fmt.Errorf("failed to open shell: %w", execErr)
 			}

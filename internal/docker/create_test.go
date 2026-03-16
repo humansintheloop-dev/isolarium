@@ -23,6 +23,7 @@ func TestCreateChecksDockerAndBuildsImageAndStartsContainerAndWritesMetadata(t *
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/project:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"isolarium:latest",
 	).Returns("container-id-abc123\n")
 
@@ -75,6 +76,7 @@ func TestCreateWithWorktreePassesBuildArgsAndSecondVolume(t *testing.T) {
 		"--cap-drop=ALL",
 		"--security-opt=no-new-privileges",
 		"-v", "/home/user/worktree:/home/isolarium/repo",
+		"-v", knownHostsVolume(),
 		"-v", "/home/user/main-repo:/home/isolarium/main-repo",
 		"isolarium:latest",
 	).Returns("container-id-abc123\n")

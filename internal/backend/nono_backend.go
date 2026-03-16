@@ -19,12 +19,12 @@ type NonoBackend struct {
 	ExtraReadPaths      []string
 }
 
-func (b *NonoBackend) Create(name string, opts CreateOptions) error {
+func (b *NonoBackend) Create(opts CreateOptions) error {
 	creator := &nono.Creator{
 		Runner:      b.Runner,
 		MetadataDir: b.MetadataDir,
 	}
-	return creator.Create(name, opts.WorkDirectory)
+	return creator.Create(opts.Name, opts.WorkDirectory)
 }
 
 func (b *NonoBackend) Destroy(name string) error {
@@ -34,16 +34,16 @@ func (b *NonoBackend) Destroy(name string) error {
 	return destroyer.Destroy(name)
 }
 
-func (b *NonoBackend) Exec(name string, envVars map[string]string, args []string) (int, error) {
-	return b.ExecFunc(name, envVars, args, b.ExtraReadPaths)
+func (b *NonoBackend) Exec(req ExecRequest) (int, error) {
+	return b.ExecFunc(req.ContainerName, req.EnvVars, req.Args, b.ExtraReadPaths)
 }
 
-func (b *NonoBackend) ExecInteractive(name string, envVars map[string]string, args []string) (int, error) {
-	return b.ExecInteractiveFunc(name, envVars, args, b.ExtraReadPaths)
+func (b *NonoBackend) ExecInteractive(req ExecRequest) (int, error) {
+	return b.ExecInteractiveFunc(req.ContainerName, req.EnvVars, req.Args, b.ExtraReadPaths)
 }
 
-func (b *NonoBackend) OpenShell(name string, envVars map[string]string) (int, error) {
-	return b.OpenShellFunc(name, envVars)
+func (b *NonoBackend) OpenShell(req ExecRequest) (int, error) {
+	return b.OpenShellFunc(req)
 }
 
 func (b *NonoBackend) GetState(name string) string {

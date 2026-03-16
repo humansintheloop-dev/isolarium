@@ -44,13 +44,15 @@ func loadRunEnvVarsImpl(isolationType string) (map[string]string, error) {
 }
 
 type runOptions struct {
-	name        string
-	args        []string
-	copySession bool
-	freshLogin  bool
-	interactive bool
-	noGHToken   bool
-	readPaths   []string
+	name          string
+	args          []string
+	copySession   bool
+	freshLogin    bool
+	interactive   bool
+	noGHToken     bool
+	readPaths     []string
+	create        bool
+	workDirectory string
 }
 
 func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
@@ -72,16 +74,17 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				return err
 			}
 
+			if cmd.Flags().Changed("work-directory") && !opts.create {
+				return fmt.Errorf("--work-directory requires --create")
+			}
+
 			if envType == "vm" {
 				return runInVM(opts, cmd)
 			}
 
 			if envType == "nono" {
-				if cmd.Flags().Changed("copy-session") {
-					return fmt.Errorf("--copy-session is not supported with --type nono")
-				}
-				if cmd.Flags().Changed("fresh-login") {
-					return fmt.Errorf("--fresh-login is not supported with --type nono")
+				if err := rejectVMOnlyFlags(cmd); err != nil {
+					return err
 				}
 				return runInNono(opts, resolver)
 			}
@@ -90,13 +93,26 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 		},
 	}
 
+	cwd, _ := os.Getwd()
 	cmd.Flags().BoolVar(&opts.copySession, "copy-session", true, "Copy Claude credentials from host to VM")
 	cmd.Flags().BoolVar(&opts.freshLogin, "fresh-login", false, "Use device code flow for fresh Claude session (disables --copy-session)")
 	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "Attach TTY for interactive commands")
 	cmd.Flags().StringSliceVar(&opts.readPaths, "read", nil, "Grant nono sandbox read-only access to additional paths")
 	cmd.Flags().BoolVar(&opts.noGHToken, "no-gh-token", false, "Disable GitHub token minting and GH_TOKEN injection")
+	cmd.Flags().BoolVar(&opts.create, "create", false, "Create the environment if it does not exist")
+	cmd.Flags().StringVar(&opts.workDirectory, "work-directory", cwd, "Work directory to mount (container mode, requires --create)")
 
 	return cmd
+}
+
+func rejectVMOnlyFlags(cmd *cobra.Command) error {
+	if cmd.Flags().Changed("copy-session") {
+		return fmt.Errorf("--copy-session is not supported with --type nono")
+	}
+	if cmd.Flags().Changed("fresh-login") {
+		return fmt.Errorf("--fresh-login is not supported with --type nono")
+	}
+	return nil
 }
 
 type tokenFetcher func() (string, error)
@@ -144,12 +160,17 @@ func nonoTokenVars(token string) map[string]string {
 }
 
 func execBackendCommand(b backend.Backend, opts runOptions, envVars map[string]string) error {
+	req := backend.ExecRequest{
+		ContainerName: opts.name,
+		EnvVars:       envVars,
+		Args:          opts.args,
+	}
 	var exitCode int
 	var err error
 	if opts.interactive {
-		exitCode, err = b.ExecInteractive(opts.name, envVars, opts.args)
+		exitCode, err = b.ExecInteractive(req)
 	} else {
-		exitCode, err = b.Exec(opts.name, envVars, opts.args)
+		exitCode, err = b.Exec(req)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to execute command: %w", err)
@@ -252,9 +273,38 @@ func buildNonoEnvVars(noGHToken bool) (map[string]string, error) {
 	return buildRunEnvVars("nono", baseVars, noGHToken, mintGitHubToken, nonoTokenVars)
 }
 
+func createIfNeeded(b backend.Backend, opts runOptions) error {
+	if !opts.create {
+		return nil
+	}
+	createOpts := backend.CreateOptions{Name: opts.name, WorkDirectory: opts.workDirectory}
+
+	if b.GetState(opts.name) == "none" {
+		fmt.Printf("Creating environment (container: %s)...\n", opts.name)
+		return b.Create(createOpts)
+	}
+	db, ok := b.(*backend.DockerBackend)
+	if !ok {
+		return nil
+	}
+	if db.WorkDirectoryChanged(opts.name, opts.workDirectory) {
+		fmt.Printf("Work directory changed, recreating container %s...\n", opts.name)
+		if err := db.Destroy(opts.name); err != nil {
+			return err
+		}
+		return db.Create(createOpts)
+	}
+	_, err := db.RebuildIfChanged(createOpts)
+	return err
+}
+
 func runInNono(opts runOptions, resolver BackendResolver) error {
 	b, err := resolver("nono")
 	if err != nil {
+		return err
+	}
+
+	if err := createIfNeeded(b, opts); err != nil {
 		return err
 	}
 
@@ -277,6 +327,10 @@ func buildContainerEnvVars(noGHToken bool) (map[string]string, error) {
 func runInContainer(opts runOptions, resolver BackendResolver, envType string) error {
 	b, err := resolver(envType)
 	if err != nil {
+		return err
+	}
+
+	if err := createIfNeeded(b, opts); err != nil {
 		return err
 	}
 

@@ -70,7 +70,7 @@ func TestLimaBackendCreateRunsHostScriptsAfterVMCreate(t *testing.T) {
 		},
 	}
 
-	err := b.Create("test-vm", CreateOptions{WorkDirectory: fix.workDir})
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestLimaBackendCreateWithHostScriptDeclaredEnvVars(t *testing.T) {
 
 	b := &LimaBackend{CreateVMFunc: noopCreateVM}
 
-	err := b.Create("test-vm", CreateOptions{WorkDirectory: fix.workDir})
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestLimaBackendCreateSucceedsWithoutPidYaml(t *testing.T) {
 
 	b := &LimaBackend{CreateVMFunc: noopCreateVM}
 
-	err := b.Create("test-vm", CreateOptions{WorkDirectory: fix.workDir})
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestLimaBackendCreateRunsVMIsolationScripts(t *testing.T) {
 		},
 	}
 
-	err := b.Create("test-vm", CreateOptions{WorkDirectory: fix.workDir})
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestLimaBackendCreatePassesEnvVarsToVMIsolationScripts(t *testing.T) {
 		},
 	}
 
-	err := b.Create("test-vm", CreateOptions{WorkDirectory: fix.workDir})
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestLimaBackendCreateIsolationScriptErrors(t *testing.T) {
 				VMExecFunc:    tt.executor,
 			}
 
-			err := b.Create("test-vm", CreateOptions{WorkDirectory: fix.workDir})
+			err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
 			if err == nil {
 				t.Fatal("expected error")
 			}

@@ -19,15 +19,15 @@ func (c *Creator) Create(name, workDir, contextDir string) error {
 		return fmt.Errorf("docker is not installed or not running; install Docker Desktop (macOS) or Docker Engine (Linux) to use container mode: %w", err)
 	}
 
-	if err := c.buildImage(contextDir); err != nil {
+	if err := c.BuildImage(contextDir); err != nil {
 		return fmt.Errorf("failed to build Docker image: %w", err)
 	}
 
-	if err := c.startContainer(name, workDir); err != nil {
+	if err := c.StartContainer(name, workDir); err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
 
-	if err := c.writeMetadata(name, workDir); err != nil {
+	if err := c.WriteMetadata(name, workDir); err != nil {
 		return fmt.Errorf("failed to write metadata: %w", err)
 	}
 
@@ -40,7 +40,7 @@ func (c *Creator) checkDockerAvailable() error {
 	return err
 }
 
-func (c *Creator) buildImage(contextDir string) error {
+func (c *Creator) BuildImage(contextDir string) error {
 	args := BuildImageCommand(c.ImageTag, contextDir, c.Worktree, c.BuildArgs)
 	output, err := c.Runner.Run(args[0], args[1:]...)
 	if err != nil {
@@ -49,13 +49,13 @@ func (c *Creator) buildImage(contextDir string) error {
 	return nil
 }
 
-func (c *Creator) startContainer(name, workDir string) error {
+func (c *Creator) StartContainer(name, workDir string) error {
 	args := BuildRunCommand(name, workDir, c.ImageTag, c.Worktree)
 	_, err := c.Runner.Run(args[0], args[1:]...)
 	return err
 }
 
-func (c *Creator) writeMetadata(name, workDir string) error {
+func (c *Creator) WriteMetadata(name, workDir string) error {
 	store := NewMetadataStore(c.MetadataDir, name)
 	return store.Write("container", workDir)
 }

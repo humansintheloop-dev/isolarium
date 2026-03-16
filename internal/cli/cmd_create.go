@@ -40,9 +40,10 @@ func newCreateCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag
 			}
 
 			opts := backend.CreateOptions{
+				Name:          name,
 				WorkDirectory: workDirFlag,
 			}
-			return b.Create(name, opts)
+			return b.Create(opts)
 		},
 	}
 

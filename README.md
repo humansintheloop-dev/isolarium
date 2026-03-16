@@ -177,6 +177,8 @@ isolarium run --type nono -i -- claude
 | `--copy-session` | `true` | Copy Claude credentials from host |
 | `--fresh-login` | `false` | Authenticate via device code flow instead |
 | `--read` | | Grant nono sandbox read-only access to additional paths |
+| `--create` | `false` | Create the environment if it does not exist |
+| `--work-directory` | cwd | Work directory to mount (container mode, requires `--create`) |
 
 ## License
 

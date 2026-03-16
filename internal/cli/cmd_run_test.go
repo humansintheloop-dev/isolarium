@@ -379,9 +379,9 @@ func TestRunCommand_NonoReadFlagSetsExtraReadPaths(t *testing.T) {
 	}
 }
 
-func containerRunWithEnvFlags(t *testing.T, envFlags []string, runArgs []string) *backendSpy {
+func containerRunWithSpyState(t *testing.T, state string, envFlags []string, runArgs []string) *backendSpy {
 	t.Helper()
-	spy := &backendSpy{}
+	spy := &backendSpy{state: state}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
 	})
@@ -392,7 +392,7 @@ func containerRunWithEnvFlags(t *testing.T, envFlags []string, runArgs []string)
 	}
 	defer func() { execCommandOutput = origFn }()
 
-	args := []string{}
+	var args []string
 	for _, ef := range envFlags {
 		args = append(args, "--env", ef)
 	}
@@ -403,6 +403,11 @@ func containerRunWithEnvFlags(t *testing.T, envFlags []string, runArgs []string)
 		t.Fatalf("unexpected error: %v", err)
 	}
 	return spy
+}
+
+func containerRunWithEnvFlags(t *testing.T, envFlags []string, runArgs []string) *backendSpy {
+	t.Helper()
+	return containerRunWithSpyState(t, "", envFlags, runArgs)
 }
 
 func TestRunCommand_ContainerPassesEnvFlagVarsToBackendExec(t *testing.T) {
@@ -527,6 +532,77 @@ func TestRunCommand_EnvFlagOverridesRunEnvFromPidYaml(t *testing.T) {
 
 	if spy.execEnvVars["FOO"] != "from_flag" {
 		t.Errorf("expected --env flag to override run.env: got '%s'", spy.execEnvVars["FOO"])
+	}
+}
+
+func containerRunWithCreateFlag(t *testing.T, state string, extraArgs ...string) *backendSpy {
+	t.Helper()
+	runArgs := append([]string{"--create"}, extraArgs...)
+	runArgs = append(runArgs, "--", "echo", "hello")
+	spy := containerRunWithSpyState(t, state, nil, runArgs)
+	return spy
+}
+
+func TestRunCommand_CreateFlagCreatesContainerWhenStateIsNone(t *testing.T) {
+	spy := containerRunWithCreateFlag(t, "none")
+
+	if !spy.createCalled {
+		t.Fatal("expected backend.Create to be called when --create is set and state is none")
+	}
+	if !spy.execCalled {
+		t.Fatal("expected backend.Exec to be called after create")
+	}
+}
+
+func TestRunCommand_CreateFlagSkipsCreateWhenEnvironmentExists(t *testing.T) {
+	spy := containerRunWithCreateFlag(t, "running")
+
+	if spy.createCalled {
+		t.Fatal("expected backend.Create NOT to be called when environment already exists")
+	}
+}
+
+func runWithSpy(t *testing.T, spy *backendSpy, args []string) {
+	t.Helper()
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs(args)
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunCommand_CreateFlagCreatesNonoWhenStateIsNone(t *testing.T) {
+	stubMintGitHubToken(t)
+	spy := &backendSpy{state: "none"}
+	runWithSpy(t, spy, []string{"run", "--type", "nono", "--create", "--", "echo", "hello"})
+
+	if !spy.createCalled {
+		t.Fatal("expected backend.Create to be called when --create is set and state is none")
+	}
+}
+
+func TestRunCommand_WorkDirectoryRequiresCreateFlag(t *testing.T) {
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "container", "--work-directory", "/tmp/foo", "--copy-session=false", "--", "echo", "hello"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when --work-directory is set without --create")
+	}
+	if !strings.Contains(err.Error(), "--work-directory requires --create") {
+		t.Errorf("expected error about --work-directory requiring --create, got: %v", err)
+	}
+}
+
+func TestRunCommand_CreateFlagPassesWorkDirectoryToBackend(t *testing.T) {
+	spy := containerRunWithCreateFlag(t, "none", "--work-directory", "/tmp/foo")
+
+	if spy.createOpts.WorkDirectory != "/tmp/foo" {
+		t.Errorf("expected work directory '/tmp/foo', got '%s'", spy.createOpts.WorkDirectory)
 	}
 }
 

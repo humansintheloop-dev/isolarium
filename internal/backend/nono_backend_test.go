@@ -20,7 +20,7 @@ func TestNonoBackendCreateDelegatesToNonoCreator(t *testing.T) {
 		MetadataDir: metadataDir,
 	}
 
-	err := b.Create("my-sandbox", CreateOptions{WorkDirectory: "/home/user/project"})
+	err := b.Create(CreateOptions{Name: "my-sandbox", WorkDirectory: "/home/user/project"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestNonoBackendCreateFailsWhenNonoNotInstalled(t *testing.T) {
 		MetadataDir: metadataDir,
 	}
 
-	err := b.Create("my-sandbox", CreateOptions{WorkDirectory: "/home/user/project"})
+	err := b.Create(CreateOptions{Name: "my-sandbox", WorkDirectory: "/home/user/project"})
 	if err == nil {
 		t.Fatal("expected error when nono is not installed")
 	}
@@ -137,7 +137,7 @@ func TestNonoBackendExecDelegatesToExecFunc(t *testing.T) {
 		ExtraReadPaths: []string{"/extra/path"},
 	}
 
-	exitCode, err := b.Exec("my-sandbox", map[string]string{"FOO": "bar"}, []string{"echo", "hello"})
+	exitCode, err := b.Exec(ExecRequest{ContainerName: "my-sandbox", EnvVars: map[string]string{"FOO": "bar"}, Args: []string{"echo", "hello"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestNonoBackendExecPropagatesExitCode(t *testing.T) {
 		},
 	}
 
-	exitCode, err := b.Exec("my-sandbox", nil, []string{"false"})
+	exitCode, err := b.Exec(ExecRequest{ContainerName: "my-sandbox", Args: []string{"false"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestNonoBackendExecInteractiveDelegatesToExecInteractiveFunc(t *testing.T) 
 		ExtraReadPaths: []string{"/interactive/path"},
 	}
 
-	exitCode, err := b.ExecInteractive("my-sandbox", map[string]string{"FOO": "bar"}, []string{"claude"})
+	exitCode, err := b.ExecInteractive(ExecRequest{ContainerName: "my-sandbox", EnvVars: map[string]string{"FOO": "bar"}, Args: []string{"claude"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -217,14 +217,14 @@ func TestNonoBackendOpenShellDelegatesToOpenShellFunc(t *testing.T) {
 	var calledEnvVars map[string]string
 
 	b := &NonoBackend{
-		OpenShellFunc: func(name string, envVars map[string]string) (int, error) {
-			calledName = name
-			calledEnvVars = envVars
+		OpenShellFunc: func(req ExecRequest) (int, error) {
+			calledName = req.ContainerName
+			calledEnvVars = req.EnvVars
 			return 0, nil
 		},
 	}
 
-	exitCode, err := b.OpenShell("my-sandbox", map[string]string{"FOO": "bar"})
+	exitCode, err := b.OpenShell(ExecRequest{ContainerName: "my-sandbox", EnvVars: map[string]string{"FOO": "bar"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
