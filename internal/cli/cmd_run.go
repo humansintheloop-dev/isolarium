@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
 	"github.com/humansintheloop-dev/isolarium/internal/config"
@@ -36,11 +37,19 @@ func loadRunEnvVarsImpl(isolationType string) (map[string]string, error) {
 		envNames = cfg.Nono.Run.Env
 	}
 
-	result := make(map[string]string, len(envNames))
-	for _, name := range envNames {
-		result[name] = os.Getenv(name)
+	return resolveEnvEntries(envNames), nil
+}
+
+func resolveEnvEntries(entries []string) map[string]string {
+	result := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		if key, value, ok := strings.Cut(entry, "="); ok {
+			result[key] = value
+		} else {
+			result[entry] = os.Getenv(entry)
+		}
 	}
-	return result, nil
+	return result
 }
 
 type runOptions struct {
