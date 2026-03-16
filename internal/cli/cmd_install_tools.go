@@ -26,7 +26,7 @@ func newInstallToolsCmd(rootCmd *cobra.Command, typeFlag *environmentType) *cobr
 				}
 			}
 
-			return installWorkflowTools(vmNameFlag)
+			return (vmSetup{name: vmNameFlag}).installWorkflowTools()
 		},
 	}
 }

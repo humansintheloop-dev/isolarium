@@ -23,11 +23,18 @@ func ensureVMRunning(name string) error {
 	}
 }
 
+type vmSetup struct {
+	name string
+	cwd  string
+}
+
 func createAndSetupVM(name string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
+
+	s := vmSetup{name: name, cwd: cwd}
 
 	repoInfo, err := resolveRepoInfo(cwd)
 	if err != nil {
@@ -39,7 +46,7 @@ func createAndSetupVM(name string) error {
 		return fmt.Errorf("failed to create VM: %w", err)
 	}
 
-	if err := cloneRepoIntoVM(name, cwd, repoInfo); err != nil {
+	if err := s.pushAndCloneRepo(repoInfo); err != nil {
 		return err
 	}
 
@@ -48,11 +55,11 @@ func createAndSetupVM(name string) error {
 		return fmt.Errorf("failed to install Java/Gradle: %w", err)
 	}
 
-	if err := installWorkflowTools(name); err != nil {
+	if err := s.installWorkflowTools(); err != nil {
 		return err
 	}
 
-	if err := runVMIsolationScriptsFromPidYaml(name, cwd); err != nil {
+	if err := s.runIsolationScriptsFromPidYaml(); err != nil {
 		return err
 	}
 
@@ -89,22 +96,30 @@ func resolveRepoInfo(cwd string) (*repoInfo, error) {
 	return &repoInfo{remoteURL: remoteURL, branch: branch, owner: owner, repo: repo}, nil
 }
 
-func cloneRepoIntoVM(name, cwd string, info *repoInfo) error {
+func (s vmSetup) pushAndCloneRepo(info *repoInfo) error {
+	fmt.Printf("Pushing branch %s to remote...\n", info.branch)
+	if err := git.PushBranch(s.cwd, info.branch); err != nil {
+		return fmt.Errorf("failed to push branch: %w", err)
+	}
+	return s.cloneRepoIntoVM(info)
+}
+
+func (s vmSetup) cloneRepoIntoVM(info *repoInfo) error {
 	token, err := mintGitHubToken()
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Cloning repository...")
-	if err := lima.CloneRepo(name, cwd, info.remoteURL, info.branch, token); err != nil {
+	if err := lima.CloneRepo(s.name, s.cwd, info.remoteURL, info.branch, token); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
 
-	return lima.WriteRepoMetadata(name, info.owner, info.repo, info.branch)
+	return lima.WriteRepoMetadata(s.name, info.owner, info.repo, info.branch)
 }
 
-func runVMIsolationScriptsFromPidYaml(name, workDir string) error {
-	cfg, err := config.LoadPidConfig(workDir)
+func (s vmSetup) runIsolationScriptsFromPidYaml() error {
+	cfg, err := config.LoadPidConfig(s.cwd)
 	if err != nil {
 		return fmt.Errorf("loading pid.yaml: %w", err)
 	}
@@ -112,7 +127,7 @@ func runVMIsolationScriptsFromPidYaml(name, workDir string) error {
 		return nil
 	}
 
-	homeDir, err := lima.GetVMHomeDir(name)
+	homeDir, err := lima.GetVMHomeDir(s.name)
 	if err != nil {
 		return fmt.Errorf("getting VM home directory: %w", err)
 	}
@@ -121,22 +136,22 @@ func runVMIsolationScriptsFromPidYaml(name, workDir string) error {
 	executor := func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
 		return lima.ExecCommand(vm, workdir, envVars, args)
 	}
-	return lima.RunVMIsolationScripts(cfg.VM.Create.CreationScripts, name, homeDir+"/repo", executor)
+	return lima.RunVMIsolationScripts(cfg.VM.Create.CreationScripts, s.name, homeDir+"/repo", executor)
 }
 
-func installWorkflowTools(name string) error {
+func (s vmSetup) installWorkflowTools() error {
 	fmt.Println("Cloning workflow tools...")
-	if err := lima.CloneWorkflowTools(name, ""); err != nil {
+	if err := lima.CloneWorkflowTools(s.name, ""); err != nil {
 		return fmt.Errorf("failed to clone workflow tools: %w", err)
 	}
 
 	fmt.Println("Installing custom plugins...")
-	if err := lima.InstallPlugins(name); err != nil {
+	if err := lima.InstallPlugins(s.name); err != nil {
 		return fmt.Errorf("failed to install custom plugins: %w", err)
 	}
 
 	fmt.Println("Installing i2code CLI...")
-	if err := lima.InstallI2Code(name); err != nil {
+	if err := lima.InstallI2Code(s.name); err != nil {
 		return fmt.Errorf("failed to install i2code CLI: %w", err)
 	}
 

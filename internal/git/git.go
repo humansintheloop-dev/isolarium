@@ -2,6 +2,7 @@ package git
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 )
@@ -17,6 +18,15 @@ func GetRemoteURL(path string) (string, error) {
 		return "", ErrNotGitRepository
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+func PushBranch(path, branch string) error {
+	cmd := exec.Command("git", "push", "-u", "origin", branch)
+	cmd.Dir = path
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to push branch %s: %w\n%s", branch, err, output)
+	}
+	return nil
 }
 
 // GetCurrentBranch returns the current branch name for the git repository at the given path
