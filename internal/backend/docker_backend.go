@@ -58,8 +58,8 @@ func (b *DockerBackend) Create(opts CreateOptions) error {
 		return err
 	}
 
-	if cfg != nil && len(cfg.Container.Create.HostScripts) > 0 {
-		return hostscript.RunHostScripts(cfg.Container.Create.HostScripts, opts.WorkDirectory, name, "container")
+	if cfg != nil && len(cfg.Container.Create.PostCreationScripts.HostScripts) > 0 {
+		return hostscript.RunHostScripts(cfg.Container.Create.PostCreationScripts.HostScripts, opts.WorkDirectory, name, "container")
 	}
 	return nil
 }
@@ -95,11 +95,11 @@ func (b *DockerBackend) newCreatorForName(name string, opts CreateOptions) (*doc
 }
 
 func (b *DockerBackend) applyIsolationScripts(cfg *config.PidConfig, workDir, contextDir string, creator *docker.Creator) error {
-	if cfg == nil || len(cfg.Container.Create.IsolationScripts) == 0 {
+	if cfg == nil || len(cfg.Container.Create.CreationScripts) == 0 {
 		return nil
 	}
 
-	scripts := cfg.Container.Create.IsolationScripts
+	scripts := cfg.Container.Create.CreationScripts
 
 	buildArgs, err := docker.ValidateAndCollectBuildArgs(scripts)
 	if err != nil {

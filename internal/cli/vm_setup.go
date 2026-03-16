@@ -108,7 +108,7 @@ func runVMIsolationScriptsFromPidYaml(name, workDir string) error {
 	if err != nil {
 		return fmt.Errorf("loading pid.yaml: %w", err)
 	}
-	if cfg == nil || len(cfg.VM.Create.IsolationScripts) == 0 {
+	if cfg == nil || len(cfg.VM.Create.CreationScripts) == 0 {
 		return nil
 	}
 
@@ -121,7 +121,7 @@ func runVMIsolationScriptsFromPidYaml(name, workDir string) error {
 	executor := func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
 		return lima.ExecCommand(vm, workdir, envVars, args)
 	}
-	return lima.RunVMIsolationScripts(cfg.VM.Create.IsolationScripts, name, homeDir+"/repo", executor)
+	return lima.RunVMIsolationScripts(cfg.VM.Create.CreationScripts, name, homeDir+"/repo", executor)
 }
 
 func installWorkflowTools(name string) error {

@@ -34,14 +34,14 @@ func (b *LimaBackend) Create(opts CreateOptions) error {
 		return err
 	}
 
-	if cfg != nil && len(cfg.VM.Create.HostScripts) > 0 {
-		return hostscript.RunHostScripts(cfg.VM.Create.HostScripts, opts.WorkDirectory, opts.Name, "vm")
+	if cfg != nil && len(cfg.VM.Create.PostCreationScripts.HostScripts) > 0 {
+		return hostscript.RunHostScripts(cfg.VM.Create.PostCreationScripts.HostScripts, opts.WorkDirectory, opts.Name, "vm")
 	}
 	return nil
 }
 
 func (b *LimaBackend) runIsolationScripts(cfg *config.PidConfig, name string) error {
-	if cfg == nil || len(cfg.VM.Create.IsolationScripts) == 0 {
+	if cfg == nil || len(cfg.VM.Create.CreationScripts) == 0 {
 		return nil
 	}
 
@@ -61,7 +61,7 @@ func (b *LimaBackend) runIsolationScripts(cfg *config.PidConfig, name string) er
 		return fmt.Errorf("getting VM home directory: %w", err)
 	}
 
-	return lima.RunVMIsolationScripts(cfg.VM.Create.IsolationScripts, name, homeDir+"/repo", executor)
+	return lima.RunVMIsolationScripts(cfg.VM.Create.CreationScripts, name, homeDir+"/repo", executor)
 }
 
 func (b *LimaBackend) Destroy(name string) error {

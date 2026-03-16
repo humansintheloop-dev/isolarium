@@ -58,8 +58,10 @@ func TestLimaBackendCreateRunsHostScriptsAfterVMCreate(t *testing.T) {
 	fix.writeScript([]byte("#!/bin/bash\necho \"NAME=$ISOLARIUM_NAME TYPE=$ISOLARIUM_TYPE\" > " + markerFile + "\n"))
 	fix.writePidYaml([]byte(`isolarium:
   vm:
-    host_scripts:
-      - path: scripts/setup.sh
+    create:
+      post_creation_scripts:
+        host_scripts:
+          - path: scripts/setup.sh
 `))
 
 	vmCreated := false
@@ -95,10 +97,12 @@ func TestLimaBackendCreateWithHostScriptDeclaredEnvVars(t *testing.T) {
 	fix.writeScript([]byte("#!/bin/bash\necho \"TOKEN=$MY_SECRET\" > " + markerFile + "\n"))
 	fix.writePidYaml([]byte(`isolarium:
   vm:
-    host_scripts:
-      - path: scripts/setup.sh
-        env:
-          - MY_SECRET
+    create:
+      post_creation_scripts:
+        host_scripts:
+          - path: scripts/setup.sh
+            env:
+              - MY_SECRET
 `))
 
 	t.Setenv("MY_SECRET", "super-secret-value")
@@ -138,9 +142,10 @@ func TestLimaBackendCreateRunsVMIsolationScripts(t *testing.T) {
 	fix := newVMTestFixture(t)
 	fix.writePidYaml([]byte(`isolarium:
   vm:
-    isolation_scripts:
-      - path: scripts/install-go.sh
-      - path: scripts/install-linters.sh
+    create:
+      creation_scripts:
+        - path: scripts/install-go.sh
+        - path: scripts/install-linters.sh
 `))
 
 	var executed []recordedVMExec
@@ -174,10 +179,11 @@ func TestLimaBackendCreatePassesEnvVarsToVMIsolationScripts(t *testing.T) {
 	fix := newVMTestFixture(t)
 	fix.writePidYaml([]byte(`isolarium:
   vm:
-    isolation_scripts:
-      - path: scripts/install-codescene.sh
-        env:
-          - CS_ACCESS_TOKEN
+    create:
+      creation_scripts:
+        - path: scripts/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
 `))
 
 	t.Setenv("CS_ACCESS_TOKEN", "my-token")
@@ -213,10 +219,11 @@ func TestLimaBackendCreateIsolationScriptErrors(t *testing.T) {
 			name: "missing env vars prevents execution",
 			pidYaml: `isolarium:
   vm:
-    isolation_scripts:
-      - path: scripts/install-codescene.sh
-        env:
-          - NONEXISTENT_VAR`,
+    create:
+      creation_scripts:
+        - path: scripts/install-codescene.sh
+          env:
+            - NONEXISTENT_VAR`,
 			executor: func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
 				t.Fatal("executor should not be called when env vars are missing")
 				return 0, nil
@@ -227,8 +234,9 @@ func TestLimaBackendCreateIsolationScriptErrors(t *testing.T) {
 			name: "script failure propagates as create error",
 			pidYaml: `isolarium:
   vm:
-    isolation_scripts:
-      - path: scripts/install-go.sh`,
+    create:
+      creation_scripts:
+        - path: scripts/install-go.sh`,
 			executor: func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
 				return 1, fmt.Errorf("script failed")
 			},

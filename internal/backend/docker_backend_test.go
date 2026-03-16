@@ -309,10 +309,11 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 
 	pidYaml := `isolarium:
   container:
-    isolation_scripts:
-      - path: scripts/install.sh
-        env:
-          - MY_TOKEN
+    create:
+      creation_scripts:
+        - path: scripts/install.sh
+          env:
+            - MY_TOKEN
 `
 	if err := os.WriteFile(workDir+"/pid.yaml", []byte(pidYaml), 0644); err != nil {
 		t.Fatal(err)
@@ -372,10 +373,11 @@ func TestDockerBackendCreateFailsWhenDeclaredEnvVarMissing(t *testing.T) {
 
 	pidYaml := `isolarium:
   container:
-    isolation_scripts:
-      - path: scripts/install.sh
-        env:
-          - MISSING_VAR_XYZ
+    create:
+      creation_scripts:
+        - path: scripts/install.sh
+          env:
+            - MISSING_VAR_XYZ
 `
 	if err := os.WriteFile(workDir+"/pid.yaml", []byte(pidYaml), 0644); err != nil {
 		t.Fatal(err)
