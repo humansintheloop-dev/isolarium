@@ -2,12 +2,58 @@ package cli
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
 	"github.com/spf13/cobra"
 )
+
+func stubGhNotFound(t *testing.T) {
+	t.Helper()
+	orig := execCommandOutput
+	execCommandOutput = func(name string, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("gh not found")
+	}
+	t.Cleanup(func() { execCommandOutput = orig })
+}
+
+func nonoRunWithSpy(t *testing.T, args ...string) *backendSpy {
+	t.Helper()
+	stubMintGitHubToken(t)
+	spy := &backendSpy{}
+	runWithSpy(t, spy, append([]string{"run", "--type", "nono"}, args...))
+	return spy
+}
+
+func assertArgsEqual(t *testing.T, label string, got, want []string) {
+	t.Helper()
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("expected %s %v, got %v", label, want, got)
+	}
+}
+
+func isGhAuthTokenCommand(name string, args []string) bool {
+	return name == "gh" && reflect.DeepEqual(args, []string{"auth", "token"})
+}
+
+func assertNonoRejectsFlag(t *testing.T, flag string) {
+	t.Helper()
+	spy := &backendSpy{}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "nono", flag, "--", "echo", "hello"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error when %s is explicitly set with --type nono", flag)
+	}
+	expectedMsg := fmt.Sprintf("%s is not supported with --type nono", flag)
+	if !strings.Contains(err.Error(), expectedMsg) {
+		t.Errorf("expected error message about %s not supported, got: %v", flag, err)
+	}
+}
 
 func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
 	spy := &backendSpy{}
@@ -23,11 +69,7 @@ func TestRunCommand_FallsBackToDefaultTypeWhenNoEnvironmentFound(t *testing.T) {
 		},
 	)
 
-	origExec := execCommandOutput
-	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("gh not found")
-	}
-	defer func() { execCommandOutput = origExec }()
+	stubGhNotFound(t)
 
 	origRunInVM := runInVM
 	runInVM = func(opts runOptions, cmd *cobra.Command) error {
@@ -66,9 +108,7 @@ func TestRunCommand_ContainerCallsBackendExec(t *testing.T) {
 	if spy.execName != "isolarium-container" {
 		t.Errorf("expected name 'isolarium-container', got '%s'", spy.execName)
 	}
-	if len(spy.execArgs) != 2 || spy.execArgs[0] != "echo" || spy.execArgs[1] != "hello" {
-		t.Errorf("expected args [echo hello], got %v", spy.execArgs)
-	}
+	assertArgsEqual(t, "exec args", spy.execArgs, []string{"echo", "hello"})
 }
 
 func TestRunCommand_ContainerInteractiveCallsBackendExecInteractive(t *testing.T) {
@@ -112,7 +152,7 @@ func TestRunCommand_ContainerInjectsGitHubTokenFromGhCli(t *testing.T) {
 
 	origFn := execCommandOutput
 	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		if name == "gh" && len(args) == 2 && args[0] == "auth" && args[1] == "token" {
+		if isGhAuthTokenCommand(name, args) {
 			return []byte("gho_test_token_123\n"), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %s", name)
@@ -135,11 +175,7 @@ func TestRunCommand_ContainerCopySessionCallsCopyCredentials(t *testing.T) {
 		return spy, nil
 	})
 
-	origExec := execCommandOutput
-	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("gh not found")
-	}
-	defer func() { execCommandOutput = origExec }()
+	stubGhNotFound(t)
 
 	origKeychain := readKeychainCredentials
 	readKeychainCredentials = func() (string, error) {
@@ -164,21 +200,8 @@ func TestRunCommand_ContainerCopySessionCallsCopyCredentials(t *testing.T) {
 }
 
 func TestRunCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-
-	origExec := execCommandOutput
-	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("gh not found")
-	}
-	defer func() { execCommandOutput = origExec }()
-
-	rootCmd.SetArgs([]string{"run", "--type", "container", "--copy-session=false", "--", "echo", "hello"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	stubGhNotFound(t)
+	spy := containerRunWithEnvFlags(t, nil, []string{"--", "echo", "hello"})
 
 	if spy.copyCredentialsCalled {
 		t.Fatal("expected backend.CopyCredentials NOT to be called when --copy-session=false")
@@ -186,21 +209,8 @@ func TestRunCommand_ContainerNoCopySessionSkipsCopyCredentials(t *testing.T) {
 }
 
 func TestRunCommand_ContainerOmitsTokenWhenGhCliNotAvailable(t *testing.T) {
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-
-	origFn := execCommandOutput
-	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("gh not found")
-	}
-	defer func() { execCommandOutput = origFn }()
-
-	rootCmd.SetArgs([]string{"run", "--type", "container", "--copy-session=false", "--", "echo", "hello"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	stubGhNotFound(t)
+	spy := containerRunWithEnvFlags(t, nil, []string{"--", "echo", "hello"})
 
 	if _, exists := spy.execEnvVars["GH_TOKEN"]; exists {
 		t.Error("expected GH_TOKEN to not be set when gh cli is unavailable")
@@ -218,11 +228,7 @@ func TestRunCommand_AutoDetectsContainerWhenTypeNotProvided(t *testing.T) {
 		},
 	)
 
-	origExec := execCommandOutput
-	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("gh not found")
-	}
-	defer func() { execCommandOutput = origExec }()
+	stubGhNotFound(t)
 
 	rootCmd.SetArgs([]string{"run", "--name", "my-env", "--copy-session=false", "--", "echo", "hello"})
 	if err := rootCmd.Execute(); err != nil {
@@ -245,15 +251,7 @@ func stubMintGitHubToken(t *testing.T) {
 }
 
 func TestRunCommand_NonoCallsBackendExec(t *testing.T) {
-	stubMintGitHubToken(t)
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "echo", "hello"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	spy := nonoRunWithSpy(t, "--", "echo", "hello")
 
 	if !spy.execCalled {
 		t.Fatal("expected backend.Exec to be called")
@@ -261,9 +259,7 @@ func TestRunCommand_NonoCallsBackendExec(t *testing.T) {
 	if spy.execName != "isolarium-nono" {
 		t.Errorf("expected name 'isolarium-nono', got '%s'", spy.execName)
 	}
-	if len(spy.execArgs) != 2 || spy.execArgs[0] != "echo" || spy.execArgs[1] != "hello" {
-		t.Errorf("expected args [echo hello], got %v", spy.execArgs)
-	}
+	assertArgsEqual(t, "exec args", spy.execArgs, []string{"echo", "hello"})
 }
 
 func TestRunCommand_NonoFailsWhenGitHubAppNotConfigured(t *testing.T) {
@@ -287,45 +283,15 @@ func TestRunCommand_NonoFailsWhenGitHubAppNotConfigured(t *testing.T) {
 }
 
 func TestRunCommand_NonoRejectsCopySessionWhenExplicitlySet(t *testing.T) {
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--copy-session", "--", "echo", "hello"})
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when --copy-session is explicitly set with --type nono")
-	}
-	if !strings.Contains(err.Error(), "--copy-session is not supported with --type nono") {
-		t.Errorf("expected error message about --copy-session not supported, got: %v", err)
-	}
+	assertNonoRejectsFlag(t, "--copy-session")
 }
 
 func TestRunCommand_NonoRejectsFreshLoginWhenExplicitlySet(t *testing.T) {
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--fresh-login", "--", "echo", "hello"})
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when --fresh-login is explicitly set with --type nono")
-	}
-	if !strings.Contains(err.Error(), "--fresh-login is not supported with --type nono") {
-		t.Errorf("expected error message about --fresh-login not supported, got: %v", err)
-	}
+	assertNonoRejectsFlag(t, "--fresh-login")
 }
 
 func TestRunCommand_NonoInteractiveCallsBackendExecInteractive(t *testing.T) {
-	stubMintGitHubToken(t)
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "-i", "--", "claude"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	spy := nonoRunWithSpy(t, "-i", "--", "claude")
 
 	if !spy.execInteractiveCalled {
 		t.Fatal("expected backend.ExecInteractive to be called")
@@ -333,21 +299,11 @@ func TestRunCommand_NonoInteractiveCallsBackendExecInteractive(t *testing.T) {
 	if spy.execInteractiveName != "isolarium-nono" {
 		t.Errorf("expected name 'isolarium-nono', got '%s'", spy.execInteractiveName)
 	}
-	if len(spy.execInteractiveArgs) != 1 || spy.execInteractiveArgs[0] != "claude" {
-		t.Errorf("expected args [claude], got %v", spy.execInteractiveArgs)
-	}
+	assertArgsEqual(t, "exec interactive args", spy.execInteractiveArgs, []string{"claude"})
 }
 
 func TestRunCommand_NonoNonInteractiveCallsBackendExec(t *testing.T) {
-	stubMintGitHubToken(t)
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "echo", "hello"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	spy := nonoRunWithSpy(t, "--", "echo", "hello")
 
 	if !spy.execCalled {
 		t.Fatal("expected backend.Exec to be called")
@@ -374,23 +330,16 @@ func TestRunCommand_NonoReadFlagSetsExtraReadPaths(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(calledExtraReadPaths) != 2 || calledExtraReadPaths[0] != "/path/one" || calledExtraReadPaths[1] != "/path/two" {
-		t.Errorf("expected extraReadPaths [/path/one /path/two], got %v", calledExtraReadPaths)
-	}
+	assertArgsEqual(t, "extraReadPaths", calledExtraReadPaths, []string{"/path/one", "/path/two"})
 }
 
 func containerRunWithSpyState(t *testing.T, state string, envFlags []string, runArgs []string) *backendSpy {
 	t.Helper()
+	stubGhNotFound(t)
 	spy := &backendSpy{state: state}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
 	})
-
-	origFn := execCommandOutput
-	execCommandOutput = func(name string, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("gh not found")
-	}
-	defer func() { execCommandOutput = origFn }()
 
 	var args []string
 	for _, ef := range envFlags {
@@ -451,7 +400,6 @@ func TestRunCommand_VMPassesEnvFlagVarsToBackend(t *testing.T) {
 
 func TestRunCommand_NonoPassesEnvFlagVarsToBackend(t *testing.T) {
 	stubMintGitHubToken(t)
-
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
@@ -491,17 +439,8 @@ func TestRunCommand_ContainerInjectsRunEnvVarsFromPidYaml(t *testing.T) {
 }
 
 func TestRunCommand_NonoInjectsRunEnvVarsFromPidYaml(t *testing.T) {
-	stubMintGitHubToken(t)
 	stubLoadRunEnvVars(t, map[string]string{"PID_VAR": "pid_value"})
-
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "printenv", "PID_VAR"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	spy := nonoRunWithSpy(t, "--", "printenv", "PID_VAR")
 
 	if spy.execEnvVars["PID_VAR"] != "pid_value" {
 		t.Errorf("expected PID_VAR='pid_value', got '%s'", spy.execEnvVars["PID_VAR"])
@@ -579,7 +518,7 @@ func TestRunCommand_CreateFlagCreatesNonoWhenStateIsNone(t *testing.T) {
 	runWithSpy(t, spy, []string{"run", "--type", "nono", "--create", "--", "echo", "hello"})
 
 	if !spy.createCalled {
-		t.Fatal("expected backend.Create to be called when --create is set and state is none")
+		t.Fatal("expected backend.Create to be called")
 	}
 }
 
@@ -607,15 +546,7 @@ func TestRunCommand_CreateFlagPassesWorkDirectoryToBackend(t *testing.T) {
 }
 
 func TestRunCommand_NonoDoesNotCallCopyCredentials(t *testing.T) {
-	stubMintGitHubToken(t)
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"run", "--type", "nono", "--", "echo", "hello"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	spy := nonoRunWithSpy(t, "--", "echo", "hello")
 
 	if spy.copyCredentialsCalled {
 		t.Fatal("expected CopyCredentials NOT to be called for nono")
