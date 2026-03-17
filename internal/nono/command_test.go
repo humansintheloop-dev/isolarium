@@ -1,6 +1,7 @@
 package nono
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -16,25 +17,21 @@ func TestBuildRunCommandIncludesPermissionFlags(t *testing.T) {
 	assertContainsFlag(t, cmd, "--allow-cwd")
 }
 
-func TestBuildRunCommandEndsWithSeparatorAndUserArgs(t *testing.T) {
-	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
-
-	separatorIdx := -1
-	for i, v := range cmd {
-		if v == "--" {
-			separatorIdx = i
-			break
-		}
-	}
-
+func assertUserArgsAfterSeparator(t *testing.T, cmd []string, expected []string) {
+	t.Helper()
+	separatorIdx := findIndex(cmd, "--")
 	if separatorIdx == -1 {
 		t.Fatal("expected command to contain '--' separator")
 	}
-
 	userArgs := cmd[separatorIdx+1:]
-	if len(userArgs) != 2 || userArgs[0] != "echo" || userArgs[1] != "hello" {
-		t.Errorf("expected user args [echo hello], got %v", userArgs)
+	if !reflect.DeepEqual(userArgs, expected) {
+		t.Errorf("expected user args %v, got %v", expected, userArgs)
 	}
+}
+
+func TestBuildRunCommandEndsWithSeparatorAndUserArgs(t *testing.T) {
+	cmd := BuildRunCommand([]string{"echo", "hello"}, nil)
+	assertUserArgsAfterSeparator(t, cmd, []string{"echo", "hello"})
 }
 
 func TestBuildRunCommandDoesNotIncludeExecFlag(t *testing.T) {
@@ -90,23 +87,7 @@ func TestBuildRunCommandInteractiveIncludesPermissionFlags(t *testing.T) {
 
 func TestBuildRunCommandInteractiveEndsWithUserArgs(t *testing.T) {
 	cmd := BuildRunCommandInteractive([]string{"claude", "--verbose"}, nil)
-
-	separatorIdx := -1
-	for i, v := range cmd {
-		if v == "--" {
-			separatorIdx = i
-			break
-		}
-	}
-
-	if separatorIdx == -1 {
-		t.Fatal("expected command to contain '--' separator")
-	}
-
-	userArgs := cmd[separatorIdx+1:]
-	if len(userArgs) != 2 || userArgs[0] != "claude" || userArgs[1] != "--verbose" {
-		t.Errorf("expected user args [claude --verbose], got %v", userArgs)
-	}
+	assertUserArgsAfterSeparator(t, cmd, []string{"claude", "--verbose"})
 }
 
 func TestBuildShellCommandStartsWithNonoShellAndProfile(t *testing.T) {
