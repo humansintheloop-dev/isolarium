@@ -102,6 +102,59 @@ func TestGetCurrentBranch_NotGitRepo(t *testing.T) {
 	}
 }
 
+func TestTransformEmailForIsolation(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"foo@bar.com", "foo+i2code@bar.com"},
+		{"Alice@Example.org", "Alice+i2code@Example.org"},
+		{"user+tag@domain.com", "user+tag+i2code@domain.com"},
+	}
+	for _, tt := range tests {
+		got := TransformEmailForIsolation(tt.input)
+		if got != tt.expected {
+			t.Errorf("TransformEmailForIsolation(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
+func TestGetUserConfig(t *testing.T) {
+	tests := []struct {
+		name     string
+		configFn func(string) (string, error)
+		key      string
+		value    string
+	}{
+		{"Email", GetUserEmail, "user.email", "dev@example.com"},
+		{"Name", GetUserName, "user.name", "Jane Dev"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "git-test-*")
+			if err != nil {
+				t.Fatalf("failed to create temp dir: %v", err)
+			}
+			defer func() { _ = os.RemoveAll(tmpDir) }()
+
+			if err := runGitCommand(tmpDir, "init"); err != nil {
+				t.Fatalf("failed to init: %v", err)
+			}
+			if err := runGitCommand(tmpDir, "config", tt.key, tt.value); err != nil {
+				t.Fatalf("failed to set %s: %v", tt.key, err)
+			}
+
+			got, err := tt.configFn(tmpDir)
+			if err != nil {
+				t.Fatalf("failed: %v", err)
+			}
+			if got != tt.value {
+				t.Errorf("expected %q, got %q", tt.value, got)
+			}
+		})
+	}
+}
+
 func TestPushBranch(t *testing.T) {
 	bareDir := createBareRemote(t)
 	workDir := cloneFromBare(t, bareDir)

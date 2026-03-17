@@ -115,7 +115,26 @@ func (s vmSetup) cloneRepoIntoVM(info *repoInfo) error {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
 
+	if err := s.configureVMGitAuthor(); err != nil {
+		return err
+	}
+
 	return lima.WriteRepoMetadata(s.name, info.owner, info.repo, info.branch)
+}
+
+func (s vmSetup) configureVMGitAuthor() error {
+	email, err := git.GetUserEmail(s.cwd)
+	if err != nil {
+		return fmt.Errorf("failed to get git user.email: %w", err)
+	}
+	userName, err := git.GetUserName(s.cwd)
+	if err != nil {
+		return fmt.Errorf("failed to get git user.name: %w", err)
+	}
+	isolationEmail := git.TransformEmailForIsolation(email)
+	isolationName := userName + " - i2code"
+	fmt.Printf("Configuring git author: %s <%s>\n", isolationName, isolationEmail)
+	return lima.ConfigureGitAuthor(s.name, isolationEmail, isolationName)
 }
 
 func (s vmSetup) runIsolationScriptsFromPidYaml() error {

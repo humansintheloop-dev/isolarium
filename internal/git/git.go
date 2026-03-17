@@ -29,6 +29,32 @@ func PushBranch(path, branch string) error {
 	return nil
 }
 
+func GetUserEmail(path string) (string, error) {
+	return gitConfig(path, "user.email")
+}
+
+func GetUserName(path string) (string, error) {
+	return gitConfig(path, "user.name")
+}
+
+func gitConfig(path, key string) (string, error) {
+	cmd := exec.Command("git", "config", key)
+	cmd.Dir = path
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git config %s not set: %w", key, err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func TransformEmailForIsolation(email string) string {
+	at := strings.LastIndex(email, "@")
+	if at < 0 {
+		return email
+	}
+	return email[:at] + "+i2code" + email[at:]
+}
+
 // GetCurrentBranch returns the current branch name for the git repository at the given path
 func GetCurrentBranch(path string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")

@@ -94,6 +94,22 @@ func TestBuildWorkflowToolsCloneCommand_NoToken(t *testing.T) {
 	}
 }
 
+func TestBuildConfigureGitAuthorCommand(t *testing.T) {
+	cmd := BuildConfigureGitAuthorCommand("isolarium", "dev+i2code@example.com", "Jane Dev")
+	expected := []string{
+		"limactl", "shell", "isolarium", "--",
+		"bash", "-c", "cd ~/repo && git config user.email 'dev+i2code@example.com' && git config user.name 'Jane Dev'",
+	}
+	if len(cmd) != len(expected) {
+		t.Fatalf("expected %d args, got %d", len(expected), len(cmd))
+	}
+	for i, arg := range expected {
+		if cmd[i] != arg {
+			t.Errorf("arg %d: expected %q, got %q", i, arg, cmd[i])
+		}
+	}
+}
+
 func TestBuildInstallPluginCommand(t *testing.T) {
 	cmd := BuildInstallPluginCommand("isolarium")
 	expected := []string{

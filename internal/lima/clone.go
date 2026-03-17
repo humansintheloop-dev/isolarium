@@ -88,17 +88,18 @@ func CloneRepo(name, hostProjectDir, remoteURL, branch, token string) error {
 }
 
 func CloneWorkflowTools(name, token string) error {
-	args := BuildWorkflowToolsCloneCommand(name, token)
+	return runCommand(BuildWorkflowToolsCloneCommand(name, token), "clone workflow tools")
+}
 
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to clone workflow tools: %w", err)
+func BuildConfigureGitAuthorCommand(name, email, userName string) []string {
+	return []string{
+		"limactl", "shell", name, "--",
+		"bash", "-c", "cd ~/repo && git config user.email '" + email + "' && git config user.name '" + userName + "'",
 	}
+}
 
-	return nil
+func ConfigureGitAuthor(name, email, userName string) error {
+	return runCommand(BuildConfigureGitAuthorCommand(name, email, userName), "configure git author")
 }
 
 func BuildInstallPluginCommand(name string) []string {
@@ -109,17 +110,7 @@ func BuildInstallPluginCommand(name string) []string {
 }
 
 func InstallPlugins(name string) error {
-	args := BuildInstallPluginCommand(name)
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install plugins: %w", err)
-	}
-
-	return nil
+	return runCommand(BuildInstallPluginCommand(name), "install plugins")
 }
 
 func UninstallI2Code(name string) error {
@@ -189,25 +180,19 @@ func BuildInstallI2CodeCommand(name string) []string {
 }
 
 func InstallI2Code(name string) error {
-	args := BuildInstallI2CodeCommand(name)
-
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install i2code CLI: %w", err)
-	}
-
-	return nil
+	return runCommand(BuildInstallI2CodeCommand(name), "install i2code CLI")
 }
 
 func RemoveRepoDir(name string) error {
-	cmd := exec.Command("limactl", "shell", name, "--", "rm", "-rf", "repo")
+	return runCommand([]string{"limactl", "shell", name, "--", "rm", "-rf", "repo"}, "remove repo directory")
+}
+
+func runCommand(args []string, description string) error {
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove repo directory: %w", err)
+		return fmt.Errorf("failed to %s: %w", description, err)
 	}
 	return nil
 }
