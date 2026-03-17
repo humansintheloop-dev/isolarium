@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -131,22 +132,33 @@ func TestDockerBackendCreateHandlesWorktreeDetectionError(t *testing.T) {
 	}
 }
 
-func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
-	var capturedName string
-	var capturedEnvVars map[string]string
-	var capturedArgs []string
+type execCapture struct {
+	name    string
+	envVars map[string]string
+	args    []string
+}
 
+func (c *execCapture) captureFunc(exitCode int) func(ExecRequest) (int, error) {
+	return func(req ExecRequest) (int, error) {
+		c.name = req.ContainerName
+		c.envVars = req.EnvVars
+		c.args = req.Args
+		return exitCode, nil
+	}
+}
+
+func runningContainerRunner(t *testing.T) *command.FakeRunner {
+	t.Helper()
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("running\n")
+	return runner
+}
 
+func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
+	capture := &execCapture{}
 	b := &DockerBackend{
-		Runner: runner,
-		ExecFunc: func(req ExecRequest) (int, error) {
-			capturedName = req.ContainerName
-			capturedEnvVars = req.EnvVars
-			capturedArgs = req.Args
-			return 42, nil
-		},
+		Runner:   runningContainerRunner(t),
+		ExecFunc: capture.captureFunc(42),
 	}
 
 	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
@@ -157,33 +169,22 @@ func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
 	if exitCode != 42 {
 		t.Errorf("expected exit code 42, got %d", exitCode)
 	}
-	if capturedName != "my-container" {
-		t.Errorf("expected name %q, got %q", "my-container", capturedName)
+	if capture.name != "my-container" {
+		t.Errorf("expected name %q, got %q", "my-container", capture.name)
 	}
-	if capturedEnvVars["GH_TOKEN"] != "ghs_abc123" {
-		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capturedEnvVars)
+	if capture.envVars["GH_TOKEN"] != "ghs_abc123" {
+		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capture.envVars)
 	}
-	if len(capturedArgs) != 2 || capturedArgs[0] != "echo" || capturedArgs[1] != "hello" {
-		t.Errorf("expected args [echo hello], got %v", capturedArgs)
+	if !reflect.DeepEqual(capture.args, []string{"echo", "hello"}) {
+		t.Errorf("expected args [echo hello], got %v", capture.args)
 	}
 }
 
 func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *testing.T) {
-	var capturedName string
-	var capturedEnvVars map[string]string
-	var capturedArgs []string
-
-	runner := command.NewFakeRunner(t)
-	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("running\n")
-
+	capture := &execCapture{}
 	b := &DockerBackend{
-		Runner: runner,
-		ExecInteractiveFunc: func(req ExecRequest) (int, error) {
-			capturedName = req.ContainerName
-			capturedEnvVars = req.EnvVars
-			capturedArgs = req.Args
-			return 0, nil
-		},
+		Runner:              runningContainerRunner(t),
+		ExecInteractiveFunc: capture.captureFunc(0),
 	}
 
 	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
@@ -194,14 +195,14 @@ func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0, got %d", exitCode)
 	}
-	if capturedName != "my-container" {
-		t.Errorf("expected name %q, got %q", "my-container", capturedName)
+	if capture.name != "my-container" {
+		t.Errorf("expected name %q, got %q", "my-container", capture.name)
 	}
-	if capturedEnvVars["GH_TOKEN"] != "ghs_abc123" {
-		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capturedEnvVars)
+	if capture.envVars["GH_TOKEN"] != "ghs_abc123" {
+		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capture.envVars)
 	}
-	if len(capturedArgs) != 1 || capturedArgs[0] != "bash" {
-		t.Errorf("expected args [bash], got %v", capturedArgs)
+	if !reflect.DeepEqual(capture.args, []string{"bash"}) {
+		t.Errorf("expected args [bash], got %v", capture.args)
 	}
 }
 
@@ -248,50 +249,44 @@ func TestDockerBackendCopyCredentialsDelegatesToCopyCredentialsFunc(t *testing.T
 	}
 }
 
-func TestDockerBackendExecReturnsErrorWhenContainerStopped(t *testing.T) {
+func stoppedContainerBackend(t *testing.T) *DockerBackend {
+	t.Helper()
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("exited\n")
-
-	b := &DockerBackend{
+	return &DockerBackend{
 		Runner: runner,
 		ExecFunc: func(req ExecRequest) (int, error) {
 			t.Fatal("ExecFunc should not be called when container is stopped")
 			return 0, nil
 		},
+		ExecInteractiveFunc: func(req ExecRequest) (int, error) {
+			t.Fatal("ExecInteractiveFunc should not be called when container is stopped")
+			return 0, nil
+		},
 	}
+}
 
-	_, err := b.Exec(ExecRequest{ContainerName: "my-container", Args: []string{"echo", "hello"}})
+func assertStoppedContainerError(t *testing.T, err error) {
+	t.Helper()
 	if err == nil {
 		t.Fatal("expected error when container is stopped")
 	}
-
 	expectedMessage := "container 'my-container' is stopped, run 'isolarium create --type container' to recreate it"
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
 	}
 }
 
+func TestDockerBackendExecReturnsErrorWhenContainerStopped(t *testing.T) {
+	b := stoppedContainerBackend(t)
+	_, err := b.Exec(ExecRequest{ContainerName: "my-container", Args: []string{"echo", "hello"}})
+	assertStoppedContainerError(t, err)
+}
+
 func TestDockerBackendExecInteractiveReturnsErrorWhenContainerStopped(t *testing.T) {
-	runner := command.NewFakeRunner(t)
-	runner.OnCommand("docker", "inspect", "--format", "{{.State.Status}}", "my-container").Returns("exited\n")
-
-	b := &DockerBackend{
-		Runner: runner,
-		ExecInteractiveFunc: func(req ExecRequest) (int, error) {
-			t.Fatal("ExecInteractiveFunc should not be called when container is stopped")
-			return 0, nil
-		},
-	}
-
+	b := stoppedContainerBackend(t)
 	_, err := b.ExecInteractive(ExecRequest{ContainerName: "my-container", Args: []string{"bash"}})
-	if err == nil {
-		t.Fatal("expected error when container is stopped")
-	}
-
-	expectedMessage := "container 'my-container' is stopped, run 'isolarium create --type container' to recreate it"
-	if !strings.Contains(err.Error(), expectedMessage) {
-		t.Errorf("expected error to contain %q, got %q", expectedMessage, err.Error())
-	}
+	assertStoppedContainerError(t, err)
 }
 
 func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T) {
