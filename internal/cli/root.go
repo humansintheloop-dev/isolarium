@@ -156,7 +156,7 @@ func resolveEnvType(rootCmd *cobra.Command, typeFlag *environmentType, name stri
 func LoadEnvFile(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil // File doesn't exist, skip silently
+		return nil
 	}
 	defer func() { _ = file.Close() }()
 
@@ -167,22 +167,37 @@ func LoadEnvFile(path string) error {
 			continue
 		}
 		parts := strings.SplitN(line, "=", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-
-			// Validate that _PATH variables reference existing files
-			if strings.HasSuffix(key, "_PATH") && value != "" {
-				if _, err := os.Stat(value); os.IsNotExist(err) {
-					return fmt.Errorf("%s references non-existent file: %s", key, value)
-				}
-			}
-
-			// Only set if not already set in environment
-			if os.Getenv(key) == "" {
-				_ = os.Setenv(key, value)
-			}
+		if len(parts) != 2 {
+			continue
 		}
+		entry := envEntry{key: strings.TrimSpace(parts[0]), value: strings.TrimSpace(parts[1])}
+		if err := entry.applyToEnvironment(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type envEntry struct {
+	key, value string
+}
+
+func (e envEntry) applyToEnvironment() error {
+	if err := e.validatePathReference(); err != nil {
+		return err
+	}
+	if os.Getenv(e.key) == "" {
+		_ = os.Setenv(e.key, e.value)
+	}
+	return nil
+}
+
+func (e envEntry) validatePathReference() error {
+	if !strings.HasSuffix(e.key, "_PATH") || e.value == "" {
+		return nil
+	}
+	if _, err := os.Stat(e.value); os.IsNotExist(err) {
+		return fmt.Errorf("%s references non-existent file: %s", e.key, e.value)
 	}
 	return nil
 }
