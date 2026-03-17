@@ -10,12 +10,55 @@ import (
 	"time"
 )
 
-func TestStatusCommand_ShowsNoEnvironmentsWhenNoneExist(t *testing.T) {
+func buildBinary(t *testing.T) string {
+	t.Helper()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
 	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	buildCmd.Dir = "."
 	if err := buildCmd.Run(); err != nil {
 		t.Fatalf("failed to build binary: %v", err)
 	}
+	return filepath.Join(cwd, "isolarium")
+}
+
+func runHelpOutput(t *testing.T, binaryPath string) string {
+	t.Helper()
+	cmd := exec.Command(binaryPath, "run", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run --help failed: %v, output: %s", err, output)
+	}
+	return string(output)
+}
+
+func assertOutputContains(t *testing.T, output string, expected ...string) {
+	t.Helper()
+	for _, s := range expected {
+		if !strings.Contains(output, s) {
+			t.Errorf("expected output to contain %q, got: %s", s, output)
+		}
+	}
+}
+
+func limactlOutput(t *testing.T) (string, bool) {
+	t.Helper()
+	checkCmd := exec.Command("limactl", "list", "--json")
+	out, err := checkCmd.Output()
+	if err != nil {
+		return "", false
+	}
+	return string(out), true
+}
+
+func limactlVMExists(output string) bool {
+	return strings.Contains(output, `"name":"isolarium"`) ||
+		strings.Contains(output, `"name": "isolarium"`)
+}
+
+func TestStatusCommand_ShowsNoEnvironmentsWhenNoneExist(t *testing.T) {
+	buildBinary(t)
 
 	cmd := exec.Command("./isolarium", "status")
 	output, err := cmd.CombinedOutput()
@@ -30,7 +73,8 @@ func TestStatusCommand_ShowsNoEnvironmentsWhenNoneExist(t *testing.T) {
 	}
 }
 
-func TestStatusCommand_ShowsTableHeaderWhenEnvironmentsExist(t *testing.T) {
+func createTestStatusMetadata(t *testing.T) {
+	t.Helper()
 	baseDir := filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env", "vm")
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		t.Fatalf("failed to create test metadata dir: %v", err)
@@ -38,13 +82,12 @@ func TestStatusCommand_ShowsTableHeaderWhenEnvironmentsExist(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(baseDir, "metadata.json"), []byte(`{"owner":"","repo":"","branch":""}`), 0644); err != nil {
 		t.Fatalf("failed to write test metadata: %v", err)
 	}
-	defer func() { _ = os.RemoveAll(filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env")) }()
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Join(os.Getenv("HOME"), ".isolarium", "test-status-env")) })
+}
 
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	buildCmd.Dir = "."
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
+func TestStatusCommand_ShowsTableHeaderWhenEnvironmentsExist(t *testing.T) {
+	createTestStatusMetadata(t)
+	buildBinary(t)
 
 	cmd := exec.Command("./isolarium", "status")
 	output, err := cmd.CombinedOutput()
@@ -53,70 +96,21 @@ func TestStatusCommand_ShowsTableHeaderWhenEnvironmentsExist(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	if !strings.Contains(outputStr, "NAME") || !strings.Contains(outputStr, "TYPE") || !strings.Contains(outputStr, "STATE") {
-		t.Errorf("expected output to contain table headers (NAME, TYPE, STATE), got: %s", outputStr)
-	}
-	if !strings.Contains(outputStr, "test-status-env") {
-		t.Errorf("expected output to contain 'test-status-env', got: %s", outputStr)
-	}
+	assertOutputContains(t, outputStr, "NAME", "TYPE", "STATE", "test-status-env")
 }
 
 func TestRunCommand_HasCopySessionFlag(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	cmd := exec.Command(binaryPath, "run", "--help")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run --help failed: %v, output: %s", err, output)
-	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "--copy-session") {
-		t.Errorf("expected 'run' command to have '--copy-session' flag, got: %s", outputStr)
-	}
+	output := runHelpOutput(t, buildBinary(t))
+	assertOutputContains(t, output, "--copy-session")
 }
 
 func TestRunCommand_HasFreshLoginFlag(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	cmd := exec.Command(binaryPath, "run", "--help")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run --help failed: %v, output: %s", err, output)
-	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "--fresh-login") {
-		t.Errorf("expected 'run' command to have '--fresh-login' flag, got: %s", outputStr)
-	}
+	output := runHelpOutput(t, buildBinary(t))
+	assertOutputContains(t, output, "--fresh-login")
 }
 
 func TestRunCommand_FreshLoginAndCopySessionMutuallyExclusive(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
+	binaryPath := buildBinary(t)
 
 	cmd := exec.Command(binaryPath, "run", "--fresh-login", "--copy-session", "--", "echo", "hello")
 	output, err := cmd.CombinedOutput()
@@ -124,46 +118,16 @@ func TestRunCommand_FreshLoginAndCopySessionMutuallyExclusive(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error when both --fresh-login and --copy-session are set, got: %s", output)
 	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "mutually exclusive") {
-		t.Errorf("expected error about mutually exclusive flags, got: %s", outputStr)
-	}
+	assertOutputContains(t, string(output), "mutually exclusive")
 }
 
 func TestRunCommand_UsageShowsCommandSyntax(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	cmd := exec.Command(binaryPath, "run", "--help")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run --help failed: %v, output: %s", err, output)
-	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "[flags] -- command") {
-		t.Errorf("expected usage to show '-- command' syntax, got: %s", outputStr)
-	}
+	output := runHelpOutput(t, buildBinary(t))
+	assertOutputContains(t, output, "[flags] -- command")
 }
 
 func TestRunCommand_FailsWithNoCommand(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
+	binaryPath := buildBinary(t)
 
 	cmd := exec.Command(binaryPath, "run", "--copy-session=false")
 	output, err := cmd.CombinedOutput()
@@ -171,54 +135,20 @@ func TestRunCommand_FailsWithNoCommand(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected run with no command to fail, got: %s", output)
 	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "no command specified") {
-		t.Errorf("expected error about no command, got: %s", outputStr)
-	}
+	assertOutputContains(t, string(output), "no command specified")
 }
 
 func TestRunCommand_HasInteractiveFlag(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
-
-	cmd := exec.Command(binaryPath, "run", "--help")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("run --help failed: %v, output: %s", err, output)
-	}
-
-	outputStr := string(output)
-	if !strings.Contains(outputStr, "--interactive") {
-		t.Errorf("expected 'run' command to have '--interactive' flag, got: %s", outputStr)
-	}
-	if !strings.Contains(outputStr, "-i") {
-		t.Errorf("expected 'run' command to have '-i' shorthand flag, got: %s", outputStr)
-	}
+	output := runHelpOutput(t, buildBinary(t))
+	assertOutputContains(t, output, "--interactive", "-i")
 }
 
 func TestRunCommand_CreatesVMWhenNoneExists(t *testing.T) {
-	checkCmd := exec.Command("limactl", "list", "--json")
-	if _, err := checkCmd.Output(); err != nil {
+	if _, ok := limactlOutput(t); !ok {
 		t.Skip("limactl not available, skipping test")
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
+	binaryPath := buildBinary(t)
 
 	// Run from a non-git directory with --no-gh-token so the command reaches
 	// the VM execution stage, proving it went through the create-or-start path
@@ -242,18 +172,7 @@ func TestRunCommand_CreatesVMWhenNoneExists(t *testing.T) {
 }
 
 func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	buildCmd.Dir = "."
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-
-	binaryPath := filepath.Join(cwd, "isolarium")
+	binaryPath := buildBinary(t)
 	tmpDir := t.TempDir()
 
 	cmd := exec.Command(binaryPath, "create")
@@ -271,25 +190,15 @@ func TestCreateCommand_FailsWhenNotInGitRepo(t *testing.T) {
 }
 
 func TestCreateCommand_FailsWhenVMAlreadyExists(t *testing.T) {
-	checkCmd := exec.Command("limactl", "list", "--json")
-	checkOutput, err := checkCmd.Output()
-	if err != nil {
+	out, ok := limactlOutput(t)
+	if !ok {
 		t.Skip("limactl not available, skipping VM already-exists test")
 	}
-	if !strings.Contains(string(checkOutput), `"name":"isolarium"`) &&
-		!strings.Contains(string(checkOutput), `"name": "isolarium"`) {
+	if !limactlVMExists(out) {
 		t.Skip("no isolarium VM exists, skipping VM already-exists test")
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
+	binaryPath := buildBinary(t)
 
 	cmd := exec.Command(binaryPath, "create")
 	output, err := cmd.CombinedOutput()
@@ -305,25 +214,15 @@ func TestCreateCommand_FailsWhenVMAlreadyExists(t *testing.T) {
 }
 
 func TestDestroyCommand_SucceedsWhenNoVMExists(t *testing.T) {
-	checkCmd := exec.Command("limactl", "list", "--json")
-	checkOutput, err := checkCmd.Output()
-	if err != nil {
+	out, ok := limactlOutput(t)
+	if !ok {
 		t.Skip("limactl not available, skipping destroy idempotent test")
 	}
-	if strings.Contains(string(checkOutput), `"name":"isolarium"`) ||
-		strings.Contains(string(checkOutput), `"name": "isolarium"`) {
+	if limactlVMExists(out) {
 		t.Skip("isolarium VM exists, skipping no-VM destroy test")
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
-	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
+	binaryPath := buildBinary(t)
 
 	cmd := exec.Command(binaryPath, "destroy")
 	output, err := cmd.CombinedOutput()
@@ -338,26 +237,35 @@ func TestDestroyCommand_SucceedsWhenNoVMExists(t *testing.T) {
 	}
 }
 
-func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
-	checkCmd := exec.Command("limactl", "list", "--json")
-	checkOutput, err := checkCmd.Output()
-	if err != nil {
+func requireIsolariumVM(t *testing.T) {
+	t.Helper()
+	out, ok := limactlOutput(t)
+	if !ok {
 		t.Skip("limactl not available, skipping signal test")
 	}
-	if !strings.Contains(string(checkOutput), `"name":"isolarium"`) &&
-		!strings.Contains(string(checkOutput), `"name": "isolarium"`) {
+	if !limactlVMExists(out) {
 		t.Skip("no isolarium VM exists, skipping signal test")
 	}
+}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get working directory: %v", err)
+func waitForProcessExit(t *testing.T, cmd *exec.Cmd, timeout time.Duration) {
+	t.Helper()
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		_ = cmd.Process.Kill()
+		t.Fatal("process did not terminate within timeout after SIGINT")
 	}
-	buildCmd := exec.Command("go", "build", "-o", "isolarium", ".")
-	if err := buildCmd.Run(); err != nil {
-		t.Fatalf("failed to build binary: %v", err)
-	}
-	binaryPath := filepath.Join(cwd, "isolarium")
+}
+
+func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
+	requireIsolariumVM(t)
+	binaryPath := buildBinary(t)
 
 	cmd := exec.Command(binaryPath, "run", "--copy-session=false", "--", "sleep", "3600")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -371,18 +279,7 @@ func TestRunCommand_TerminatesOnSIGINT(t *testing.T) {
 		t.Fatalf("failed to send SIGINT: %v", err)
 	}
 
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case <-done:
-		// Process exited - success
-	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
-		t.Fatal("process did not terminate within 10 seconds after SIGINT")
-	}
+	waitForProcessExit(t, cmd, 10*time.Second)
 }
 
 func containsAcceptableVMError(output string) bool {
