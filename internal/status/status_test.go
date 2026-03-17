@@ -79,35 +79,25 @@ func TestStatus_HasRepositoryFields(t *testing.T) {
 }
 
 func TestListAllEnvironments_ReturnsBothVMAndContainer(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVM("my-vm")
+	s.createContainer("my-container", "/home/user/repo")
 
-	createVMMetadata(t, baseDir, "my-vm")
-	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
-
-	stateProvider := func(name, envType string) string {
-		return "running"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider)
+	envs := ListAllEnvironments(s.baseDir, alwaysState("running"))
 
 	if len(envs) != 2 {
 		t.Fatalf("expected 2 environments, got %d", len(envs))
 	}
 
-	assertContainsEnvironment(t, envs, "my-vm", "vm", "running")
-	assertContainsEnvironment(t, envs, "my-container", "container", "running")
+	assertContainsEnvironment(t, envs, expectedEnv{"my-vm", "vm", "running"})
+	assertContainsEnvironment(t, envs, expectedEnv{"my-container", "container", "running"})
 }
 
 func TestListAllEnvironments_VMStatusIncludesRepositoryAndBranch(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVMWithRepo("my-vm", project.GitHubOrg, project.GitHubRepo, "main")
 
-	createVMMetadataWithRepo(t, baseDir, "my-vm", project.GitHubOrg, project.GitHubRepo, "main")
-
-	stateProvider := func(name, envType string) string {
-		return "running"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider)
+	envs := ListAllEnvironments(s.baseDir, alwaysState("running"))
 
 	if len(envs) != 1 {
 		t.Fatalf("expected 1 environment, got %d", len(envs))
@@ -124,15 +114,10 @@ func TestListAllEnvironments_VMStatusIncludesRepositoryAndBranch(t *testing.T) {
 }
 
 func TestListAllEnvironments_ContainerStatusIncludesWorkDirectory(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createContainer("my-container", "/home/user/repo")
 
-	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
-
-	stateProvider := func(name, envType string) string {
-		return "running"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider)
+	envs := ListAllEnvironments(s.baseDir, alwaysState("running"))
 
 	if len(envs) != 1 {
 		t.Fatalf("expected 1 environment, got %d", len(envs))
@@ -145,16 +130,11 @@ func TestListAllEnvironments_ContainerStatusIncludesWorkDirectory(t *testing.T) 
 }
 
 func TestListAllEnvironments_FilterByName(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVM("vm-one")
+	s.createVM("vm-two")
 
-	createVMMetadata(t, baseDir, "vm-one")
-	createVMMetadata(t, baseDir, "vm-two")
-
-	stateProvider := func(name, envType string) string {
-		return "running"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider, WithName("vm-one"))
+	envs := ListAllEnvironments(s.baseDir, alwaysState("running"), WithName("vm-one"))
 
 	if len(envs) != 1 {
 		t.Fatalf("expected 1 environment, got %d", len(envs))
@@ -165,16 +145,11 @@ func TestListAllEnvironments_FilterByName(t *testing.T) {
 }
 
 func TestListAllEnvironments_FilterByType(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVM("my-vm")
+	s.createContainer("my-container", "/home/user/repo")
 
-	createVMMetadata(t, baseDir, "my-vm")
-	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
-
-	stateProvider := func(name, envType string) string {
-		return "running"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider, WithType("container"))
+	envs := ListAllEnvironments(s.baseDir, alwaysState("running"), WithType("container"))
 
 	if len(envs) != 1 {
 		t.Fatalf("expected 1 environment, got %d", len(envs))
@@ -185,33 +160,22 @@ func TestListAllEnvironments_FilterByType(t *testing.T) {
 }
 
 func TestListAllEnvironments_FilterByNameAndType(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVM("shared-name")
+	s.createContainer("shared-name", "/home/user/repo")
 
-	createVMMetadata(t, baseDir, "shared-name")
-	createContainerMetadata(t, baseDir, "shared-name", "/home/user/repo")
-
-	stateProvider := func(name, envType string) string {
-		return "running"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider, WithName("shared-name"), WithType("container"))
+	envs := ListAllEnvironments(s.baseDir, alwaysState("running"), WithName("shared-name"), WithType("container"))
 
 	if len(envs) != 1 {
 		t.Fatalf("expected 1 environment, got %d", len(envs))
 	}
-	if envs[0].Name != "shared-name" || envs[0].Type != "container" {
-		t.Errorf("expected shared-name/container, got %s/%s", envs[0].Name, envs[0].Type)
-	}
+	assertContainsEnvironment(t, envs, expectedEnv{"shared-name", "container", "running"})
 }
 
 func TestListAllEnvironments_EmptyWhenNoEnvironments(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
 
-	stateProvider := func(name, envType string) string {
-		return "none"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider)
+	envs := ListAllEnvironments(s.baseDir, alwaysState("none"))
 
 	if len(envs) != 0 {
 		t.Fatalf("expected 0 environments, got %d", len(envs))
@@ -219,120 +183,116 @@ func TestListAllEnvironments_EmptyWhenNoEnvironments(t *testing.T) {
 }
 
 func TestListAllEnvironments_UsesStateProviderForEachEnvironment(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVM("running-vm")
+	s.createContainer("stopped-container", "/work")
 
-	createVMMetadata(t, baseDir, "running-vm")
-	createContainerMetadata(t, baseDir, "stopped-container", "/work")
-
-	stateProvider := func(name, envType string) string {
+	envs := ListAllEnvironments(s.baseDir, func(name, envType string) string {
 		if name == "running-vm" {
 			return "running"
 		}
 		return "stopped"
-	}
+	})
 
-	envs := ListAllEnvironments(baseDir, stateProvider)
-
-	assertContainsEnvironment(t, envs, "running-vm", "vm", "running")
-	assertContainsEnvironment(t, envs, "stopped-container", "container", "stopped")
+	assertContainsEnvironment(t, envs, expectedEnv{"running-vm", "vm", "running"})
+	assertContainsEnvironment(t, envs, expectedEnv{"stopped-container", "container", "stopped"})
 }
 
 func TestListAllEnvironments_NonoAppearsWithConfiguredState(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createNono("my-nono", "/Users/dev/project")
 
-	createNonoMetadata(t, baseDir, "my-nono", "/Users/dev/project")
-
-	stateProvider := func(name, envType string) string {
-		return "configured"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider)
+	envs := ListAllEnvironments(s.baseDir, alwaysState("configured"))
 
 	if len(envs) != 1 {
 		t.Fatalf("expected 1 environment, got %d", len(envs))
 	}
 
 	env := envs[0]
-	assertContainsEnvironment(t, envs, "my-nono", "nono", "configured")
+	assertContainsEnvironment(t, envs, expectedEnv{"my-nono", "nono", "configured"})
 	if env.WorkDirectory != "/Users/dev/project" {
 		t.Errorf("expected WorkDirectory '/Users/dev/project', got %q", env.WorkDirectory)
 	}
 }
 
 func TestListAllEnvironments_NonoAppearsAlongsideVMAndContainer(t *testing.T) {
-	baseDir := t.TempDir()
+	s := newTestEnvSetup(t)
+	s.createVM("my-vm")
+	s.createContainer("my-container", "/home/user/repo")
+	s.createNono("my-nono", "/Users/dev/project")
 
-	createVMMetadata(t, baseDir, "my-vm")
-	createContainerMetadata(t, baseDir, "my-container", "/home/user/repo")
-	createNonoMetadata(t, baseDir, "my-nono", "/Users/dev/project")
-
-	stateProvider := func(name, envType string) string {
-		return "configured"
-	}
-
-	envs := ListAllEnvironments(baseDir, stateProvider)
+	envs := ListAllEnvironments(s.baseDir, alwaysState("configured"))
 
 	if len(envs) != 3 {
 		t.Fatalf("expected 3 environments, got %d", len(envs))
 	}
 
-	assertContainsEnvironment(t, envs, "my-vm", "vm", "configured")
-	assertContainsEnvironment(t, envs, "my-container", "container", "configured")
-	assertContainsEnvironment(t, envs, "my-nono", "nono", "configured")
+	assertContainsEnvironment(t, envs, expectedEnv{"my-vm", "vm", "configured"})
+	assertContainsEnvironment(t, envs, expectedEnv{"my-container", "container", "configured"})
+	assertContainsEnvironment(t, envs, expectedEnv{"my-nono", "nono", "configured"})
 }
 
 // --- helpers ---
 
-func createVMMetadata(t *testing.T, baseDir, name string) {
-	t.Helper()
-	createVMMetadataWithRepo(t, baseDir, name, "", "", "")
+type testEnvSetup struct {
+	t       *testing.T
+	baseDir string
 }
 
-func createVMMetadataWithRepo(t *testing.T, baseDir, name, owner, repo, branch string) {
+func newTestEnvSetup(t *testing.T) testEnvSetup {
 	t.Helper()
-	dir := filepath.Join(baseDir, name, "vm")
+	return testEnvSetup{t: t, baseDir: t.TempDir()}
+}
+
+func (s testEnvSetup) writeMetadata(name, envType, json string) {
+	s.t.Helper()
+	dir := filepath.Join(s.baseDir, name, envType)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatalf("failed to create vm dir: %v", err)
+		s.t.Fatalf("failed to create %s dir: %v", envType, err)
 	}
-
-	metadata := `{"owner":"` + owner + `","repo":"` + repo + `","branch":"` + branch + `"}`
-	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
-		t.Fatalf("failed to write vm metadata: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(json), 0644); err != nil {
+		s.t.Fatalf("failed to write %s metadata: %v", envType, err)
 	}
 }
 
-func createContainerMetadata(t *testing.T, baseDir, name, workDir string) {
-	t.Helper()
-	dir := filepath.Join(baseDir, name, "container")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatalf("failed to create container dir: %v", err)
-	}
-
-	metadata := `{"type":"container","work_directory":"` + workDir + `"}`
-	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
-		t.Fatalf("failed to write container metadata: %v", err)
-	}
+func (s testEnvSetup) createVM(name string) {
+	s.t.Helper()
+	s.writeMetadata(name, "vm", `{"owner":"","repo":"","branch":""}`)
 }
 
-func createNonoMetadata(t *testing.T, baseDir, name, workDir string) {
-	t.Helper()
-	dir := filepath.Join(baseDir, name, "nono")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		t.Fatalf("failed to create nono dir: %v", err)
-	}
-
-	metadata := `{"type":"nono","work_directory":"` + workDir + `"}`
-	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), []byte(metadata), 0644); err != nil {
-		t.Fatalf("failed to write nono metadata: %v", err)
-	}
+func (s testEnvSetup) createVMWithRepo(name, owner, repo, branch string) {
+	s.t.Helper()
+	s.writeMetadata(name, "vm", `{"owner":"`+owner+`","repo":"`+repo+`","branch":"`+branch+`"}`)
 }
 
-func assertContainsEnvironment(t *testing.T, envs []EnvironmentStatus, name, envType, state string) {
+func (s testEnvSetup) createContainer(name, workDir string) {
+	s.t.Helper()
+	s.writeMetadata(name, "container", `{"type":"container","work_directory":"`+workDir+`"}`)
+}
+
+func (s testEnvSetup) createNono(name, workDir string) {
+	s.t.Helper()
+	s.writeMetadata(name, "nono", `{"type":"nono","work_directory":"`+workDir+`"}`)
+}
+
+func alwaysState(state string) func(string, string) string {
+	return func(name, envType string) string { return state }
+}
+
+type expectedEnv struct {
+	name, envType, state string
+}
+
+func (e expectedEnv) matches(env EnvironmentStatus) bool {
+	return env.Name == e.name && env.Type == e.envType && env.State == e.state
+}
+
+func assertContainsEnvironment(t *testing.T, envs []EnvironmentStatus, expected expectedEnv) {
 	t.Helper()
 	for _, env := range envs {
-		if env.Name == name && env.Type == envType && env.State == state {
+		if expected.matches(env) {
 			return
 		}
 	}
-	t.Errorf("expected environment (name=%q, type=%q, state=%q) not found in %+v", name, envType, state, envs)
+	t.Errorf("expected environment %+v not found in %+v", expected, envs)
 }
