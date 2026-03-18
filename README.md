@@ -110,6 +110,18 @@ GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
 
 ## Quickstart
 
+## With Idea to Code
+
+The goal of Isolarium is to support the [Idea to Code workflow](https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools).
+
+Specifically, the `i2code implement` command:
+
+```bash
+$ i2code implement --isolation-type non/container/vm my-idea
+```
+
+This will implement the idea in an isolated environment of the specified type.
+
 ### VM mode (strongest isolation)
 
 ```bash
