@@ -117,7 +117,7 @@ The goal of Isolarium is to support the [Idea to Code workflow](https://github.c
 Specifically, the `i2code implement` command:
 
 ```bash
-$ i2code implement --isolation-type non/container/vm my-idea
+$ i2code implement --isolation-type nono/container/vm my-idea
 ```
 
 This will implement the idea in an isolated environment of the specified type.
