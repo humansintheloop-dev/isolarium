@@ -6,22 +6,36 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+timePhase() {
+    local label="$1"
+    shift
+    local start_time
+    start_time=$(date +%s)
+    "$@"
+    local end_time
+    end_time=$(date +%s)
+    echo "TIMING: $label took $((end_time - start_time))s"
+}
+
+OVERALL_START=$(date +%s)
+
 echo "=== Running Docker integration tests ==="
 
 if docker info &> /dev/null; then
-    go test -tags=integration ./internal/docker/...
+    timePhase "go test -tags=integration" go test -tags=integration ./internal/docker/...
 else
     echo "SKIP: Docker not available, skipping Docker integration tests"
 fi
 
 echo ""
-"$SCRIPT_DIR/test-container-isolation-scripts.sh"
+timePhase "test-container-isolation-scripts" "$SCRIPT_DIR/test-container-isolation-scripts.sh"
 
 echo ""
-"$SCRIPT_DIR/test-env-flag.sh"
+timePhase "test-host-scripts" "$SCRIPT_DIR/test-host-scripts.sh"
 
 echo ""
-"$SCRIPT_DIR/test-host-scripts.sh"
+timePhase "test-precommit-in-container" "$SCRIPT_DIR/test-precommit-in-container.sh"
 
+OVERALL_END=$(date +%s)
 echo ""
-"$SCRIPT_DIR/test-precommit-in-container.sh"
+echo "TIMING: Total docker integration tests took $((OVERALL_END - OVERALL_START))s"

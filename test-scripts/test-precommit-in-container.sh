@@ -15,6 +15,17 @@ loadEnvLocalIfPresent() {
     fi
 }
 
+timePhase() {
+    local label="$1"
+    shift
+    local start_time
+    start_time=$(date +%s)
+    "$@"
+    local end_time
+    end_time=$(date +%s)
+    echo "TIMING: $label took $((end_time - start_time))s"
+}
+
 loadEnvLocalIfPresent
 
 echo "=== Testing pre-commit runs all hooks in container ==="
@@ -45,11 +56,9 @@ verifyDockerIsAvailable
 
 trap cleanup EXIT
 
-echo "--- Building isolarium ---"
-go build -o bin/isolarium ./cmd/isolarium
+timePhase "go build" go build -o bin/isolarium ./cmd/isolarium
 
-echo "--- Creating container for isolarium repo ---"
-./bin/isolarium create --type container --name "$CONTAINER_NAME" --work-directory "$PROJECT_ROOT"
+timePhase "isolarium create" ./bin/isolarium create --type container --name "$CONTAINER_NAME" --work-directory "$PROJECT_ROOT"
 
 verifyCodeSceneCanAnalyzeCode() {
     echo "--- Verifying CodeScene can analyze code inside container ---"
@@ -64,18 +73,15 @@ verifyCodeSceneCanAnalyzeCode() {
     echo "CodeScene analysis verified"
 }
 
-verifyCodeSceneCanAnalyzeCode
+timePhase "cs check" verifyCodeSceneCanAnalyzeCode
 
-echo "--- Making a harmless file change inside container ---"
-./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
+timePhase "make file change" ./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
     sh -c 'echo "// harmless test change" >> cmd/isolarium/main.go'
 
-echo "--- Running pre-commit run --all-files with codescene tokens ---"
-./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
+timePhase "pre-commit run --all-files" ./bin/isolarium run --type container --name "$CONTAINER_NAME" --copy-session=false --no-gh-token -- \
     pre-commit run --all-files
 
-echo "--- Destroying container ---"
-./bin/isolarium destroy --type container --name "$CONTAINER_NAME"
+timePhase "isolarium destroy" ./bin/isolarium destroy --type container --name "$CONTAINER_NAME"
 trap - EXIT
 
 echo "=== Pre-commit in container test passed ==="
