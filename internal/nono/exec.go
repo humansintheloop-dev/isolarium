@@ -102,12 +102,27 @@ func exitCodeFromError(err error) (int, error) {
 func buildEnv(envVars map[string]string) []string {
 	var env []string
 	for _, e := range os.Environ() {
-		if !strings.HasPrefix(e, "CLAUDECODE=") {
-			env = append(env, e)
+		if strings.HasPrefix(e, "CLAUDECODE=") {
+			continue
 		}
+		if strings.HasPrefix(e, "PATH=") {
+			env = append(env, "PATH="+sanitizePath(e[5:]))
+			continue
+		}
+		env = append(env, e)
 	}
 	for k, v := range envVars {
 		env = append(env, k+"="+v)
 	}
 	return env
+}
+
+func sanitizePath(path string) string {
+	var kept []string
+	for _, dir := range strings.Split(path, ":") {
+		if _, err := os.Stat(dir); err == nil {
+			kept = append(kept, dir)
+		}
+	}
+	return strings.Join(kept, ":")
 }
