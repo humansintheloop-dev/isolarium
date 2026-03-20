@@ -18,7 +18,12 @@ func e2eTestOrg() string {
 	return "humansintheloop-test-org"
 }
 
-func copyToTempGitRepo(t *testing.T, srcDir string) string {
+type tempRepo struct {
+	dir  string
+	name string
+}
+
+func copyToTempGitRepo(t *testing.T, srcDir string) tempRepo {
 	t.Helper()
 	tmpDir := t.TempDir()
 
@@ -55,7 +60,7 @@ func copyToTempGitRepo(t *testing.T, srcDir string) string {
 		}
 	}
 
-	return tmpDir
+	return tempRepo{dir: tmpDir, name: repoName}
 }
 
 func envFileArgs(t *testing.T, projectRoot string) []string {
@@ -67,13 +72,13 @@ func envFileArgs(t *testing.T, projectRoot string) []string {
 	return nil
 }
 
-func createVMFromTempRepo(t *testing.T, binary, workDir, projectRoot string) {
+func createVMFromTempRepo(t *testing.T, binary string, repo tempRepo, projectRoot string) {
 	t.Helper()
-	args := []string{"--type", "vm"}
+	args := []string{"--type", "vm", "--name", repo.name}
 	args = append(args, envFileArgs(t, projectRoot)...)
 	args = append(args, "create")
 	cmd := exec.Command(binary, args...)
-	cmd.Dir = workDir
+	cmd.Dir = repo.dir
 	output, err := cmd.CombinedOutput()
 	t.Logf("VM create output:\n%s", output)
 	if err != nil {
@@ -81,13 +86,22 @@ func createVMFromTempRepo(t *testing.T, binary, workDir, projectRoot string) {
 	}
 }
 
-func destroyVM(t *testing.T, binary, workDir string) {
+func destroyVM(t *testing.T, binary string, repo tempRepo) {
 	t.Helper()
-	cmd := exec.Command(binary, "--type", "vm", "destroy")
-	cmd.Dir = workDir
+	cmd := exec.Command(binary, "--type", "vm", "--name", repo.name, "destroy")
+	cmd.Dir = repo.dir
 	output, err := cmd.CombinedOutput()
 	t.Logf("VM destroy output:\n%s", output)
 	if err != nil {
 		t.Logf("VM destroy failed (ignoring): %v", err)
 	}
+}
+
+func runInTempVM(t *testing.T, binary string, repo tempRepo, args ...string) ([]byte, error) {
+	t.Helper()
+	runArgs := []string{"--type", "vm", "--name", repo.name, "run", "--no-gh-token", "--copy-session=false", "--"}
+	runArgs = append(runArgs, args...)
+	cmd := exec.Command(binary, runArgs...)
+	cmd.Dir = repo.dir
+	return cmd.CombinedOutput()
 }

@@ -3,8 +3,6 @@
 package main
 
 import (
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,18 +10,13 @@ import (
 func TestPytestInVM_EndToEnd(t *testing.T) {
 	binary := buildPytestBinary(t)
 	projectRoot := pytestProjectRoot(t)
-	pythonCliDir := filepath.Join(projectRoot, "testdata", "python-cli-app")
 
-	tmpDir := copyToTempGitRepo(t, pythonCliDir)
+	repo := copyToTempGitRepo(t, projectRoot+"/testdata/python-cli-app")
 
-	createVMFromTempRepo(t, binary, tmpDir, projectRoot)
-	t.Cleanup(func() { destroyVM(t, binary, tmpDir) })
+	createVMFromTempRepo(t, binary, repo, projectRoot)
+	t.Cleanup(func() { destroyVM(t, binary, repo) })
 
-	pytestCmd := "export PATH=$HOME/.local/bin:$PATH && rm -rf .venv && uv run pytest -v"
-	pytestArgs := []string{"--type", "vm", "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", pytestCmd}
-	cmd := exec.Command(binary, pytestArgs...)
-	cmd.Dir = tmpDir
-	output, err := cmd.CombinedOutput()
+	output, err := runInTempVM(t, binary, repo, "bash", "-c", "export PATH=$HOME/.local/bin:$PATH && rm -rf .venv && uv run pytest -v")
 	t.Logf("pytest output:\n%s", output)
 	if err != nil {
 		t.Fatalf("pytest in VM failed: %v", err)
@@ -36,18 +29,13 @@ func TestPytestInVM_EndToEnd(t *testing.T) {
 func TestGreeterCliInVM_EndToEnd(t *testing.T) {
 	binary := buildPytestBinary(t)
 	projectRoot := pytestProjectRoot(t)
-	pythonCliDir := filepath.Join(projectRoot, "testdata", "python-cli-app")
 
-	tmpDir := copyToTempGitRepo(t, pythonCliDir)
+	repo := copyToTempGitRepo(t, projectRoot+"/testdata/python-cli-app")
 
-	createVMFromTempRepo(t, binary, tmpDir, projectRoot)
-	t.Cleanup(func() { destroyVM(t, binary, tmpDir) })
+	createVMFromTempRepo(t, binary, repo, projectRoot)
+	t.Cleanup(func() { destroyVM(t, binary, repo) })
 
-	greeterCmd := "export PATH=$HOME/.local/bin:$PATH && rm -rf .venv && uv run greeter VM"
-	greeterArgs := []string{"--type", "vm", "run", "--no-gh-token", "--copy-session=false", "--", "bash", "-c", greeterCmd}
-	cmd := exec.Command(binary, greeterArgs...)
-	cmd.Dir = tmpDir
-	output, err := cmd.CombinedOutput()
+	output, err := runInTempVM(t, binary, repo, "bash", "-c", "export PATH=$HOME/.local/bin:$PATH && rm -rf .venv && uv run greeter VM")
 	t.Logf("greeter output:\n%s", output)
 	if err != nil {
 		t.Fatalf("greeter CLI in VM failed: %v", err)
