@@ -102,6 +102,8 @@ timePhase "e2e gradlew (nono)" "$SCRIPT_DIR/test-end-to-end-with-gradlew.sh" --f
 
 timePhase "e2e pytest (nono)" "$SCRIPT_DIR/test-end-to-end-with-pytest.sh" --force nono
 
+timePhase "precommit in nono" "$SCRIPT_DIR/test-precommit-in-nono.sh"
+
 # ── Tier 3: Docker container tests (medium) ──────────────────────
 
 echo ""

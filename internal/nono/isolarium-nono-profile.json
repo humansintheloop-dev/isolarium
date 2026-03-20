@@ -13,7 +13,7 @@
       "trust_groups": [],
       "filesystem": {
         "allow": ["$HOME/.claude", "$HOME/.hitl", "$HOME/.gradle", "$HOME/Library/Application Support/codehealth-mcp"],
-        "read": ["$HOME/.local/share/claude", "$HOME/.config/gh", "$HOME/.cache/uv", "$HOME/.local/share/uv", "$HOME/.sdkman"],
+        "read": ["$HOME/.local/share/claude", "$HOME/.config/gh", "$HOME/.cache/uv", "$HOME/.local/share/uv", "$HOME/.sdkman", "$HOME/go"],
         "allow_file": ["$HOME/.claude.json", "$HOME/.claude.json.lock"],
         "read_file": ["$HOME/Library/Keychains/login.keychain-db", "$HOME/.gitconfig", "$HOME/.gitignore_global", "$HOME/.config/git/ignore"]
       },

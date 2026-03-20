@@ -280,9 +280,9 @@ func execInVM(name string, envVars map[string]string, args []string, interactive
 
 func buildNonoEnvVars(noGHToken bool) (map[string]string, error) {
 	baseVars := map[string]string{
-		"PRE_COMMIT_HOME": filepath.Join(os.TempDir(), "pre-commit"),
-		"UV_CACHE_DIR":    filepath.Join(os.TempDir(), "uv-cache"),
-		"UV_TOOL_DIR":     filepath.Join(os.TempDir(), "uv-tools"),
+		"XDG_CACHE_HOME": filepath.Join(os.TempDir(), "xdg-cache"),
+		"UV_CACHE_DIR":   filepath.Join(os.TempDir(), "uv-cache"),
+		"UV_TOOL_DIR":    filepath.Join(os.TempDir(), "uv-tools"),
 	}
 	return buildRunEnvVars("nono", baseVars, noGHToken, mintGitHubToken, nonoTokenVars)
 }
