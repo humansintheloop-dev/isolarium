@@ -25,7 +25,7 @@ func projectRoot(t *testing.T) string {
 	return strings.TrimSpace(string(output))
 }
 
-func buildBinary(t *testing.T) string {
+func buildClaudeBinary(t *testing.T) string {
 	t.Helper()
 	root := projectRoot(t)
 	binaryPath := filepath.Join(root, "bin", "isolarium")
@@ -48,8 +48,12 @@ func ensureEnvironmentReady(t *testing.T, binary, envType string) {
 		return
 	}
 	t.Logf("creating %s environment...", envType)
-	cmd = exec.Command(binary, "--type", envType, "create")
-	cmd.Dir = projectRoot(t)
+	root := projectRoot(t)
+	createArgs := []string{"--type", envType}
+	createArgs = append(createArgs, envFileArgs(t, root)...)
+	createArgs = append(createArgs, "create")
+	cmd = exec.Command(binary, createArgs...)
+	cmd.Dir = root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("failed to create %s environment: %v\n%s", envType, err, out)
@@ -58,7 +62,7 @@ func ensureEnvironmentReady(t *testing.T, binary, envType string) {
 
 func claudeInIsolarium(t *testing.T, envType string) string {
 	t.Helper()
-	binary := buildBinary(t)
+	binary := buildClaudeBinary(t)
 	ensureEnvironmentReady(t, binary, envType)
 	cmd := exec.Command(binary, "--type", envType, "run", "--", "claude", "-p", "hello")
 	cmd.Dir = projectRoot(t)
@@ -118,7 +122,7 @@ func (o *ptyOutput) size() int {
 
 func claudeInteractiveInIsolarium(t *testing.T, envType string) {
 	t.Helper()
-	binary := buildBinary(t)
+	binary := buildClaudeBinary(t)
 	ensureEnvironmentReady(t, binary, envType)
 
 	cmd := exec.Command(binary, "--type", envType, "run", "-i", "--", "claude", "hello")
