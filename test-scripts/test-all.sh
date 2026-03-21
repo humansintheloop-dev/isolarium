@@ -82,8 +82,11 @@ guarded() {
         SKIPPED+=("$guard")
         return
     fi
-    "$@"
-    touch "$GUARD_DIR/$guard"
+    if "$@"; then
+        touch "$GUARD_DIR/$guard"
+    else
+        return 1
+    fi
 }
 
 printSummary() {
