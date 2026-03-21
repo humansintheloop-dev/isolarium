@@ -154,6 +154,21 @@ func runningContainerRunner(t *testing.T) *command.FakeRunner {
 	return runner
 }
 
+func assertExecCapture(t *testing.T, actual, expected execCapture) {
+	t.Helper()
+	if actual.name != expected.name {
+		t.Errorf("expected name %q, got %q", expected.name, actual.name)
+	}
+	if !reflect.DeepEqual(actual.args, expected.args) {
+		t.Errorf("expected args %v, got %v", expected.args, actual.args)
+	}
+	for key, val := range expected.envVars {
+		if actual.envVars[key] != val {
+			t.Errorf("expected %s=%s, got %v", key, val, actual.envVars)
+		}
+	}
+}
+
 func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
 	capture := &execCapture{}
 	b := &DockerBackend{
@@ -161,23 +176,14 @@ func TestDockerBackendExecDelegatesToDockerExecCommand(t *testing.T) {
 		ExecFunc: capture.captureFunc(42),
 	}
 
-	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
-	exitCode, err := b.Exec(ExecRequest{ContainerName: "my-container", EnvVars: envVars, Args: []string{"echo", "hello"}})
+	exitCode, err := b.Exec(ExecRequest{ContainerName: "my-container", EnvVars: map[string]string{"GH_TOKEN": "ghs_abc123"}, Args: []string{"echo", "hello"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exitCode != 42 {
 		t.Errorf("expected exit code 42, got %d", exitCode)
 	}
-	if capture.name != "my-container" {
-		t.Errorf("expected name %q, got %q", "my-container", capture.name)
-	}
-	if capture.envVars["GH_TOKEN"] != "ghs_abc123" {
-		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capture.envVars)
-	}
-	if !reflect.DeepEqual(capture.args, []string{"echo", "hello"}) {
-		t.Errorf("expected args [echo hello], got %v", capture.args)
-	}
+	assertExecCapture(t, *capture, execCapture{name: "my-container", envVars: map[string]string{"GH_TOKEN": "ghs_abc123"}, args: []string{"echo", "hello"}})
 }
 
 func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *testing.T) {
@@ -187,23 +193,14 @@ func TestDockerBackendExecInteractiveDelegatesToDockerExecInteractiveCommand(t *
 		ExecInteractiveFunc: capture.captureFunc(0),
 	}
 
-	envVars := map[string]string{"GH_TOKEN": "ghs_abc123"}
-	exitCode, err := b.ExecInteractive(ExecRequest{ContainerName: "my-container", EnvVars: envVars, Args: []string{"bash"}})
+	exitCode, err := b.ExecInteractive(ExecRequest{ContainerName: "my-container", EnvVars: map[string]string{"GH_TOKEN": "ghs_abc123"}, Args: []string{"bash"}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exitCode != 0 {
 		t.Errorf("expected exit code 0, got %d", exitCode)
 	}
-	if capture.name != "my-container" {
-		t.Errorf("expected name %q, got %q", "my-container", capture.name)
-	}
-	if capture.envVars["GH_TOKEN"] != "ghs_abc123" {
-		t.Errorf("expected GH_TOKEN=ghs_abc123, got %v", capture.envVars)
-	}
-	if !reflect.DeepEqual(capture.args, []string{"bash"}) {
-		t.Errorf("expected args [bash], got %v", capture.args)
-	}
+	assertExecCapture(t, *capture, execCapture{name: "my-container", envVars: map[string]string{"GH_TOKEN": "ghs_abc123"}, args: []string{"bash"}})
 }
 
 func TestDockerBackendDestroyDelegatesToDockerDestroyer(t *testing.T) {
@@ -352,6 +349,117 @@ func TestDockerBackendCreateLoadsPidYamlAndPreparesIsolationScripts(t *testing.T
 	}
 
 	runner.VerifyExecuted()
+}
+
+type envScriptFixture struct {
+	workDir   string
+	runner    *command.FakeRunner
+	execCalls []execCapture
+	backend   *DockerBackend
+}
+
+func newEnvScriptFixture(t *testing.T) *envScriptFixture {
+	t.Helper()
+	metadataDir := t.TempDir()
+	workDir := t.TempDir()
+	contextDir := t.TempDir()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("docker", "info").Returns("")
+	stubI2CodeHeadSHA(runner)
+	runner.OnCommand("docker", "build", "-t", "isolarium:latest", "--build-arg", hostUIDBuildArg(), "--build-arg", i2CodeVersionBuildArg(), contextDir).Returns("")
+	runner.OnCommand("docker", "run", "-d",
+		"--name", "my-env",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"-v", workDir+":/home/isolarium/repo",
+		"-v", knownHostsVolume(),
+		"isolarium:latest",
+	).Returns("container-id\n")
+
+	fix := &envScriptFixture{workDir: workDir, runner: runner}
+	fix.backend = &DockerBackend{
+		Runner:         runner,
+		MetadataDir:    metadataDir,
+		ImageTag:       "isolarium:latest",
+		ContextDirFunc: func() (string, error) { return contextDir, nil },
+		ExecFunc: func(req ExecRequest) (int, error) {
+			fix.execCalls = append(fix.execCalls, execCapture{name: req.ContainerName, envVars: req.EnvVars, args: req.Args})
+			return 0, nil
+		},
+	}
+	return fix
+}
+
+func TestDockerBackendCreateRunsEnvScriptsInsideContainer(t *testing.T) {
+	fix := newEnvScriptFixture(t)
+
+	pidYaml := `isolarium:
+  container:
+    create:
+      post_creation_scripts:
+        env_scripts:
+          - path: scripts/env-setup.sh
+`
+	if err := os.WriteFile(fix.workDir+"/pid.yaml", []byte(pidYaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := fix.backend.Create(CreateOptions{Name: "my-env", WorkDirectory: fix.workDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(fix.execCalls) != 1 {
+		t.Fatalf("expected 1 exec call, got %d", len(fix.execCalls))
+	}
+	assertExecCapture(t, fix.execCalls[0], execCapture{
+		name:    "my-env",
+		envVars: map[string]string{"ISOLARIUM_NAME": "my-env", "ISOLARIUM_TYPE": "container"},
+		args:    []string{"bash", "scripts/env-setup.sh"},
+	})
+	fix.runner.VerifyExecuted()
+}
+
+func TestDockerBackendCreatePassesEnvVarsToEnvScripts(t *testing.T) {
+	fix := newEnvScriptFixture(t)
+
+	pidYaml := `isolarium:
+  container:
+    create:
+      post_creation_scripts:
+        env_scripts:
+          - path: scripts/install-plugin.sh
+          - path: scripts/add-codescene-mcp.sh
+            env:
+              - CS_ACCESS_TOKEN
+              - CS_ACE_ACCESS_TOKEN
+`
+	if err := os.WriteFile(fix.workDir+"/pid.yaml", []byte(pidYaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CS_ACCESS_TOKEN", "token123")
+	t.Setenv("CS_ACE_ACCESS_TOKEN", "ace456")
+
+	err := fix.backend.Create(CreateOptions{Name: "my-env", WorkDirectory: fix.workDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(fix.execCalls) != 2 {
+		t.Fatalf("expected 2 exec calls, got %d", len(fix.execCalls))
+	}
+
+	if fix.execCalls[0].envVars["CS_ACCESS_TOKEN"] != "" {
+		t.Errorf("install-plugin.sh should not receive CS_ACCESS_TOKEN, got %q", fix.execCalls[0].envVars["CS_ACCESS_TOKEN"])
+	}
+	assertExecCapture(t, fix.execCalls[1], execCapture{
+		name:    "my-env",
+		envVars: map[string]string{"CS_ACCESS_TOKEN": "token123", "CS_ACE_ACCESS_TOKEN": "ace456"},
+		args:    []string{"bash", "scripts/add-codescene-mcp.sh"},
+	})
+	fix.runner.VerifyExecuted()
 }
 
 func TestDockerBackendCreateFailsWhenDeclaredEnvVarMissing(t *testing.T) {

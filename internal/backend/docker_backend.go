@@ -8,6 +8,7 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/command"
 	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/docker"
+	"github.com/humansintheloop-dev/isolarium/internal/envscript"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 	"github.com/humansintheloop-dev/isolarium/internal/hostscript"
 )
@@ -58,10 +59,38 @@ func (b *DockerBackend) Create(opts CreateOptions) error {
 		return err
 	}
 
-	if cfg != nil && len(cfg.Container.Create.PostCreationScripts.HostScripts) > 0 {
-		return hostscript.RunHostScripts(cfg.Container.Create.PostCreationScripts.HostScripts, opts.WorkDirectory, name, "container")
+	return b.runPostCreationScripts(cfg, opts)
+}
+
+func (b *DockerBackend) runPostCreationScripts(cfg *config.PidConfig, opts CreateOptions) error {
+	if cfg == nil {
+		return nil
 	}
+
+	pcs := cfg.Container.Create.PostCreationScripts
+	if len(pcs.HostScripts) > 0 {
+		if err := hostscript.RunHostScripts(pcs.HostScripts, opts.WorkDirectory, opts.Name, "container"); err != nil {
+			return err
+		}
+	}
+
+	if len(pcs.EnvScripts) > 0 {
+		return b.runEnvScripts(pcs.EnvScripts, opts.Name)
+	}
+
 	return nil
+}
+
+func (b *DockerBackend) runEnvScripts(scripts []config.ScriptEntry, name string) error {
+	execFunc := b.ExecFunc
+	if execFunc == nil {
+		execFunc = func(req ExecRequest) (int, error) {
+			return docker.ExecCommand(req.ContainerName, req.EnvVars, req.Args)
+		}
+	}
+	return envscript.RunEnvScripts(scripts, name, "container", func(envVars map[string]string, args []string) (int, error) {
+		return execFunc(ExecRequest{ContainerName: name, EnvVars: envVars, Args: args})
+	})
 }
 
 func (b *DockerBackend) imageTagForName(name string) string {

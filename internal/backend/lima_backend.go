@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/humansintheloop-dev/isolarium/internal/config"
+	"github.com/humansintheloop-dev/isolarium/internal/envscript"
 	"github.com/humansintheloop-dev/isolarium/internal/hostscript"
 	"github.com/humansintheloop-dev/isolarium/internal/lima"
 )
@@ -30,21 +31,62 @@ func (b *LimaBackend) Create(opts CreateOptions) error {
 		return fmt.Errorf("loading pid.yaml: %w", err)
 	}
 
-	if err := b.runIsolationScripts(cfg, opts.Name); err != nil {
+	if err := b.runIsolationScripts(cfg, opts); err != nil {
 		return err
 	}
 
-	if cfg != nil && len(cfg.VM.Create.PostCreationScripts.HostScripts) > 0 {
-		return hostscript.RunHostScripts(cfg.VM.Create.PostCreationScripts.HostScripts, opts.WorkDirectory, opts.Name, "vm")
+	return b.runPostCreationScripts(cfg, opts)
+}
+
+func (b *LimaBackend) runPostCreationScripts(cfg *config.PidConfig, opts CreateOptions) error {
+	if cfg == nil {
+		return nil
 	}
+
+	pcs := cfg.VM.Create.PostCreationScripts
+	if len(pcs.HostScripts) > 0 {
+		if err := hostscript.RunHostScripts(pcs.HostScripts, opts.WorkDirectory, opts.Name, "vm"); err != nil {
+			return err
+		}
+	}
+
+	if len(pcs.EnvScripts) > 0 {
+		return b.runEnvScripts(pcs.EnvScripts, opts)
+	}
+
 	return nil
 }
 
-func (b *LimaBackend) runIsolationScripts(cfg *config.PidConfig, name string) error {
+type vmContext struct {
+	executor lima.VMExecFunc
+	repoDir  string
+}
+
+func (b *LimaBackend) runIsolationScripts(cfg *config.PidConfig, opts CreateOptions) error {
 	if cfg == nil || len(cfg.VM.Create.CreationScripts) == 0 {
 		return nil
 	}
 
+	ctx, err := b.resolveVMContext(opts)
+	if err != nil {
+		return err
+	}
+
+	return lima.RunVMIsolationScripts(cfg.VM.Create.CreationScripts, opts.Name, ctx.repoDir, ctx.executor)
+}
+
+func (b *LimaBackend) runEnvScripts(scripts []config.ScriptEntry, opts CreateOptions) error {
+	ctx, err := b.resolveVMContext(opts)
+	if err != nil {
+		return err
+	}
+
+	return envscript.RunEnvScripts(scripts, opts.Name, "vm", func(envVars map[string]string, args []string) (int, error) {
+		return ctx.executor(opts.Name, ctx.repoDir, envVars, args)
+	})
+}
+
+func (b *LimaBackend) resolveVMContext(opts CreateOptions) (vmContext, error) {
 	executor := b.VMExecFunc
 	if executor == nil {
 		executor = func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
@@ -56,12 +98,12 @@ func (b *LimaBackend) runIsolationScripts(cfg *config.PidConfig, name string) er
 	if getHomeDir == nil {
 		getHomeDir = lima.GetVMHomeDir
 	}
-	homeDir, err := getHomeDir(name)
+	homeDir, err := getHomeDir(opts.Name)
 	if err != nil {
-		return fmt.Errorf("getting VM home directory: %w", err)
+		return vmContext{}, fmt.Errorf("getting VM home directory: %w", err)
 	}
 
-	return lima.RunVMIsolationScripts(cfg.VM.Create.CreationScripts, name, homeDir+"/repo", executor)
+	return vmContext{executor: executor, repoDir: homeDir + "/repo"}, nil
 }
 
 func (b *LimaBackend) Destroy(name string) error {

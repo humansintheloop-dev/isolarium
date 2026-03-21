@@ -120,6 +120,141 @@ func TestLimaBackendCreateWithHostScriptDeclaredEnvVars(t *testing.T) {
 	}
 }
 
+func TestLimaBackendCreateRunsEnvScriptsInsideVM(t *testing.T) {
+	fix := newVMTestFixture(t)
+	fix.writeScript([]byte("#!/bin/bash\necho hi"))
+	fix.writePidYaml([]byte(`isolarium:
+  vm:
+    create:
+      post_creation_scripts:
+        env_scripts:
+          - path: scripts/setup.sh
+`))
+
+	var executed []recordedVMExec
+	b := &LimaBackend{
+		CreateVMFunc:  noopCreateVM,
+		VMHomeDirFunc: stubVMHomeDir,
+		VMExecFunc: func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
+			executed = append(executed, recordedVMExec{vm: vm, workdir: workdir, envVars: envVars, args: args})
+			return 0, nil
+		},
+	}
+
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(executed) != 1 {
+		t.Fatalf("expected 1 VM exec call, got %d", len(executed))
+	}
+
+	if executed[0].vm != "test-vm" {
+		t.Errorf("expected vm test-vm, got %q", executed[0].vm)
+	}
+	if executed[0].workdir != "/vm/repo" {
+		t.Errorf("expected workdir /vm/repo, got %q", executed[0].workdir)
+	}
+	if executed[0].args[1] != "scripts/setup.sh" {
+		t.Errorf("expected script setup.sh, got %v", executed[0].args)
+	}
+	if executed[0].envVars["ISOLARIUM_NAME"] != "test-vm" {
+		t.Errorf("expected ISOLARIUM_NAME=test-vm, got %q", executed[0].envVars["ISOLARIUM_NAME"])
+	}
+	if executed[0].envVars["ISOLARIUM_TYPE"] != "vm" {
+		t.Errorf("expected ISOLARIUM_TYPE=vm, got %q", executed[0].envVars["ISOLARIUM_TYPE"])
+	}
+}
+
+func TestLimaBackendCreatePassesEnvVarsToEnvScripts(t *testing.T) {
+	fix := newVMTestFixture(t)
+	fix.writePidYaml([]byte(`isolarium:
+  vm:
+    create:
+      post_creation_scripts:
+        env_scripts:
+          - path: scripts/install-plugin.sh
+          - path: scripts/add-codescene-mcp.sh
+            env:
+              - CS_ACCESS_TOKEN
+              - CS_ACE_ACCESS_TOKEN
+`))
+
+	t.Setenv("CS_ACCESS_TOKEN", "token123")
+	t.Setenv("CS_ACE_ACCESS_TOKEN", "ace456")
+
+	var executed []recordedVMExec
+	b := &LimaBackend{
+		CreateVMFunc:  noopCreateVM,
+		VMHomeDirFunc: stubVMHomeDir,
+		VMExecFunc: func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
+			executed = append(executed, recordedVMExec{vm: vm, workdir: workdir, envVars: envVars, args: args})
+			return 0, nil
+		},
+	}
+
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(executed) != 2 {
+		t.Fatalf("expected 2 env script calls, got %d", len(executed))
+	}
+
+	if executed[0].envVars["CS_ACCESS_TOKEN"] != "" {
+		t.Errorf("install-plugin.sh should not receive CS_ACCESS_TOKEN, got %q", executed[0].envVars["CS_ACCESS_TOKEN"])
+	}
+
+	if executed[1].envVars["CS_ACCESS_TOKEN"] != "token123" {
+		t.Errorf("expected CS_ACCESS_TOKEN=token123, got %q", executed[1].envVars["CS_ACCESS_TOKEN"])
+	}
+	if executed[1].envVars["CS_ACE_ACCESS_TOKEN"] != "ace456" {
+		t.Errorf("expected CS_ACE_ACCESS_TOKEN=ace456, got %q", executed[1].envVars["CS_ACE_ACCESS_TOKEN"])
+	}
+}
+
+func TestLimaBackendCreateRunsEnvScriptsAfterHostScripts(t *testing.T) {
+	fix := newVMTestFixture(t)
+	markerFile := fix.workDir + "/host-ran"
+
+	fix.writeScript([]byte("#!/bin/bash\necho ran > " + markerFile + "\n"))
+	fix.writePidYaml([]byte(`isolarium:
+  vm:
+    create:
+      post_creation_scripts:
+        host_scripts:
+          - path: scripts/setup.sh
+        env_scripts:
+          - path: scripts/env-setup.sh
+`))
+
+	var envExecCalls []recordedVMExec
+	b := &LimaBackend{
+		CreateVMFunc:  noopCreateVM,
+		VMHomeDirFunc: stubVMHomeDir,
+		VMExecFunc: func(vm, workdir string, envVars map[string]string, args []string) (int, error) {
+			envExecCalls = append(envExecCalls, recordedVMExec{vm: vm, workdir: workdir, envVars: envVars, args: args})
+			return 0, nil
+		},
+	}
+
+	err := b.Create(CreateOptions{Name: "test-vm", WorkDirectory: fix.workDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	fix.readMarkerFile("host-ran")
+
+	if len(envExecCalls) != 1 {
+		t.Fatalf("expected 1 env exec call, got %d", len(envExecCalls))
+	}
+	if envExecCalls[0].args[1] != "scripts/env-setup.sh" {
+		t.Errorf("expected env script env-setup.sh, got %v", envExecCalls[0].args)
+	}
+}
+
 func TestLimaBackendCreateSucceedsWithoutPidYaml(t *testing.T) {
 	fix := newVMTestFixture(t)
 
