@@ -5,5 +5,7 @@ package main
 import "testing"
 
 func TestClaudeInteractiveInContainer_EndToEnd(t *testing.T) {
-	claudeInteractiveInIsolarium(t, "container")
+	env := newTestEnv(t, "container")
+	env.ensureReady()
+	env.runClaudeInteractive()
 }

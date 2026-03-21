@@ -23,7 +23,6 @@ func BuildRunCommandInteractive(args []string, extraReadPaths []string) []string
 	for _, p := range extraReadPaths {
 		cmd = append(cmd, "--read", p)
 	}
-	cmd = append(cmd, "--exec")
 	cmd = append(cmd, "--")
 	cmd = append(cmd, args...)
 	return cmd

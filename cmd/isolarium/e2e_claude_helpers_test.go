@@ -15,6 +15,25 @@ import (
 	"github.com/creack/pty"
 )
 
+type testEnv struct {
+	t       *testing.T
+	binary  string
+	envType string
+	root    string
+}
+
+func newTestEnv(t *testing.T, envType string) testEnv {
+	t.Helper()
+	root := projectRoot(t)
+	binaryPath := filepath.Join(root, "bin", "isolarium")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/isolarium")
+	cmd.Dir = root
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build binary: %v\n%s", err, output)
+	}
+	return testEnv{t: t, binary: binaryPath, envType: envType, root: root}
+}
+
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
@@ -25,50 +44,68 @@ func projectRoot(t *testing.T) string {
 	return strings.TrimSpace(string(output))
 }
 
-func buildClaudeBinary(t *testing.T) string {
-	t.Helper()
-	root := projectRoot(t)
-	binaryPath := filepath.Join(root, "bin", "isolarium")
-	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/isolarium")
-	cmd.Dir = root
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build binary: %v\n%s", err, output)
+func (e testEnv) ensureReady() {
+	e.t.Helper()
+	if e.envType == "nono" {
+		return
 	}
-	return binaryPath
+	state := e.state()
+	if state == "running" {
+		return
+	}
+	if state == "stopped" {
+		e.destroy()
+	}
+	e.create()
 }
 
-func ensureEnvironmentReady(t *testing.T, binary, envType string) {
-	t.Helper()
-	if envType == "nono" {
-		return
-	}
-	cmd := exec.Command(binary, "--type", envType, "status")
+func (e testEnv) state() string {
+	e.t.Helper()
+	defaultNames := map[string]string{"container": "isolarium-container", "vm": "isolarium"}
+	name := defaultNames[e.envType]
+
+	cmd := exec.Command(e.binary, "--type", e.envType, "status")
 	output, _ := cmd.Output()
-	if strings.Contains(string(output), "running") {
-		return
+	for _, line := range strings.Split(string(output), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[0] == name {
+			return fields[2]
+		}
 	}
-	t.Logf("creating %s environment...", envType)
-	root := projectRoot(t)
-	createArgs := []string{"--type", envType}
-	createArgs = append(createArgs, envFileArgs(t, root)...)
+	return "none"
+}
+
+func (e testEnv) destroy() {
+	e.t.Helper()
+	e.t.Logf("destroying stopped %s environment...", e.envType)
+	cmd := exec.Command(e.binary, "--type", e.envType, "destroy")
+	cmd.Dir = e.root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		e.t.Logf("destroy failed (continuing): %v\n%s", err, out)
+	}
+}
+
+func (e testEnv) create() {
+	e.t.Helper()
+	e.t.Logf("creating %s environment...", e.envType)
+	createArgs := []string{"--type", e.envType}
+	createArgs = append(createArgs, envFileArgs(e.t, e.root)...)
 	createArgs = append(createArgs, "create")
-	cmd = exec.Command(binary, createArgs...)
-	cmd.Dir = root
+	cmd := exec.Command(e.binary, createArgs...)
+	cmd.Dir = e.root
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("failed to create %s environment: %v\n%s", envType, err, out)
+		e.t.Fatalf("failed to create %s environment: %v\n%s", e.envType, err, out)
 	}
 }
 
-func claudeInIsolarium(t *testing.T, envType string) string {
-	t.Helper()
-	binary := buildClaudeBinary(t)
-	ensureEnvironmentReady(t, binary, envType)
-	cmd := exec.Command(binary, "--type", envType, "run", "--", "claude", "-p", "hello")
-	cmd.Dir = projectRoot(t)
+func (e testEnv) runClaude() string {
+	e.t.Helper()
+	cmd := exec.Command(e.binary, "--type", e.envType, "run", "--", "claude", "-p", "hello")
+	cmd.Dir = e.root
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("isolarium --type %s run -- claude -p hello failed: %v\noutput: %s", envType, err, output)
+		e.t.Fatalf("isolarium --type %s run -- claude -p hello failed: %v\noutput: %s", e.envType, err, output)
 	}
 	return string(output)
 }
@@ -114,22 +151,14 @@ func (o *ptyOutput) contains(needle []byte) bool {
 	return bytes.Contains(o.buf.Bytes(), needle)
 }
 
-func (o *ptyOutput) size() int {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.buf.Len()
-}
+func (e testEnv) runClaudeInteractive() {
+	e.t.Helper()
 
-func claudeInteractiveInIsolarium(t *testing.T, envType string) {
-	t.Helper()
-	binary := buildClaudeBinary(t)
-	ensureEnvironmentReady(t, binary, envType)
-
-	cmd := exec.Command(binary, "--type", envType, "run", "-i", "--", "claude", "hello")
-	cmd.Dir = projectRoot(t)
+	cmd := exec.Command(e.binary, "--type", e.envType, "run", "-i", "--", "claude", "hello")
+	cmd.Dir = e.root
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		t.Fatalf("failed to start PTY: %v", err)
+		e.t.Fatalf("failed to start PTY: %v", err)
 	}
 	defer ptmx.Close()
 
@@ -148,11 +177,11 @@ func claudeInteractiveInIsolarium(t *testing.T, envType string) {
 			output.mu.Lock()
 			raw := output.buf.String()
 			output.mu.Unlock()
-			t.Fatalf("timed out waiting for Claude interactive response\nBuffer size: %d bytes\nRaw: %s", len(raw), raw)
+			e.t.Fatalf("timed out waiting for Claude interactive response\nBuffer size: %d bytes\nRaw: %s", len(raw), raw)
 		case <-time.After(250 * time.Millisecond):
 			for _, needle := range acceptedResponses {
 				if output.contains(needle) {
-					t.Logf("Claude responded interactively (matched %q)", needle)
+					e.t.Logf("Claude responded interactively (matched %q)", needle)
 					_ = cmd.Process.Kill()
 					<-output.done
 					return

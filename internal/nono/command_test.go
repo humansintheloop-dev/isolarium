@@ -53,29 +53,13 @@ func TestBuildRunCommandInteractiveStartsWithNonoRunAndProfile(t *testing.T) {
 	assertCommandPrefix(t, cmd, "nono", "run", "--profile", getProfilePath())
 }
 
-func TestBuildRunCommandInteractiveIncludesExecBeforeSeparator(t *testing.T) {
+func TestBuildRunCommandInteractiveDoesNotIncludeExecFlag(t *testing.T) {
 	cmd := BuildRunCommandInteractive([]string{"claude"}, nil)
 
-	execIdx := -1
-	separatorIdx := -1
-	for i, v := range cmd {
-		if v == "--exec" && execIdx == -1 {
-			execIdx = i
+	for _, v := range cmd {
+		if v == "--exec" {
+			t.Fatal("expected BuildRunCommandInteractive NOT to include --exec flag")
 		}
-		if v == "--" {
-			separatorIdx = i
-			break
-		}
-	}
-
-	if execIdx == -1 {
-		t.Fatal("expected command to contain --exec flag")
-	}
-	if separatorIdx == -1 {
-		t.Fatal("expected command to contain -- separator")
-	}
-	if execIdx >= separatorIdx {
-		t.Errorf("expected --exec (index %d) to appear before -- (index %d)", execIdx, separatorIdx)
 	}
 }
 
