@@ -17,7 +17,7 @@ type EnsureBucketFunc func(ctx context.Context, region string) (string, error)
 
 // ec2ExecFunc runs a command on the instance reachable at publicDNS, using the
 // SSH material under base, and returns the remote command's exit code.
-type ec2ExecFunc func(base, publicDNS string, cmd ec2.RemoteCommand) (int, error)
+type ec2ExecFunc = ec2.RemoteRunner
 
 type EC2Backend struct {
 	MetadataDir            string
@@ -28,10 +28,17 @@ type EC2Backend struct {
 	ExtractScaffoldingFunc func(base string) error
 	EnsureKeypairFunc      func(base string) (string, error)
 	DetectPublicIPFunc     func() (string, error)
-	WaitForCloudInitFunc   func(base, publicDNS string) error
+	SleepFunc              func(time.Duration)
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
 	Out                    io.Writer
+}
+
+// launchedInstance is where terraform says a newly applied instance can be
+// reached.
+type launchedInstance struct {
+	id        string
+	publicDNS string
 }
 
 // hostState is what the host contributes to a terraform apply.
@@ -79,7 +86,8 @@ func (b *EC2Backend) create(opts CreateOptions) error {
 		return err
 	}
 
-	return b.launchInstance(environmentPlan{name: opts.Name, region: region, bucket: bucket, host: host})
+	plan := environmentPlan{name: opts.Name, region: region, bucket: bucket, host: host}
+	return b.launchInstance(plan, opts.Repository)
 }
 
 // resolveAWSAccount yields the region and the remote-state bucket every
@@ -120,45 +128,91 @@ func (b *EC2Backend) provisionHostState() (hostState, error) {
 	return hostState{publicKey: publicKey, ingressCIDR: cidr}, nil
 }
 
-// launchInstance describes the environment as one generated Terraform file,
-// applies it, and records where the resulting instance can be reached. The
-// cloud-init document rides along as user_data, so the instance provisions its
-// toolchain on first boot.
-func (b *EC2Backend) launchInstance(plan environmentPlan) error {
-	if err := ec2.WriteInstanceFile(b.MetadataDir, plan.name, ec2.RenderUserData()); err != nil {
-		return err
-	}
-
-	terraform := ec2.NewTerraformRunner(b.Runner, b.MetadataDir, plan.bucket, plan.region)
-	if err := terraform.Init(); err != nil {
-		return err
-	}
-	if err := terraform.Apply(plan.applyVariables()); err != nil {
-		return err
-	}
-
-	output, err := terraform.OutputJSON()
-	if err != nil {
-		return err
-	}
-	instanceID, publicDNS, err := ec2.ParseTerraformOutput(output, plan.name)
+// launchInstance takes an environment from a Terraform description to an
+// instance that is ready to work in: applied, reachable, provisioned, and
+// holding the repository.
+func (b *EC2Backend) launchInstance(plan environmentPlan, repository RepositorySource) error {
+	b.print("Creating EC2 instance...")
+	instance, err := b.applyInstance(plan)
 	if err != nil {
 		return err
 	}
 
-	err = ec2.NewMetadataStore(b.MetadataDir, plan.name).Write(ec2.Metadata{
-		InstanceID: instanceID,
-		PublicDNS:  publicDNS,
-		Region:     plan.region,
-		CreatedAt:  b.now(),
-	})
+	source, err := repository()
 	if err != nil {
 		return err
 	}
 
 	// Recording where the instance can be reached before waiting on it keeps a
 	// timed-out provisioning destroyable.
-	return b.WaitForCloudInitFunc(b.MetadataDir, publicDNS)
+	if err := b.recordMetadata(plan, instance, source); err != nil {
+		return err
+	}
+	return b.provisionInstance(instance.publicDNS, source)
+}
+
+// applyInstance describes the environment as one generated Terraform file and
+// applies it. The cloud-init document rides along as user_data, so the instance
+// provisions its toolchain on first boot.
+func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, error) {
+	if err := ec2.WriteInstanceFile(b.MetadataDir, plan.name, ec2.RenderUserData()); err != nil {
+		return launchedInstance{}, err
+	}
+
+	terraform := ec2.NewTerraformRunner(b.Runner, b.MetadataDir, plan.bucket, plan.region)
+	if err := terraform.Init(); err != nil {
+		return launchedInstance{}, err
+	}
+	if err := terraform.Apply(plan.applyVariables()); err != nil {
+		return launchedInstance{}, err
+	}
+
+	output, err := terraform.OutputJSON()
+	if err != nil {
+		return launchedInstance{}, err
+	}
+	instanceID, publicDNS, err := ec2.ParseTerraformOutput(output, plan.name)
+	if err != nil {
+		return launchedInstance{}, err
+	}
+	return launchedInstance{id: instanceID, publicDNS: publicDNS}, nil
+}
+
+func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInstance, source ec2.RepositorySpec) error {
+	return ec2.NewMetadataStore(b.MetadataDir, plan.name).Write(ec2.Metadata{
+		InstanceID: instance.id,
+		PublicDNS:  instance.publicDNS,
+		Region:     plan.region,
+		Owner:      source.Owner,
+		Repo:       source.Repo,
+		Branch:     source.Branch,
+		CreatedAt:  b.now(),
+	})
+}
+
+// provisionInstance waits out the gap between an instance AWS calls running and
+// one that can actually be worked in, then places the repository inside it.
+func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySpec) error {
+	session := ec2.NewInstanceSession(b.MetadataDir, publicDNS, b.ExecFunc)
+
+	if err := ec2.WaitForSSH(session, b.sleep()); err != nil {
+		return err
+	}
+
+	b.print("Waiting for cloud-init...")
+	if err := ec2.WaitForCloudInit(session, b.sleep()); err != nil {
+		return err
+	}
+
+	b.print("Cloning repository...")
+	return ec2.PlaceRepository(session, source)
+}
+
+func (b *EC2Backend) sleep() ec2.SleepFunc {
+	if b.SleepFunc != nil {
+		return b.SleepFunc
+	}
+	return time.Sleep
 }
 
 func (b *EC2Backend) lookupEnv() func(string) (string, bool) {
@@ -307,13 +361,17 @@ func (b *EC2Backend) ExecInteractive(req ExecRequest) (int, error) {
 
 // runOnInstance resolves where the environment can be reached from the metadata
 // recorded at create time, so running a command costs no AWS or terraform call.
-// The remote working directory arrives with the repository clone.
+// Commands run from the repository create placed on the instance.
 func (b *EC2Backend) runOnInstance(run ec2ExecFunc, req ExecRequest) (int, error) {
 	meta, err := ec2.NewMetadataStore(b.MetadataDir, req.ContainerName).Read()
 	if err != nil {
 		return 1, err
 	}
-	return run(b.MetadataDir, meta.PublicDNS, ec2.RemoteCommand{EnvVars: req.EnvVars, Args: req.Args})
+	return run(b.MetadataDir, meta.PublicDNS, ec2.RemoteCommand{
+		Workdir: ec2.RemoteRepoDir,
+		EnvVars: req.EnvVars,
+		Args:    req.Args,
+	})
 }
 
 func (b *EC2Backend) OpenShell(req ExecRequest) (int, error) {

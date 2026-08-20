@@ -21,6 +21,8 @@ import (
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
+	"github.com/humansintheloop-dev/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/github"
 )
 
 const (
@@ -75,9 +77,89 @@ func startEC2Environment(t *testing.T, name string) *ec2Environment {
 	}
 
 	t.Cleanup(environment.destroyIfStillRunning)
-	environment.create()
+	environment.create(integrationRepositorySource(t))
 	environment.waitForSSH()
 	return environment
+}
+
+// integrationRepositorySource resolves the checkout under test exactly as the
+// CLI does before create: the repository it belongs to, the branch being worked
+// on, and a freshly minted installation token. The branch is pushed so the
+// instance has something to clone.
+func integrationRepositorySource(t *testing.T) backend.RepositorySource {
+	t.Helper()
+
+	checkout := repositoryCheckout(t)
+	remoteURL, err := git.GetRemoteURL(checkout)
+	if err != nil {
+		t.Fatalf("resolving the remote of %s: %v", checkout, err)
+	}
+	owner, repo, err := github.ParseRepoURL(remoteURL)
+	if err != nil {
+		t.Fatalf("parsing %s: %v", remoteURL, err)
+	}
+	branch, err := git.GetCurrentBranch(checkout)
+	if err != nil {
+		t.Fatalf("resolving the current branch of %s: %v", checkout, err)
+	}
+	if err := git.PushBranch(checkout, branch); err != nil {
+		t.Fatalf("pushing %s so the instance can clone it: %v", branch, err)
+	}
+
+	spec := ec2.RepositorySpec{
+		Owner:       owner,
+		Repo:        repo,
+		Branch:      branch,
+		Token:       mintIntegrationToken(t, owner, repo),
+		HostDir:     checkout,
+		AuthorEmail: hostGitSetting(t, checkout, git.GetUserEmail, "user.email"),
+		AuthorName:  hostGitSetting(t, checkout, git.GetUserName, "user.name"),
+	}
+	return func() (ec2.RepositorySpec, error) { return spec, nil }
+}
+
+// repositoryCheckout is the root of the working copy, which is where the project
+// config files that travel into the instance live — not the package directory
+// go test runs from.
+func repositoryCheckout(t *testing.T) string {
+	t.Helper()
+
+	output, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		t.Fatalf("resolving the repository checkout: %v", err)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func mintIntegrationToken(t *testing.T, owner, repo string) string {
+	t.Helper()
+
+	appID := requireEnvVar(t, "GITHUB_APP_ID")
+	privateKeyPath := requireEnvVar(t, "GITHUB_APP_PRIVATE_KEY_PATH")
+
+	privateKey, err := os.ReadFile(privateKeyPath)
+	if err != nil {
+		t.Fatalf("reading the GitHub App private key from %s: %v", privateKeyPath, err)
+	}
+	minter, err := github.NewTokenMinter(appID, string(privateKey), "")
+	if err != nil {
+		t.Fatalf("creating the GitHub App token minter: %v", err)
+	}
+	token, err := minter.MintInstallationToken(owner, repo)
+	if err != nil {
+		t.Fatalf("minting an installation token for %s/%s: %v", owner, repo, err)
+	}
+	return token
+}
+
+func hostGitSetting(t *testing.T, checkout string, read func(string) (string, error), key string) string {
+	t.Helper()
+
+	value, err := read(checkout)
+	if err != nil {
+		t.Fatalf("reading git %s: %v", key, err)
+	}
+	return value
 }
 
 func requireIntegrationGate(t *testing.T) {
@@ -107,11 +189,11 @@ func requireEnvVar(t *testing.T, name string) string {
 	return value
 }
 
-func (e *ec2Environment) create() {
+func (e *ec2Environment) create(repository backend.RepositorySource) {
 	e.t.Helper()
 
 	e.createdAt = time.Now()
-	if err := e.backend.Create(backend.CreateOptions{Name: e.name}); err != nil {
+	if err := e.backend.Create(backend.CreateOptions{Name: e.name, Repository: repository}); err != nil {
 		e.t.Fatalf("creating %s: %v", e.name, err)
 	}
 	e.t.Logf("TIMING: create %s took %s", e.name, time.Since(e.createdAt).Round(time.Second))

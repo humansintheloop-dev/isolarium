@@ -36,6 +36,10 @@ func newCreateCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag
 				return err
 			}
 
+			if envType == "ec2" {
+				return createAndSetupEC2(b, name)
+			}
+
 			opts := backend.CreateOptions{
 				Name:          name,
 				WorkDirectory: workDirFlag,

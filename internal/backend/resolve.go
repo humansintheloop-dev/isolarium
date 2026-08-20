@@ -58,9 +58,7 @@ func NewEC2Backend() *EC2Backend {
 		ExtractScaffoldingFunc: ec2.ExtractScaffolding,
 		EnsureKeypairFunc:      ec2.EnsureKeypair,
 		DetectPublicIPFunc:     func() (string, error) { return ec2.DetectPublicIP(ec2.DefaultHTTPGet) },
-		WaitForCloudInitFunc: func(base, publicDNS string) error {
-			return ec2.WaitForCloudInit(base, publicDNS, ec2.ExecCommand, time.Sleep)
-		},
+		SleepFunc:              time.Sleep,
 		ExecFunc:               ec2.ExecCommand,
 		ExecInteractiveFunc:    ec2.ExecInteractiveCommand,
 	}

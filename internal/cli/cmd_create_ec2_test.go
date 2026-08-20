@@ -8,15 +8,24 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
 )
 
-func TestCreateCommand_EC2PassesExplicitNameToBackend(t *testing.T) {
+// createEC2WithSpy drives the real create command against a spied backend, so
+// what the command hands the backend can be asserted without an AWS account.
+func createEC2WithSpy(t *testing.T, args ...string) *backendSpy {
+	t.Helper()
+
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
 	})
-	rootCmd.SetArgs([]string{"create", "--type", "ec2", "--name", "my-work"})
+	rootCmd.SetArgs(append([]string{"create", "--type", "ec2"}, args...))
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	return spy
+}
+
+func TestCreateCommand_EC2PassesExplicitNameToBackend(t *testing.T) {
+	spy := createEC2WithSpy(t, "--name", "my-work")
 
 	if !spy.createCalled {
 		t.Fatal("expected backend.Create to be called")
@@ -27,17 +36,18 @@ func TestCreateCommand_EC2PassesExplicitNameToBackend(t *testing.T) {
 }
 
 func TestCreateCommand_EC2UsesDefaultName(t *testing.T) {
-	spy := &backendSpy{}
-	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
-		return spy, nil
-	})
-	rootCmd.SetArgs([]string{"create", "--type", "ec2"})
-	if err := rootCmd.Execute(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	spy := createEC2WithSpy(t)
 
 	if spy.createName != "isolarium-ec2" {
 		t.Errorf("expected name 'isolarium-ec2', got '%s'", spy.createName)
+	}
+}
+
+func TestCreateCommand_EC2GivesTheBackendARepositorySource(t *testing.T) {
+	spy := createEC2WithSpy(t, "--name", "my-work")
+
+	if spy.createOpts.Repository == nil {
+		t.Fatal("create --type ec2 gave the backend no repository source, so it has nothing to clone")
 	}
 }
 

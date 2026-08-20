@@ -309,20 +309,20 @@ Spec 3.7. The skeleton instance from Steel Thread 1 boots a stock Ubuntu image; 
 ## Steel Thread 3: `create` places the repository inside the instance
 Spec 3.10 and 3.13 steps 12–14, acceptance criterion 1. Thickens the working instance from Steel Thread 2 with the repository checkout, and proves on a real instance that the branch, the git author, and the absence of a persisted clone token are all as specified.
 
-- [ ] **Task 3.1: `create` waits for SSH, clones the repository, and configures the git author**
+- [x] **Task 3.1: `create` waits for SSH, clones the repository, and configures the git author**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/backend/... -run TestEC2Backend_Create_PlacesRepository`
   - Observable: after the apply, the recorded remote command sequence is an SSH readiness probe retried until success and capped at 5 minutes, `cloud-init status --wait` capped at 15 minutes, `git clone --branch <branch> https://x-access-token:<token>@github.com/<owner>/<repo>.git repo`, a `git config user.email '<transformed>'` and `git config user.name '<name> - i2code'` pair run inside `/home/ubuntu/repo`, and one write per existing host file of `.claude/settings.local.json` and `CLAUDE.md`; no recorded command writes the token to any file on the instance
   - Evidence: `TestEC2Backend_Create_PlacesRepository` asserts the ordered remote command log from an injected SSH exec fake, including that the token appears only inside the single `git clone` argument; `TestEC2Backend_Create_TimesOutWaitingForSSH` asserts the readiness loop gives up with `instance did not become reachable over SSH within 5m0s``
   - Steps:
-    - [ ] Write `internal/ec2/clone_test.go` first for `WaitForSSH`, `CloneRepo`, `ConfigureGitAuthor`, and `CopyFileToInstance`
-    - [ ] Implement `internal/ec2/clone.go`, reusing `git.TransformEmailForIsolation` and the `" - i2code"` suffix exactly as `configureVMGitAuthor` in `internal/cli/vm_setup.go:118` does
-    - [ ] Inject a `SleepFunc func(time.Duration)` into the readiness loops so tests do not actually wait
-    - [ ] Add `createAndSetupEC2(name string) error` to `internal/cli/ec2_setup.go` following the shape of `createAndSetupVM` in `internal/cli/vm_setup.go:31`: resolve repo info, push the branch, mint the GitHub App token, then call `EC2Backend.Create`
-    - [ ] Route `ec2` from `newCreateCmdWithResolver` in `internal/cli/cmd_create.go:34` to `createAndSetupEC2`, alongside the existing `vm` special case
-    - [ ] Populate `owner`, `repo`, and `branch` in `metadata.json` from the resolved repo info
-    - [ ] Define `RemoteRepoDir = "/home/ubuntu/repo"` in `internal/ec2/ec2.go` and make `Exec` run from it
-    - [ ] Print progress lines mirroring the Lima flow: `Creating EC2 instance...`, `Waiting for cloud-init...`, `Cloning repository...`
+    - [x] Write `internal/ec2/clone_test.go` first for `WaitForSSH`, `CloneRepo`, `ConfigureGitAuthor`, and `CopyFileToInstance`
+    - [x] Implement `internal/ec2/clone.go`, reusing `git.TransformEmailForIsolation` and the `" - i2code"` suffix exactly as `configureVMGitAuthor` in `internal/cli/vm_setup.go:118` does
+    - [x] Inject a `SleepFunc func(time.Duration)` into the readiness loops so tests do not actually wait
+    - [x] Add `createAndSetupEC2(name string) error` to `internal/cli/ec2_setup.go` following the shape of `createAndSetupVM` in `internal/cli/vm_setup.go:31`: resolve repo info, push the branch, mint the GitHub App token, then call `EC2Backend.Create`
+    - [x] Route `ec2` from `newCreateCmdWithResolver` in `internal/cli/cmd_create.go:34` to `createAndSetupEC2`, alongside the existing `vm` special case
+    - [x] Populate `owner`, `repo`, and `branch` in `metadata.json` from the resolved repo info
+    - [x] Define `RemoteRepoDir = "/home/ubuntu/repo"` in `internal/ec2/ec2.go` and make `Exec` run from it
+    - [x] Print progress lines mirroring the Lima flow: `Creating EC2 instance...`, `Waiting for cloud-init...`, `Cloning repository...`
 - [ ] **Task 3.2: A real instance holds the repository at the right branch with the git author configured**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
