@@ -28,7 +28,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Install shellcheck
         run: sudo apt-get install -y shellcheck
@@ -48,7 +48,7 @@ jobs:
         run: go vet ./...
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
 
@@ -61,7 +61,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Run tests
         run: ./test-scripts/test-end-to-end.sh --skip-docker-integration
@@ -75,7 +75,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Run Docker integration tests
         env:
@@ -92,7 +92,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -122,7 +122,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
