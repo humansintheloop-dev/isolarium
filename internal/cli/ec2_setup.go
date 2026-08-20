@@ -10,8 +10,12 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 )
 
-func createAndSetupEC2(b backend.Backend, name string) error {
-	return b.Create(backend.CreateOptions{Name: name, Repository: resolveEC2Repository})
+func createAndSetupEC2(b backend.Backend, name, workDirectory string) error {
+	return b.Create(backend.CreateOptions{
+		Name:          name,
+		WorkDirectory: workDirectory,
+		Repository:    resolveEC2Repository,
+	})
 }
 
 // resolveEC2Repository is the host-side work that must happen before the

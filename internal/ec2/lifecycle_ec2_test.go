@@ -83,9 +83,14 @@ func runSuiteAgainstOneInstance(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, err)
 		status = 1
 	}
-	if err := os.RemoveAll(dir); err != nil {
-		fmt.Fprintf(os.Stderr, "removing %s: %v\n", dir, err)
-		status = 1
+	for _, temporary := range []string{dir, hostMarkerDir} {
+		if temporary == "" {
+			continue
+		}
+		if err := os.RemoveAll(temporary); err != nil {
+			fmt.Fprintf(os.Stderr, "removing %s: %v\n", temporary, err)
+			status = 1
+		}
 	}
 	return status
 }
@@ -129,6 +134,7 @@ type ec2Environment struct {
 	t          *testing.T
 	name       string
 	base       string
+	workDir    string
 	region     string
 	backend    *backend.EC2Backend
 	repository ec2.RepositorySpec
@@ -155,6 +161,7 @@ func newEC2Environment(t *testing.T, name string) *ec2Environment {
 		t:          t,
 		name:       name,
 		base:       instance.MetadataDir,
+		workDir:    pidScriptWorkDirectory(t),
 		region:     region,
 		backend:    instance,
 		repository: integrationRepositorySpec(t),
@@ -271,7 +278,12 @@ func (e *ec2Environment) create() {
 	e.t.Helper()
 
 	e.createdAt = time.Now()
-	if err := e.backend.Create(backend.CreateOptions{Name: e.name, Repository: e.repositorySource()}); err != nil {
+	createOptions := backend.CreateOptions{
+		Name:          e.name,
+		WorkDirectory: e.workDir,
+		Repository:    e.repositorySource(),
+	}
+	if err := e.backend.Create(createOptions); err != nil {
 		e.t.Fatalf("creating %s: %v", e.name, err)
 	}
 	e.t.Logf("TIMING: create %s took %s", e.name, time.Since(e.createdAt).Round(time.Second))

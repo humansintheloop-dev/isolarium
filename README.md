@@ -291,6 +291,36 @@ back to the CIDR persisted in `isolarium.auto.tfvars`, so being off the network
 you created from never strands a billing instance. With no persisted value it
 fails rather than widening ingress.
 
+Project setup steps run at the end of `create --type ec2`, declared under an
+`ec2` key in the repository's `pid.yaml`:
+
+```yaml
+isolarium:
+  ec2:
+    create:
+      creation_scripts:
+        - path: scripts/isolation/install-go.sh
+        - path: scripts/isolation/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+      post_creation_scripts:
+        host_scripts: []
+        env_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+```
+
+`creation_scripts` and `post_creation_scripts.env_scripts` run inside the
+instance from `/home/ubuntu/repo`, so their paths are relative to the repository
+root and have to be committed to the branch being cloned.
+`post_creation_scripts.host_scripts` run on the host, relative to the directory
+`create` was run from. Every script sees `ISOLARIUM_NAME` and
+`ISOLARIUM_TYPE=ec2`, plus the host variables it names under `env` — an unset
+one fails the `create` rather than running the script without it. A path that
+escapes the project root is rejected when `pid.yaml` is read, before the AWS
+account is touched.
+
 Two things worth knowing before your first `create --type ec2`:
 
 - **Cold start takes minutes, not seconds.** The instance is built from a stock

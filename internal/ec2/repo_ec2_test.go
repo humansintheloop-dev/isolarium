@@ -77,7 +77,7 @@ func (e *ec2Environment) assertTheCloneCarriesNoModifications() {
 		e.t.Errorf("the clone has modified tracked files:\n%s", modified)
 	}
 	for _, entry := range untrackedEntries(e.gitOutput("status", "--porcelain")) {
-		if !isCopiedProjectConfig(entry) {
+		if !isLeftInTheCloneByCreate(entry) {
 			e.t.Errorf("unexpected untracked entry %q in the clone", entry)
 		}
 	}
@@ -167,10 +167,12 @@ func untrackedEntries(status string) []string {
 	return entries
 }
 
-// isCopiedProjectConfig accepts a copied file itself as well as the collapsed
-// directory git reports when that file is the first thing inside it.
-func isCopiedProjectConfig(entry string) bool {
-	for _, name := range projectConfigFiles() {
+// isLeftInTheCloneByCreate accepts everything create deliberately puts in the
+// clone — the copied project config and the markers the pid.yaml scripts write —
+// including the collapsed directory git reports when a copied file is the first
+// thing inside it.
+func isLeftInTheCloneByCreate(entry string) bool {
+	for _, name := range append(projectConfigFiles(), pidScriptMarkers()...) {
 		if entry == name || strings.HasPrefix(name, entry) {
 			return true
 		}

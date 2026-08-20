@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -81,6 +82,20 @@ func TestCreateCommand_EC2DefaultNameReachesEC2Backend(t *testing.T) {
 	expectedMessage := `create "isolarium-ec2": AWS_REGION is not set`
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error containing %q, got %q", expectedMessage, err.Error())
+	}
+}
+
+// The ec2 backend reads pid.yaml from the work directory, so a create that hands
+// it none runs none of the project's own scripts.
+func TestCreateCommand_EC2PassesTheCurrentDirectoryAsWorkDirectory(t *testing.T) {
+	spy := createEC2WithSpy(t, "--name", "my-work")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("resolving the current directory: %v", err)
+	}
+	if spy.createOpts.WorkDirectory != cwd {
+		t.Errorf("create --type ec2 passed work directory %q, want %q", spy.createOpts.WorkDirectory, cwd)
 	}
 }
 

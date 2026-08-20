@@ -72,6 +72,7 @@ type ec2RemoteSpy struct {
 	base          string
 	publicDNS     string
 	neverSucceeds string
+	rejects       string
 }
 
 func (s *ec2RemoteSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int, error) {
@@ -80,6 +81,9 @@ func (s *ec2RemoteSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int,
 	s.publicDNS = publicDNS
 	if s.neverSucceeds != "" && cmd.Args[0] == s.neverSucceeds {
 		return 255, nil
+	}
+	if s.rejects != "" && strings.Contains(renderRemoteCommand(cmd), s.rejects) {
+		return 1, nil
 	}
 	return 0, nil
 }
@@ -184,6 +188,7 @@ type ec2BackendFixture struct {
 	remote      *ec2RemoteSpy
 	repository  *repositorySourceSpy
 	metadataDir string
+	workDir     string
 	runner      command.Runner
 }
 
@@ -209,7 +214,7 @@ func (f ec2BackendFixture) backend() *EC2Backend {
 // createOptions names the environment every fixture creates and hands Create the
 // spied repository source.
 func (f ec2BackendFixture) createOptions() CreateOptions {
-	return CreateOptions{Name: "my-work", Repository: f.repository.resolve}
+	return CreateOptions{Name: "my-work", WorkDirectory: f.workDir, Repository: f.repository.resolve}
 }
 
 func ec2BackendWithEnv(t *testing.T, env map[string]string, spy *ensureBucketSpy) ec2BackendFixture {
@@ -222,6 +227,7 @@ func ec2BackendWithEnv(t *testing.T, env map[string]string, spy *ensureBucketSpy
 		remote:      &ec2RemoteSpy{},
 		repository:  newRepositorySourceSpy(t),
 		metadataDir: t.TempDir(),
+		workDir:     t.TempDir(),
 		runner:      ec2FakeTerraform(t),
 	}
 }
@@ -244,6 +250,7 @@ func ec2RegionalFixture(t *testing.T, host *hostProvisioningSpy, runner command.
 		remote:      &ec2RemoteSpy{},
 		repository:  newRepositorySourceSpy(t),
 		metadataDir: t.TempDir(),
+		workDir:     t.TempDir(),
 		runner:      runner,
 	}
 }
@@ -682,6 +689,7 @@ func ec2BackendWithRecordedInstance(t *testing.T, exitCode int) ec2ExecFixture {
 		remote:      &ec2RemoteSpy{},
 		repository:  newRepositorySourceSpy(t),
 		metadataDir: t.TempDir(),
+		workDir:     t.TempDir(),
 		runner:      runner,
 	}
 	seedRecordedInstance(t, fixture.metadataDir)

@@ -8,8 +8,15 @@ import (
 	"time"
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
+	"github.com/humansintheloop-dev/isolarium/internal/config"
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
+	"github.com/humansintheloop-dev/isolarium/internal/envscript"
+	"github.com/humansintheloop-dev/isolarium/internal/hostscript"
 )
+
+// ec2IsolationType is the name this backend answers to, and the value its
+// pid.yaml scripts see in ISOLARIUM_TYPE.
+const ec2IsolationType = "ec2"
 
 // EnsureBucketFunc bootstraps the Terraform remote-state bucket for a region and
 // returns its name.
@@ -110,6 +117,13 @@ func (b *EC2Backend) Create(opts CreateOptions) error {
 }
 
 func (b *EC2Backend) create(opts CreateOptions) error {
+	// The project's own configuration is read before the account is touched, so
+	// a pid.yaml that names an escaping script path costs nothing to reject.
+	cfg, err := config.LoadPidConfig(opts.WorkDirectory)
+	if err != nil {
+		return fmt.Errorf("loading pid.yaml: %w", err)
+	}
+
 	region, bucket, err := b.resolveAWSAccount()
 	if err != nil {
 		return err
@@ -121,7 +135,50 @@ func (b *EC2Backend) create(opts CreateOptions) error {
 	}
 
 	plan := environmentPlan{name: opts.Name, region: region, bucket: bucket, host: host}
-	return b.launchInstance(plan, opts.Repository)
+	instance, err := b.launchInstance(plan, opts.Repository)
+	if err != nil {
+		return err
+	}
+	return b.runConfiguredScripts(cfg, opts, instance)
+}
+
+// runConfiguredScripts carries out the pid.yaml ec2 hooks now that the instance
+// holds the repository: the creation scripts and the post-creation env scripts
+// run inside it, while the host scripts run on the host.
+func (b *EC2Backend) runConfiguredScripts(cfg *config.PidConfig, opts CreateOptions, instance launchedInstance) error {
+	if cfg == nil {
+		return nil
+	}
+
+	create := cfg.EC2.Create
+	onInstance := b.instanceScriptRunner(instance)
+	if err := envscript.RunCreationScripts(create.CreationScripts, opts.Name, ec2IsolationType, onInstance); err != nil {
+		return err
+	}
+	if err := hostscript.RunHostScripts(create.PostCreationScripts.HostScripts, opts.WorkDirectory, opts.Name, ec2IsolationType); err != nil {
+		return err
+	}
+	return envscript.RunEnvScripts(create.PostCreationScripts.EnvScripts, opts.Name, ec2IsolationType, onInstance)
+}
+
+// instanceScriptRunner runs a pid.yaml script from the repository on the
+// instance, which is where its path resolves, and reports a rejected script as
+// an error — a provisioning step has no exit status worth propagating.
+func (b *EC2Backend) instanceScriptRunner(instance launchedInstance) envscript.EnvExecFunc {
+	return func(envVars map[string]string, args []string) (int, error) {
+		exitCode, err := b.ExecFunc(b.MetadataDir, instance.publicDNS, ec2.RemoteCommand{
+			Workdir: ec2.RemoteRepoDir,
+			EnvVars: envVars,
+			Args:    args,
+		})
+		if err != nil {
+			return exitCode, err
+		}
+		if exitCode != 0 {
+			return exitCode, fmt.Errorf("the instance rejected it with exit code %d", exitCode)
+		}
+		return exitCode, nil
+	}
 }
 
 // resolveAWSAccount yields the region and the remote-state bucket every
@@ -165,24 +222,27 @@ func (b *EC2Backend) provisionHostState() (hostState, error) {
 // launchInstance takes an environment from a Terraform description to an
 // instance that is ready to work in: applied, reachable, provisioned, and
 // holding the repository.
-func (b *EC2Backend) launchInstance(plan environmentPlan, repository RepositorySource) error {
+func (b *EC2Backend) launchInstance(plan environmentPlan, repository RepositorySource) (launchedInstance, error) {
 	b.print("Creating EC2 instance...")
 	instance, err := b.applyInstance(plan)
 	if err != nil {
-		return err
+		return launchedInstance{}, err
 	}
 
 	source, err := repository()
 	if err != nil {
-		return err
+		return launchedInstance{}, err
 	}
 
 	// Recording where the instance can be reached before waiting on it keeps a
 	// timed-out provisioning destroyable.
 	if err := b.recordMetadata(plan, instance, source); err != nil {
-		return err
+		return launchedInstance{}, err
 	}
-	return b.provisionInstance(instance.publicDNS, source)
+	if err := b.provisionInstance(instance.publicDNS, source); err != nil {
+		return launchedInstance{}, err
+	}
+	return instance, nil
 }
 
 // applyInstance describes the environment as one generated Terraform file and
