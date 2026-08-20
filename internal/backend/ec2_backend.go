@@ -24,6 +24,10 @@ type ec2ExecFunc = ec2.RemoteRunner
 // answer depends on what is already running there.
 type SessionNameFunc func(base, publicDNS string) (string, error)
 
+// ec2CopyCredentialsFunc places the host's Claude credentials on the instance
+// reachable at publicDNS, using the SSH material under base.
+type ec2CopyCredentialsFunc func(base, publicDNS, credentials string) error
+
 type EC2Backend struct {
 	MetadataDir            string
 	Runner                 command.Runner
@@ -38,6 +42,7 @@ type EC2Backend struct {
 	ExecInteractiveFunc    ec2ExecFunc
 	CaptureFunc            ec2.RemoteOutputRunner
 	SessionNameFunc        SessionNameFunc
+	CopyCredentialsFunc    ec2CopyCredentialsFunc
 	Out                    io.Writer
 	ErrWriter              io.Writer
 }
@@ -95,10 +100,6 @@ func (p environmentPlan) applyVariables() map[string]string {
 		"public_key":   p.host.publicKey,
 		"region":       p.region,
 	}
-}
-
-func notYetImplemented() error {
-	return fmt.Errorf("not yet implemented for --type ec2")
 }
 
 func (b *EC2Backend) Create(opts CreateOptions) error {
@@ -468,6 +469,21 @@ func (b *EC2Backend) GetState(name string) string {
 	return "none"
 }
 
+// CopyCredentials carries the host's Claude credentials to the instance, which
+// only overwrites what is already there when the host's copy is the fresher one.
 func (b *EC2Backend) CopyCredentials(name string, credentials string) error {
-	return notYetImplemented()
+	meta, err := ec2.NewMetadataStore(b.MetadataDir, name).Read()
+	if err != nil {
+		return err
+	}
+	return b.copyCredentials()(b.MetadataDir, meta.PublicDNS, credentials)
+}
+
+func (b *EC2Backend) copyCredentials() ec2CopyCredentialsFunc {
+	if b.CopyCredentialsFunc != nil {
+		return b.CopyCredentialsFunc
+	}
+	return func(base, publicDNS, credentials string) error {
+		return ec2.NewInstanceQuery(base, publicDNS, b.capture()).CopyClaudeCredentials(credentials)
+	}
 }

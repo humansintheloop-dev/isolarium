@@ -73,7 +73,18 @@ func rejectFlagsUnsupportedByShell(cmd *cobra.Command, envType string, newSessio
 // into its shell: vm and nono never copy, and ec2 leaves the decision to the
 // backend, which only overwrites a credential file the host's is fresher than.
 func copyCredentialsForContainerShell(b backend.Backend, envType, name string, copySession bool) error {
-	if !copySession || envType != "container" {
+	if envType != "container" {
+		return nil
+	}
+	return copyKeychainCredentials(b, name, copySession)
+}
+
+// copyKeychainCredentials offers the host's Claude credentials to the
+// environment. What the environment does with them is the backend's call: the
+// container writes unconditionally, while ec2 keeps a credential file a session
+// running there refreshed more recently than the host's.
+func copyKeychainCredentials(b backend.Backend, name string, copySession bool) error {
+	if !copySession {
 		return nil
 	}
 

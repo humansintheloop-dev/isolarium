@@ -383,17 +383,17 @@ Spec scenario 7. Thickens the tmux capability with a second concurrent session, 
 ## Steel Thread 6: Claude credentials reach the instance and `claude` runs authenticated there
 Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with fakes; the claim that matters — that an agent can actually authenticate and refresh its own token on the instance — is verified by running `claude` on a real one. That real test replaces the indirect Lima-based A1 verification the spec proposed.
 
-- [ ] **Task 6.1: `CopyCredentials` leaves a fresher instance credential file byte-for-byte unchanged**
+- [x] **Task 6.1: `CopyCredentials` leaves a fresher instance credential file byte-for-byte unchanged**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run TestCopyClaudeCredentials`
   - Observable: with the instance reporting `claudeAiOauth.expiresAt` of `2000` and the host blob carrying `1000`, no write command is issued and the recorded command log contains only the read; with the instance at `1000` and the host at `2000`, the recorded log is `mkdir -p ~/.claude`, write, `chmod 600 ~/.claude/.credentials.json`; the same write sequence occurs when the read fails with "no such file", when the body is not valid JSON, and when `claudeAiOauth.expiresAt` is missing; with equal `expiresAt` values, no write is issued
   - Evidence: `TestCopyClaudeCredentials_SkipsWhenInstanceIsNewer`, `..._WritesWhenHostIsNewer`, `..._WritesWhenInstanceFileAbsent`, `..._WritesWhenInstanceFileUnparseable`, and `..._SkipsWhenEqual` in `internal/ec2/session_test.go` drive it with an injected SSH exec function that records every command and returns canned instance-side JSON`
   - Steps:
-    - [ ] Write `internal/ec2/session_test.go` first
-    - [ ] Add `internal/ec2/session.go` with `ReadInstanceExpiresAt(base, publicDNS string, run execFunc) (int64, bool)` and `CopyClaudeCredentials(base, publicDNS, credentials string, run execFunc) error` implementing exactly the three write conditions from spec 3.11
-    - [ ] Compare only the two server-issued `expiresAt` values; never call `time.Now()` in this comparison
-    - [ ] Wire `CopyCredentials` on `EC2Backend` to it via an injectable `CopyCredentialsFunc` field
-    - [ ] Have the `ec2` branch of `internal/cli/cmd_run.go` call `readKeychainCredentials()` and `b.CopyCredentials` when `--copy-session` is on, matching the container flow
+    - [x] Write `internal/ec2/session_test.go` first
+    - [x] Add `internal/ec2/session.go` with `ReadInstanceExpiresAt(base, publicDNS string, run execFunc) (int64, bool)` and `CopyClaudeCredentials(base, publicDNS, credentials string, run execFunc) error` implementing exactly the three write conditions from spec 3.11
+    - [x] Compare only the two server-issued `expiresAt` values; never call `time.Now()` in this comparison
+    - [x] Wire `CopyCredentials` on `EC2Backend` to it via an injectable `CopyCredentialsFunc` field
+    - [x] Have the `ec2` branch of `internal/cli/cmd_run.go` call `readKeychainCredentials()` and `b.CopyCredentials` when `--copy-session` is on, matching the container flow
 - [ ] **Task 6.2: `claude` runs authenticated on a real instance and refreshes its own token there**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

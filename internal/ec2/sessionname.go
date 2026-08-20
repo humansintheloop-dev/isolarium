@@ -1,6 +1,7 @@
 package ec2
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -22,6 +23,21 @@ type InstanceQuery struct {
 
 func NewInstanceQuery(base, publicDNS string, run RemoteOutputRunner) InstanceQuery {
 	return InstanceQuery{base: base, publicDNS: publicDNS, run: run}
+}
+
+// mustRun turns a non-zero remote exit code into an error, because a step of a
+// multi-command operation has no exit status worth propagating — it either
+// happened or the operation cannot continue. It is InstanceSession.mustRun for
+// the transport that also carries output back.
+func (q InstanceQuery) mustRun(cmd RemoteCommand, description string) error {
+	_, exitCode, err := q.run(q.base, q.publicDNS, cmd)
+	if err != nil {
+		return err
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("failed to %s on the instance", description)
+	}
+	return nil
 }
 
 // ListSessions reports the tmux sessions the instance is running. A non-zero

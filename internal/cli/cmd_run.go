@@ -379,6 +379,10 @@ func runInEC2(opts runOptions, resolver BackendResolver) error {
 	}
 	applyNewSession(b, opts.newSession)
 
+	if err := copyKeychainCredentials(b, opts.name, opts.copySession); err != nil {
+		return err
+	}
+
 	envVars, err := buildEC2EnvVars(opts.noGHToken)
 	if err != nil {
 		return err
@@ -401,14 +405,8 @@ func runInContainer(opts runOptions, resolver BackendResolver, envType string) e
 		return err
 	}
 
-	if opts.copySession {
-		credentials, credErr := readKeychainCredentials()
-		if credErr != nil {
-			return fmt.Errorf("failed to read credentials: %w", credErr)
-		}
-		if err := b.CopyCredentials(opts.name, credentials); err != nil {
-			return fmt.Errorf("failed to copy credentials: %w", err)
-		}
+	if err := copyKeychainCredentials(b, opts.name, opts.copySession); err != nil {
+		return err
 	}
 
 	envVars, err := buildContainerEnvVars(opts.noGHToken)

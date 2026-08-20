@@ -996,6 +996,94 @@ func TestEC2Destroy_BackendTearsDownAnEnvironmentThatNeverRecordedMetadata(t *te
 	}
 }
 
+// copyCredentialsSpy records the instance a credential copy was aimed at and the
+// blob it was handed.
+type copyCredentialsSpy struct {
+	called      bool
+	base        string
+	publicDNS   string
+	credentials string
+	err         error
+}
+
+func (s *copyCredentialsSpy) copy(base, publicDNS, credentials string) error {
+	s.called = true
+	s.base = base
+	s.publicDNS = publicDNS
+	s.credentials = credentials
+	return s.err
+}
+
+// instanceCredentialSpy answers the credential read with a canned instance-side
+// blob and counts every command the copy issues, so a copy that decided to leave
+// the instance alone can be told apart from one that wrote.
+type instanceCredentialSpy struct {
+	output  string
+	calls   int
+	command ec2.RemoteCommand
+}
+
+func (s *instanceCredentialSpy) capture(base, publicDNS string, cmd ec2.RemoteCommand) (string, int, error) {
+	s.calls++
+	s.command = cmd
+	return s.output, 0, nil
+}
+
+func TestEC2CopyCredentials_BackendAimsAtTheRecordedInstance(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	spy := &copyCredentialsSpy{}
+	f.backend.CopyCredentialsFunc = spy.copy
+
+	if err := f.backend.CopyCredentials("my-work", `{"claudeAiOauth":{"expiresAt":1000}}`); err != nil {
+		t.Fatalf("CopyCredentials() error = %v, want nil", err)
+	}
+
+	if !spy.called {
+		t.Fatal("CopyCredentials() never reached the copy")
+	}
+	if spy.base != f.backend.MetadataDir {
+		t.Errorf("CopyCredentials() used base %q, want %q", spy.base, f.backend.MetadataDir)
+	}
+	if spy.publicDNS != ec2SpyPublicDNS {
+		t.Errorf("CopyCredentials() used public DNS %q, want the one recorded in metadata.json (%q)", spy.publicDNS, ec2SpyPublicDNS)
+	}
+	if spy.credentials != `{"claudeAiOauth":{"expiresAt":1000}}` {
+		t.Errorf("CopyCredentials() passed credentials %q, want the host blob", spy.credentials)
+	}
+}
+
+func TestEC2CopyCredentials_BackendFailsWhenTheEnvironmentWasNeverCreated(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	spy := &copyCredentialsSpy{}
+	f.backend.CopyCredentialsFunc = spy.copy
+
+	if err := f.backend.CopyCredentials("never-created", "{}"); err == nil {
+		t.Fatal("CopyCredentials() returned nil error for an environment with no metadata.json")
+	}
+	if spy.called {
+		t.Error("CopyCredentials() reached the copy despite the missing metadata")
+	}
+}
+
+// TestEC2CopyCredentials_BackendReadsTheInstanceOverSSHByDefault proves the
+// unwired backend carries out the real conditional copy rather than panicking on
+// a nil function: an instance whose credentials outlive the host's is read and
+// then left alone.
+func TestEC2CopyCredentials_BackendReadsTheInstanceOverSSHByDefault(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	capture := &instanceCredentialSpy{output: `{"claudeAiOauth":{"expiresAt":2000}}`}
+	f.backend.CaptureFunc = capture.capture
+
+	if err := f.backend.CopyCredentials("my-work", `{"claudeAiOauth":{"expiresAt":1000}}`); err != nil {
+		t.Fatalf("CopyCredentials() error = %v, want nil", err)
+	}
+
+	assertArgsEqual(t, "credential read", capture.command.Args, []string{"cat", "~/.claude/.credentials.json", "2>/dev/null"})
+	if capture.calls != 1 {
+		t.Errorf("CopyCredentials() issued %d commands, want only the read when the instance is fresher", capture.calls)
+	}
+}
+
 func TestEC2Backend_Create_ReturnsBucketBootstrapError(t *testing.T) {
 	accessDenied := errors.New("AccessDenied")
 	spy := &ensureBucketSpy{name: ec2SpyBucket, err: accessDenied}

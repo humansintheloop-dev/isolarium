@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,10 +11,13 @@ import (
 func ec2RunWithSpy(t *testing.T, args ...string) *backendSpy {
 	t.Helper()
 	stubMintGitHubToken(t)
+	stubKeychainCredentials(t, ec2HostCredentials, nil)
 	spy := &backendSpy{}
 	runWithSpy(t, spy, append([]string{"run", "--type", "ec2"}, args...))
 	return spy
 }
+
+const ec2HostCredentials = `{"claudeAiOauth":{"expiresAt":2000}}`
 
 func TestRunCommand_EC2CallsBackendExec(t *testing.T) {
 	spy := ec2RunWithSpy(t, "--", "echo", "hello")
@@ -104,10 +108,52 @@ func TestRunCommand_EC2RejectsCreateFlag(t *testing.T) {
 	}
 }
 
-func TestRunCommand_EC2DoesNotCallCopyCredentials(t *testing.T) {
+// TestRunCommand_EC2HandsTheHostCredentialsToTheBackend covers the run side of
+// spec 3.11: the CLI always offers the host blob, and the backend is what
+// decides whether the instance's own copy is fresher.
+func TestRunCommand_EC2HandsTheHostCredentialsToTheBackend(t *testing.T) {
 	spy := ec2RunWithSpy(t, "--", "echo", "hello")
 
+	if !spy.copyCredentialsCalled {
+		t.Fatal("expected CopyCredentials to be called for ec2")
+	}
+	if spy.copyCredentialsName != "isolarium-ec2" {
+		t.Errorf("expected name 'isolarium-ec2', got '%s'", spy.copyCredentialsName)
+	}
+	if spy.copyCredentialsCredentials != ec2HostCredentials {
+		t.Errorf("expected credentials %q, got %q", ec2HostCredentials, spy.copyCredentialsCredentials)
+	}
+}
+
+func TestRunCommand_EC2SkipsCopyCredentialsWhenCopySessionDisabled(t *testing.T) {
+	spy := ec2RunWithSpy(t, "--copy-session=false", "--", "echo", "hello")
+
 	if spy.copyCredentialsCalled {
-		t.Fatal("expected CopyCredentials NOT to be called for ec2 until credential copying lands")
+		t.Fatal("expected CopyCredentials NOT to be called when --copy-session is off")
+	}
+	if !spy.execCalled {
+		t.Fatal("expected the command to run even without a credential copy")
+	}
+}
+
+func TestRunCommand_EC2SurfacesCopyCredentialsFailure(t *testing.T) {
+	stubMintGitHubToken(t)
+	stubKeychainCredentials(t, ec2HostCredentials, nil)
+	spy := &backendSpy{copyCredentialsErr: fmt.Errorf("instance unreachable")}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"run", "--type", "ec2", "--", "echo", "hello"})
+
+	err := rootCmd.Execute()
+
+	if err == nil {
+		t.Fatal("expected run to fail when copying credentials fails")
+	}
+	if !strings.Contains(err.Error(), "failed to copy credentials: instance unreachable") {
+		t.Errorf("expected wrapped backend error, got: %v", err)
+	}
+	if spy.execCalled {
+		t.Fatal("expected the command NOT to run after a credential copy failure")
 	}
 }
