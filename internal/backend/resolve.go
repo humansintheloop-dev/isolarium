@@ -51,6 +51,7 @@ func newEC2Backend() *EC2Backend {
 	}
 	return &EC2Backend{
 		MetadataDir:            filepath.Join(home, ".isolarium"),
+		Runner:                 command.ExecRunner{},
 		LookupEnvFunc:          os.LookupEnv,
 		EnsureBucketFunc:       ec2.BootstrapStateBucket,
 		ExtractScaffoldingFunc: ec2.ExtractScaffolding,

@@ -156,6 +156,23 @@ These credentials must carry the following IAM permissions:
 
 No `dynamodb:*` permission is required — state locking uses S3 conditional writes.
 
+Each environment is one `t3.large` instance described by a generated
+`~/.isolarium/ec2/terraform/instance-<name>.tf`, with a 50 GiB encrypted `gp3`
+root volume that is deleted when the instance is terminated. Where the instance
+can be reached is recorded at `~/.isolarium/<name>/ec2/metadata.json`. If
+`instance-<name>.tf` already exists, `create` refuses rather than overwriting it
+— run `isolarium destroy --type ec2 --name <name>` first.
+
+Two things worth knowing before your first `create --type ec2`:
+
+- **Cold start takes several minutes.** The instance is built from a stock Ubuntu
+  image at apply time rather than from a pre-baked AMI, so expect the command to
+  run for minutes, not seconds.
+- **Instances bill until you destroy them.** Isolarium has no idle auto-stop and
+  no cost reporting. A forgotten `t3.large` with a 50 GiB `gp3` volume costs
+  roughly $64/month. Run `isolarium destroy --type ec2 --name <name>` when you
+  are done with an environment.
+
 ## Quickstart
 
 ## With Idea to Code

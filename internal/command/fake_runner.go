@@ -9,6 +9,7 @@ type FakeRunner struct {
 	t        *testing.T
 	commands map[string]*commandResponse
 	executed map[string]bool
+	calls    [][]string
 }
 
 type commandResponse struct {
@@ -40,6 +41,7 @@ func (e *commandExpectation) Fails(err error) {
 
 func (f *FakeRunner) Run(name string, args ...string) ([]byte, error) {
 	actual := append([]string{name}, args...)
+	f.calls = append(f.calls, actual)
 	key := strings.Join(actual, "\x00")
 	if resp, ok := f.commands[key]; ok {
 		f.executed[key] = true
@@ -55,6 +57,12 @@ func (f *FakeRunner) Run(name string, args ...string) ([]byte, error) {
 	}
 	f.t.Fatalf("unexpected command: %s %s", name, strings.Join(args, " "))
 	return nil, nil
+}
+
+// Calls returns every invocation in the order it was made, each as its full
+// argument slice starting with the command name.
+func (f *FakeRunner) Calls() [][]string {
+	return f.calls
 }
 
 func (f *FakeRunner) VerifyExecuted() {

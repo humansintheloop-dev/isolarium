@@ -227,21 +227,21 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Write `internal/ec2/publicip_test.go` first with an injected `httpGetFunc`, then `internal/ec2/publicip.go` with `DetectPublicIP` against `https://checkip.amazonaws.com` (trim, `net.ParseIP`, append `/32`), `PersistIngressCIDR`, and `ReadPersistedIngressCIDR`
     - [x] Add `ExtractScaffoldingFunc`, `EnsureKeypairFunc`, and `DetectPublicIPFunc` fields to `EC2Backend` and call them in that order after the bucket bootstrap, persisting the CIDR on success
     - [x] Note the `0600` private key and the network-switch ingress behavior in the EC2 section of `README.md`
-- [ ] **Task 1.5: `create` writes `instance-<name>.tf`, applies, and records `metadata.json`**
+- [x] **Task 1.5: `create` writes `instance-<name>.tf`, applies, and records `metadata.json`**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/backend/... -run TestEC2Backend_Create_LaunchesInstance`
   - Observable: `<base>/ec2/terraform/instance-my-work.tf` is written containing exactly one `resource "aws_instance" "my-work"` (AMI from `data.aws_ssm_parameter.ubuntu_ami`, `instance_type = "t3.large"`, a 50 GiB `gp3` root block device with `encrypted = true` and `delete_on_termination = true`, the shared key pair, security group, and subnet, `associate_public_ip_address = true`, and `tags = { Name = "my-work" }`) plus `output "instance_id_my-work"` and `output "public_dns_my-work"`, and **no ingress rule**; the recorded terraform invocations are `init` with the three `-backend-config` flags, then `apply -auto-approve -input=false -lock-timeout=120s` with the three `-var` flags, then `output -json`; `<base>/my-work/ec2/metadata.json` holds the instance ID, public DNS, region, and `created_at`; re-running against an existing instance file errors with `instance-my-work.tf already exists; run isolarium destroy --type ec2 --name my-work first` and issues no terraform command
   - Evidence: `TestEC2Backend_Create_LaunchesInstance` and `TestEC2Backend_Create_RefusesExistingInstanceFile` in `internal/backend/ec2_backend_test.go` drive `Create` with `command.NewFakeRunner(t)` returning canned `terraform output -json`; the apply runs against real AWS for the first time in Task 1.8`
   - Steps:
-    - [ ] Write `internal/ec2/instancefile_test.go` first for `RenderInstanceFile(name, userData string) string`, `WriteInstanceFile` (erroring when the file exists), `RemoveInstanceFile`, and `ListInstanceNames`; assert the rendered file contains no `ingress` block and no `cidr_blocks`
-    - [ ] Implement `internal/ec2/instancefile.go`. `Create` passes an empty `userData` for now — Steel Thread 2 supplies the cloud-init document through the same parameter
-    - [ ] Write `internal/ec2/terraform_test.go` first for a `TerraformRunner` holding a `command.Runner`, a base directory, and the backend-config values, with `Init`, `Apply(vars map[string]string)`, `Destroy(vars map[string]string)`, and `OutputJSON()`; assert every `Apply`/`Destroy` carries `-auto-approve`, `-input=false`, and `-lock-timeout=120s`
-    - [ ] Implement `internal/ec2/terraform.go`; run `Init` only when `<base>/ec2/terraform/.terraform/` is absent
-    - [ ] Write `internal/ec2/metadata_test.go` first for a `Metadata` struct (`instance_id`, `public_dns`, `region`, `owner`, `repo`, `branch`, `created_at`) and a `MetadataStore` at `<base>/<name>/ec2/metadata.json` with `Write`, `Read`, and `Cleanup`, mirroring `internal/lima/metadata.go`
-    - [ ] Implement `internal/ec2/metadata.go` including `ParseTerraformOutput(data []byte, name string) (instanceID, publicDNS string, err error)`
-    - [ ] Add a `NowFunc func() time.Time` field to `EC2Backend` so `created_at` is deterministic in tests
-    - [ ] Wire the sequence into `EC2Backend.Create` after the host provisioning of Task 1.4
-    - [ ] Note in `README.md` that `create` cold start takes several minutes and that instances bill until destroyed
+    - [x] Write `internal/ec2/instancefile_test.go` first for `RenderInstanceFile(name, userData string) string`, `WriteInstanceFile` (erroring when the file exists), `RemoveInstanceFile`, and `ListInstanceNames`; assert the rendered file contains no `ingress` block and no `cidr_blocks`
+    - [x] Implement `internal/ec2/instancefile.go`. `Create` passes an empty `userData` for now — Steel Thread 2 supplies the cloud-init document through the same parameter
+    - [x] Write `internal/ec2/terraform_test.go` first for a `TerraformRunner` holding a `command.Runner`, a base directory, and the backend-config values, with `Init`, `Apply(vars map[string]string)`, `Destroy(vars map[string]string)`, and `OutputJSON()`; assert every `Apply`/`Destroy` carries `-auto-approve`, `-input=false`, and `-lock-timeout=120s`
+    - [x] Implement `internal/ec2/terraform.go`; run `Init` only when `<base>/ec2/terraform/.terraform/` is absent
+    - [x] Write `internal/ec2/metadata_test.go` first for a `Metadata` struct (`instance_id`, `public_dns`, `region`, `owner`, `repo`, `branch`, `created_at`) and a `MetadataStore` at `<base>/<name>/ec2/metadata.json` with `Write`, `Read`, and `Cleanup`, mirroring `internal/lima/metadata.go`
+    - [x] Implement `internal/ec2/metadata.go` including `ParseTerraformOutput(data []byte, name string) (instanceID, publicDNS string, err error)`
+    - [x] Add a `NowFunc func() time.Time` field to `EC2Backend` so `created_at` is deterministic in tests
+    - [x] Wire the sequence into `EC2Backend.Create` after the host provisioning of Task 1.4
+    - [x] Note in `README.md` that `create` cold start takes several minutes and that instances bill until destroyed
 - [ ] **Task 1.6: `Exec` runs a command over SSH and propagates its exit code**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/backend/... -run TestEC2Exec`
