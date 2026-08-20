@@ -257,17 +257,17 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Add `case "ec2": envNames = cfg.EC2.Run.Env` to `loadRunEnvVarsImpl` in `internal/cli/cmd_run.go:31` and add the `EC2 IsolationTypeConfig` field with tag `yaml:"ec2"` to `internal/config/pidconfig.go:41`
     - [x] Route `ec2` through `runInContainer`'s generic backend path in `internal/cli/cmd_run.go`, building env vars with `buildRunEnvVars("ec2", ...)` and calling `execBackendCommand`
     - [x] Reject `--create` for `--type ec2` with `--create is not supported with --type ec2; run isolarium create --type ec2 first`
-- [ ] **Task 1.7: `destroy` terminates the instance and cleans up host state**
+- [x] **Task 1.7: `destroy` terminates the instance and cleans up host state**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/cli/... ./internal/backend/... -run TestEC2Destroy`
   - Observable: `<base>/ec2/terraform/instance-my-work.tf` no longer exists; the recorded command log is `terraform apply -auto-approve -input=false -lock-timeout=120s` with the three `-var` flags, followed by `ssh-keygen -R <public_dns> -f <base>/ec2/known_hosts`; `<base>/my-work/ec2/` no longer exists; a second `destroy` prints `no EC2 environment to destroy` and exits 0 without invoking terraform
   - Evidence: `TestEC2Backend_Destroy_RemovesInstanceAndHostState` and `TestEC2Backend_Destroy_IsIdempotent` in `internal/backend/ec2_backend_test.go` assert file-system state before and after plus the ordered command log`
   - Steps:
-    - [ ] Write `internal/ec2/knownhosts_test.go` first for `EvictKnownHost(base, publicDNS string, runner command.Runner) error`, then implement `internal/ec2/knownhosts.go` treating a missing `known_hosts` file as success
-    - [ ] Implement `Destroy` on `EC2Backend`: read metadata for the public DNS, resolve the ingress CIDR, remove `instance-<name>.tf`, apply, evict the known-hosts entry, then `MetadataStore.Cleanup`
-    - [ ] Return early with `no EC2 environment to destroy` and a nil error when `instance-<name>.tf` is absent, mirroring `destroyVM` in `internal/cli/cmd_destroy.go:35`
-    - [ ] Add `destroyEC2(name string) error` to a new `internal/cli/ec2_setup.go` and route `ec2` from `newDestroyCmdWithResolver` in `internal/cli/cmd_destroy.go`
-    - [ ] Note in `README.md` that an interrupted `destroy` is safe to re-run, and that a stale lock is cleared with `terraform force-unlock <id>`
+    - [x] Write `internal/ec2/knownhosts_test.go` first for `EvictKnownHost(base, publicDNS string, runner command.Runner) error`, then implement `internal/ec2/knownhosts.go` treating a missing `known_hosts` file as success
+    - [x] Implement `Destroy` on `EC2Backend`: read metadata for the public DNS, resolve the ingress CIDR, remove `instance-<name>.tf`, apply, evict the known-hosts entry, then `MetadataStore.Cleanup`
+    - [x] Return early with `no EC2 environment to destroy` and a nil error when `instance-<name>.tf` is absent, mirroring `destroyVM` in `internal/cli/cmd_destroy.go:35`
+    - [x] Add `destroyEC2(name string) error` to a new `internal/cli/ec2_setup.go` and route `ec2` from `newDestroyCmdWithResolver` in `internal/cli/cmd_destroy.go`
+    - [x] Note in `README.md` that an interrupted `destroy` is safe to re-run, and that a stale lock is cleared with `terraform force-unlock <id>`
 - [ ] **Task 1.8: A real EC2 instance is created, executes a command over SSH, and is destroyed**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
@@ -695,3 +695,6 @@ ec2 accepted by --type flag, resolveDefaultName, and ResolveBackend; EC2Backend 
 
 ### 2026-08-19 19:27 - mark-task-complete
 Exec and ExecInteractive run over SSH via BuildSSHArgs/BuildExecCommand; exit codes propagate; run --type ec2 routed with ec2 run.env and --create rejected
+
+### 2026-08-19 19:42 - mark-task-complete
+Destroy removes instance-<name>.tf, re-applies, evicts the known_hosts entry, and cleans up host metadata; a second destroy reports 'no EC2 environment to destroy' and exits 0. destroyEC2 takes an io.Writer so the CLI can assert on the message, a small deviation from the planned destroyEC2(name string) signature.

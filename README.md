@@ -163,6 +163,27 @@ can be reached is recorded at `~/.isolarium/<name>/ec2/metadata.json`. If
 `instance-<name>.tf` already exists, `create` refuses rather than overwriting it
 — run `isolarium destroy --type ec2 --name <name>` first.
 
+`isolarium destroy --type ec2 --name <name>` removes `instance-<name>.tf`,
+re-applies so Terraform terminates the instance it no longer has configuration
+for, evicts the host's entry from `~/.isolarium/ec2/known_hosts`, and deletes
+`~/.isolarium/<name>/ec2/`. Two consequences worth knowing:
+
+- **An interrupted `destroy` is safe to re-run.** Removing the file and
+  re-applying is self-correcting: an instance left in state with no
+  configuration is always planned for destruction, so the next `destroy`
+  converges. Once the environment is gone, `destroy` prints
+  `no EC2 environment to destroy` and exits 0.
+- **A `destroy` killed mid-apply can leave the state lock held.** Terraform
+  reports the lock ID; clear it with
+  `terraform -chdir=~/.isolarium/ec2/terraform force-unlock <id>` and re-run
+  `destroy`. Only do this once you are certain no other isolarium invocation is
+  still running.
+
+Teardown also tolerates a failure to detect your public IP: it warns and falls
+back to the CIDR persisted in `isolarium.auto.tfvars`, so being off the network
+you created from never strands a billing instance. With no persisted value it
+fails rather than widening ingress.
+
 Two things worth knowing before your first `create --type ec2`:
 
 - **Cold start takes several minutes.** The instance is built from a stock Ubuntu

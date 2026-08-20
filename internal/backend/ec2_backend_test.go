@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -520,6 +521,212 @@ func TestEC2ExecInteractive_BackendPropagatesExitCode(t *testing.T) {
 	}
 	if f.interactive.publicDNS != ec2SpyPublicDNS {
 		t.Errorf("ExecInteractive() used public DNS %q, want %q", f.interactive.publicDNS, ec2SpyPublicDNS)
+	}
+}
+
+// ec2DestroyFixture is a backend whose environment "my-work" has already been
+// created — instance file, initialised Terraform directory, persisted ingress
+// CIDR, known_hosts entry, and metadata all on disk — so Destroy has real host
+// state to tear down.
+type ec2DestroyFixture struct {
+	backend *EC2Backend
+	host    *hostProvisioningSpy
+	runner  *command.FakeRunner
+	out     *bytes.Buffer
+	base    string
+}
+
+func ec2BackendWithCreatedEnvironment(t *testing.T) ec2DestroyFixture {
+	t.Helper()
+
+	host := newHostProvisioningSpy()
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("terraform").Returns("")
+	runner.OnCommand("ssh-keygen").Returns("")
+
+	fixture := ec2RegionalFixture(t, host, runner)
+	seedCreatedEnvironment(t, fixture.metadataDir)
+
+	out := &bytes.Buffer{}
+	b := fixture.backend()
+	b.Out = out
+	return ec2DestroyFixture{backend: b, host: host, runner: runner, out: out, base: fixture.metadataDir}
+}
+
+func seedCreatedEnvironment(t *testing.T, base string) {
+	t.Helper()
+
+	if err := ec2.WriteInstanceFile(base, "my-work", ""); err != nil {
+		t.Fatalf("seeding the instance file: %v", err)
+	}
+	if err := ec2.PersistIngressCIDR(base, ec2SpyPersistedCIDR); err != nil {
+		t.Fatalf("seeding the persisted ingress CIDR: %v", err)
+	}
+	seedInitialisedTerraformDir(t, base)
+	seedKnownHosts(t, base)
+	seedRecordedInstance(t, base)
+}
+
+func seedInitialisedTerraformDir(t *testing.T, base string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Join(ec2.TerraformDir(base), ".terraform"), 0755); err != nil {
+		t.Fatalf("seeding the initialised terraform directory: %v", err)
+	}
+}
+
+func seedKnownHosts(t *testing.T, base string) {
+	t.Helper()
+
+	if err := os.WriteFile(ec2.KnownHostsPath(base), []byte(ec2SpyPublicDNS+" ssh-ed25519 AAAA\n"), 0600); err != nil {
+		t.Fatalf("seeding %s: %v", ec2.KnownHostsPath(base), err)
+	}
+}
+
+const ec2SpyPersistedCIDR = "198.51.100.9/32"
+
+func TestEC2Destroy_BackendRemovesInstanceAndHostState(t *testing.T) {
+	f := ec2BackendWithCreatedEnvironment(t)
+
+	if err := f.backend.Destroy("my-work"); err != nil {
+		t.Fatalf("Destroy() error = %v", err)
+	}
+
+	assertAbsent(t, "instance file", ec2.InstanceFilePath(f.base, "my-work"))
+	assertAbsent(t, "metadata directory", filepath.Join(f.base, "my-work", "ec2"))
+	assertDestroyInvocations(t, f)
+	assertPersistedIngressCIDR(t, f.base, "203.0.113.7/32")
+}
+
+func assertAbsent(t *testing.T, label, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("%s %s still exists after Destroy()", label, path)
+	}
+}
+
+func assertDestroyInvocations(t *testing.T, f ec2DestroyFixture) {
+	t.Helper()
+
+	want := []string{
+		strings.Join([]string{
+			"terraform", "-chdir=" + ec2.TerraformDir(f.base), "apply",
+			"-auto-approve", "-input=false", "-lock-timeout=120s",
+			"-var=ingress_cidr=203.0.113.7/32",
+			"-var=public_key=" + f.host.publicKey,
+			"-var=region=us-west-2",
+		}, " "),
+		strings.Join([]string{
+			"ssh-keygen", "-R", ec2SpyPublicDNS, "-f", ec2.KnownHostsPath(f.base),
+		}, " "),
+	}
+
+	calls := f.runner.Calls()
+	if len(calls) != len(want) {
+		t.Fatalf("recorded %d invocations, want %d: %v", len(calls), len(want), calls)
+	}
+	for i, wantCall := range want {
+		if got := strings.Join(calls[i], " "); got != wantCall {
+			t.Errorf("invocation %d =\n  %s\nwant\n  %s", i, got, wantCall)
+		}
+	}
+}
+
+func TestEC2Destroy_BackendIsIdempotent(t *testing.T) {
+	f := ec2BackendWithCreatedEnvironment(t)
+	if err := f.backend.Destroy("my-work"); err != nil {
+		t.Fatalf("first Destroy() error = %v", err)
+	}
+	invocationsAfterFirstDestroy := len(f.runner.Calls())
+	f.out.Reset()
+
+	if err := f.backend.Destroy("my-work"); err != nil {
+		t.Fatalf("second Destroy() error = %v, want nil", err)
+	}
+
+	if got := f.out.String(); !strings.Contains(got, "no EC2 environment to destroy") {
+		t.Errorf("second Destroy() printed %q, want it to contain %q", got, "no EC2 environment to destroy")
+	}
+	if got := len(f.runner.Calls()); got != invocationsAfterFirstDestroy {
+		t.Errorf("second Destroy() ran %v, want no further invocation", f.runner.Calls()[invocationsAfterFirstDestroy:])
+	}
+}
+
+func TestEC2Destroy_BackendFallsBackToThePersistedIngressCIDR(t *testing.T) {
+	f := ec2BackendWithCreatedEnvironment(t)
+	f.host.detectErr = errors.New("dial tcp: no route to host")
+
+	if err := f.backend.Destroy("my-work"); err != nil {
+		t.Fatalf("Destroy() error = %v, want detection failure not to block teardown", err)
+	}
+
+	assertAppliedIngressCIDR(t, f.runner, ec2SpyPersistedCIDR)
+	if got := f.out.String(); !strings.Contains(got, ec2SpyPersistedCIDR) {
+		t.Errorf("Destroy() printed %q, want a warning naming the persisted CIDR %q", got, ec2SpyPersistedCIDR)
+	}
+}
+
+func assertAppliedIngressCIDR(t *testing.T, runner *command.FakeRunner, want string) {
+	t.Helper()
+
+	got, ok := appliedIngressCIDR(runner)
+	if !ok {
+		t.Fatalf("no apply carried an ingress CIDR: %v", runner.Calls())
+	}
+	if got != want {
+		t.Errorf("apply used ingress CIDR %q, want %q", got, want)
+	}
+}
+
+func appliedIngressCIDR(runner *command.FakeRunner) (string, bool) {
+	const flag = "-var=ingress_cidr="
+
+	for _, call := range runner.Calls() {
+		for _, arg := range call {
+			if strings.HasPrefix(arg, flag) {
+				return strings.TrimPrefix(arg, flag), true
+			}
+		}
+	}
+	return "", false
+}
+
+func TestEC2Destroy_BackendFailsWhenNeitherDetectionNorPersistenceYieldsACIDR(t *testing.T) {
+	f := ec2BackendWithCreatedEnvironment(t)
+	f.host.detectErr = errors.New("dial tcp: no route to host")
+	if err := os.Remove(ec2.TfvarsPath(f.base)); err != nil {
+		t.Fatalf("removing the persisted ingress CIDR: %v", err)
+	}
+
+	err := f.backend.Destroy("my-work")
+
+	if err == nil {
+		t.Fatal("Destroy() returned nil error with no detected and no persisted ingress CIDR")
+	}
+	if len(f.runner.Calls()) != 0 {
+		t.Errorf("Destroy() ran %v, want no invocation", f.runner.Calls())
+	}
+	if !ec2.InstanceFileExists(f.base, "my-work") {
+		t.Error("Destroy() removed the instance file despite failing before the apply")
+	}
+}
+
+// An interrupted create can leave instance-<name>.tf behind with no
+// metadata.json, and destroy is the documented way out of that state.
+func TestEC2Destroy_BackendTearsDownAnEnvironmentThatNeverRecordedMetadata(t *testing.T) {
+	f := ec2BackendWithCreatedEnvironment(t)
+	if err := ec2.NewMetadataStore(f.base, "my-work").Cleanup(); err != nil {
+		t.Fatalf("removing the recorded metadata: %v", err)
+	}
+
+	if err := f.backend.Destroy("my-work"); err != nil {
+		t.Fatalf("Destroy() error = %v, want an environment with no metadata to be destroyable", err)
+	}
+
+	assertAbsent(t, "instance file", ec2.InstanceFilePath(f.base, "my-work"))
+	if got := len(f.runner.Calls()); got != 1 {
+		t.Errorf("recorded %d invocations, want only the apply: %v", got, f.runner.Calls())
 	}
 }
 

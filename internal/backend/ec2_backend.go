@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -29,6 +30,7 @@ type EC2Backend struct {
 	DetectPublicIPFunc     func() (string, error)
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
+	Out                    io.Writer
 }
 
 // hostState is what the host contributes to a terraform apply.
@@ -66,12 +68,7 @@ func (b *EC2Backend) Create(opts CreateOptions) error {
 }
 
 func (b *EC2Backend) create(opts CreateOptions) error {
-	region, err := ec2.RequireRegion(b.lookupEnv())
-	if err != nil {
-		return err
-	}
-
-	bucket, err := b.EnsureBucketFunc(context.Background(), region)
+	region, bucket, err := b.resolveAWSAccount()
 	if err != nil {
 		return err
 	}
@@ -82,6 +79,22 @@ func (b *EC2Backend) create(opts CreateOptions) error {
 	}
 
 	return b.launchInstance(environmentPlan{name: opts.Name, region: region, bucket: bucket, host: host})
+}
+
+// resolveAWSAccount yields the region and the remote-state bucket every
+// terraform invocation needs, whether an environment is being launched or torn
+// down. Bootstrapping the bucket is idempotent, so teardown can share it.
+func (b *EC2Backend) resolveAWSAccount() (region, bucket string, err error) {
+	region, err = ec2.RequireRegion(b.lookupEnv())
+	if err != nil {
+		return "", "", err
+	}
+
+	bucket, err = b.EnsureBucketFunc(context.Background(), region)
+	if err != nil {
+		return "", "", err
+	}
+	return region, bucket, nil
 }
 
 // provisionHostState extracts the Terraform scaffolding, ensures the Ed25519
@@ -153,8 +166,126 @@ func (b *EC2Backend) now() time.Time {
 	return time.Now().UTC()
 }
 
+func (b *EC2Backend) out() io.Writer {
+	if b.Out != nil {
+		return b.Out
+	}
+	return os.Stdout
+}
+
 func (b *EC2Backend) Destroy(name string) error {
-	return notYetImplemented()
+	teardown := ec2Teardown{backend: b, name: name}
+	if !teardown.environmentExists() {
+		b.print("no EC2 environment to destroy")
+		return nil
+	}
+	if err := teardown.run(); err != nil {
+		return fmt.Errorf("destroy %q: %w", name, err)
+	}
+	return nil
+}
+
+// ec2Teardown is one environment's destruction in progress, so that each of its
+// steps reads against the environment rather than passing its name around.
+type ec2Teardown struct {
+	backend *EC2Backend
+	name    string
+}
+
+func (t ec2Teardown) environmentExists() bool {
+	return ec2.InstanceFileExists(t.backend.MetadataDir, t.name)
+}
+
+// run removes the environment's Terraform file and re-applies, rather than
+// targeting the instance for destruction. A resource left in state with no
+// configuration is always planned for destruction, so an interrupted destroy
+// converges when it is re-run.
+func (t ec2Teardown) run() error {
+	plan, err := t.plan()
+	if err != nil {
+		return err
+	}
+
+	publicDNS := t.recordedPublicDNS()
+	base := t.backend.MetadataDir
+	if err := ec2.RemoveInstanceFile(base, t.name); err != nil {
+		return err
+	}
+
+	terraform := ec2.NewTerraformRunner(t.backend.Runner, base, plan.bucket, plan.region)
+	if err := terraform.Init(); err != nil {
+		return err
+	}
+	if err := terraform.Apply(plan.applyVariables()); err != nil {
+		return err
+	}
+
+	if publicDNS != "" {
+		if err := ec2.EvictKnownHost(base, publicDNS, t.backend.Runner); err != nil {
+			return err
+		}
+	}
+	return ec2.NewMetadataStore(base, t.name).Cleanup()
+}
+
+// plan gathers everything the teardown apply needs before anything on disk is
+// touched, so a failure to resolve it leaves the environment intact.
+func (t ec2Teardown) plan() (environmentPlan, error) {
+	region, bucket, err := t.backend.resolveAWSAccount()
+	if err != nil {
+		return environmentPlan{}, err
+	}
+
+	publicKey, err := t.backend.EnsureKeypairFunc(t.backend.MetadataDir)
+	if err != nil {
+		return environmentPlan{}, err
+	}
+
+	cidr, err := t.ingressCIDR()
+	if err != nil {
+		return environmentPlan{}, err
+	}
+
+	return environmentPlan{
+		name:   t.name,
+		region: region,
+		bucket: bucket,
+		host:   hostState{publicKey: publicKey, ingressCIDR: cidr},
+	}, nil
+}
+
+// ingressCIDR warns and falls back to the last successfully detected address
+// when detection fails, so that being off the network isolarium was created
+// from never blocks tearing an instance down.
+func (t ec2Teardown) ingressCIDR() (string, error) {
+	base := t.backend.MetadataDir
+
+	cidr, err := t.backend.DetectPublicIPFunc()
+	if err == nil {
+		return cidr, ec2.PersistIngressCIDR(base, cidr)
+	}
+
+	persisted, persistErr := ec2.ReadPersistedIngressCIDR(base)
+	if persistErr != nil {
+		return "", fmt.Errorf("%w; and no ingress CIDR was persisted: %v", err, persistErr)
+	}
+	t.backend.print(fmt.Sprintf("warning: public IP detection failed (%v); falling back to the last known ingress CIDR %s", err, persisted))
+	return persisted, nil
+}
+
+// recordedPublicDNS is empty when create was interrupted before it recorded any
+// metadata, which leaves nothing to evict from known_hosts but still leaves an
+// instance to terminate.
+func (t ec2Teardown) recordedPublicDNS() string {
+	meta, err := ec2.NewMetadataStore(t.backend.MetadataDir, t.name).Read()
+	if err != nil {
+		return ""
+	}
+	return meta.PublicDNS
+}
+
+func (b *EC2Backend) print(message string) {
+	_, _ = fmt.Fprintln(b.out(), message)
 }
 
 func (b *EC2Backend) Exec(req ExecRequest) (int, error) {

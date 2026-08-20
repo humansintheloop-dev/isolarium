@@ -24,7 +24,7 @@ func ResolveBackend(envType string) (Backend, error) {
 	case "nono":
 		return newNonoBackend(), nil
 	case "ec2":
-		return newEC2Backend(), nil
+		return NewEC2Backend(), nil
 	default:
 		return nil, fmt.Errorf("unknown environment type: %q", envType)
 	}
@@ -44,7 +44,7 @@ func newNonoBackend() *NonoBackend {
 	}
 }
 
-func newEC2Backend() *EC2Backend {
+func NewEC2Backend() *EC2Backend {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = os.Getenv("HOME")
