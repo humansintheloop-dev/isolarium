@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -20,17 +21,26 @@ import (
 )
 
 const (
-	tmuxEnvironmentName   = "isolarium-ec2-tmux-test"
-	writerScriptPath      = instanceHomeDir + "/writer.sh"
-	writerLogPath         = instanceHomeDir + "/writer.log"
-	writerPIDPath         = instanceHomeDir + "/writer.pid"
-	writeInterval         = time.Second
-	intervalsSpentOffline = 5
-	writerStartTimeout    = 60 * time.Second
-	writerStartInterval   = time.Second
-	sshChildTimeout       = 60 * time.Second
-	sshChildInterval      = 200 * time.Millisecond
+	tmuxEnvironmentName       = "isolarium-ec2-tmux-test"
+	newSessionEnvironmentName = "isolarium-ec2-new-session-test"
+	writerScriptPath          = instanceHomeDir + "/writer.sh"
+	writerLogPath             = instanceHomeDir + "/writer.log"
+	writerPIDPath             = instanceHomeDir + "/writer.pid"
+	writeInterval             = time.Second
+	intervalsSpentOffline     = 5
+	writerStartTimeout        = 60 * time.Second
+	writerStartInterval       = time.Second
+	sshChildTimeout           = 60 * time.Second
+	sshChildInterval          = 200 * time.Millisecond
+	bothSessionsTimeout       = 60 * time.Second
+	bothSessionsInterval      = 2 * time.Second
+	sessionCloseTimeout       = 60 * time.Second
 )
+
+// additionalSessionName is the session --new-session has to open while
+// `isolarium` is the only one running. It is spelled out rather than asked of
+// the code under test, so the test pins the name the user is given.
+const additionalSessionName = ec2.DefaultSessionName + "-2"
 
 // interactiveSSHPattern is the part of the local ssh command line that only the
 // connection carrying an interactive command has.
@@ -70,6 +80,85 @@ func TestEC2Session_SurvivesDisconnect(t *testing.T) {
 	environment.assertTheSameProcessIsStillWriting(beforeDisconnect, afterReattach)
 	environment.assertOnlyTheIsolariumSessionIsRunning()
 	reattached.killAbruptly()
+}
+
+// TestEC2Session_NewSessionLeavesExistingUntouched proves --new-session adds a
+// session rather than taking over the one an agent is already working in: the
+// two run side by side, and once the second has closed the first is still
+// carrying the same process it was given.
+func TestEC2Session_NewSessionLeavesExistingUntouched(t *testing.T) {
+	environment := startEC2Environment(t, newSessionEnvironmentName)
+	attachPseudoTerminal(t)
+	environment.placeWriterScript()
+
+	firstConnection := environment.startWriterInsideTmuxSession()
+	beforeTheAdditionalSession := environment.waitForWriterToStart()
+
+	additional := environment.startAdditionalSession()
+	environment.waitForBothSessionsToRunSideBySide()
+	environment.closeAdditionalSession(additional)
+
+	afterTheAdditionalSession := environment.observeWriter()
+	environment.assertTheSameProcessIsStillWriting(beforeTheAdditionalSession, afterTheAdditionalSession)
+	environment.assertOnlyTheIsolariumSessionIsRunning()
+	firstConnection.killAbruptly()
+}
+
+// startAdditionalSession opens a second session the way --new-session does. Its
+// command blocks forever, so the session stays up for as long as the test needs
+// both sessions running and ends only when the test closes it.
+func (e *ec2Environment) startAdditionalSession() *additionalSession {
+	e.t.Helper()
+
+	e.backend.UseNewSession()
+	return &additionalSession{t: e.t, finished: e.launchInteractive("tail", "-f", "/dev/null")}
+}
+
+// additionalSession is the second concurrent session in flight. It is kept apart
+// from remoteConnection because nothing severs it: it is closed and waited out.
+type additionalSession struct {
+	t        *testing.T
+	finished chan int
+}
+
+// closeAdditionalSession ends the second session from the instance, the way a
+// user finishing with it would, and waits for the connection carrying it to go.
+// Killing it by name would fail were --new-session to have joined the session
+// the writer is in rather than opening its own.
+func (e *ec2Environment) closeAdditionalSession(additional *additionalSession) {
+	e.t.Helper()
+
+	e.instanceOutput("tmux", "kill-session", "-t", additionalSessionName)
+	additional.waitUntilItCloses()
+}
+
+func (s *additionalSession) waitUntilItCloses() {
+	s.t.Helper()
+
+	select {
+	case <-s.finished:
+	case <-time.After(sessionCloseTimeout):
+		s.t.Fatalf("the connection to %s was still open %s after the session was killed", additionalSessionName, sessionCloseTimeout)
+	}
+}
+
+// waitForBothSessionsToRunSideBySide allows for the time the second connection
+// spends reaching the instance, so a session still being opened is not mistaken
+// for one --new-session never created.
+func (e *ec2Environment) waitForBothSessionsToRunSideBySide() {
+	e.t.Helper()
+
+	want := []string{ec2.DefaultSessionName, additionalSessionName}
+	var running []string
+	deadline := time.Now().Add(bothSessionsTimeout)
+	for time.Now().Before(deadline) {
+		running = e.runningSessionNames()
+		if slices.Equal(running, want) {
+			return
+		}
+		time.Sleep(bothSessionsInterval)
+	}
+	e.t.Fatalf("tmux list-sessions reports %v after %s, want %v running side by side", running, bothSessionsTimeout, want)
 }
 
 // attachPseudoTerminal gives the test process a terminal on stdin and stdout for
@@ -140,6 +229,15 @@ type remoteConnection struct {
 func (e *ec2Environment) execInteractive(args ...string) *remoteConnection {
 	e.t.Helper()
 
+	finished := e.launchInteractive(args...)
+	return &remoteConnection{t: e.t, sshPID: waitForInteractiveSSHProcess(e.t), finished: finished}
+}
+
+// launchInteractive starts the connection and hands back the exit code it will
+// eventually report, leaving the caller to decide how the connection ends.
+func (e *ec2Environment) launchInteractive(args ...string) chan int {
+	e.t.Helper()
+
 	finished := make(chan int, 1)
 	go func() {
 		exitCode, err := e.backend.ExecInteractive(backend.ExecRequest{ContainerName: e.name, Args: args})
@@ -148,7 +246,7 @@ func (e *ec2Environment) execInteractive(args ...string) *remoteConnection {
 		}
 		finished <- exitCode
 	}()
-	return &remoteConnection{t: e.t, sshPID: waitForInteractiveSSHProcess(e.t), finished: finished}
+	return finished
 }
 
 // killAbruptly severs the connection the way a closed laptop or a dropped
@@ -212,7 +310,7 @@ func (e *ec2Environment) waitForWriterToStart() writerState {
 
 	deadline := time.Now().Add(writerStartTimeout)
 	for time.Now().Before(deadline) {
-		if exitCode, _ := e.run("test", "-s", writerPIDPath); exitCode == 0 {
+		if exitCode, _ := e.askInstance("test", "-s", writerPIDPath); exitCode == 0 {
 			return e.observeWriter()
 		}
 		time.Sleep(writerStartInterval)
@@ -226,21 +324,21 @@ func (e *ec2Environment) observeWriter() writerState {
 
 	return writerState{
 		pid:   e.instanceOutput("cat", writerPIDPath),
-		lines: e.countLines(writerLogPath),
+		lines: e.countWriterLogLines(),
 	}
 }
 
-func (e *ec2Environment) countLines(remotePath string) int {
+func (e *ec2Environment) countWriterLogLines() int {
 	e.t.Helper()
 
-	reported := e.instanceOutput("wc", "-l", remotePath)
+	reported := e.instanceOutput("wc", "-l", writerLogPath)
 	fields := strings.Fields(reported)
 	if len(fields) == 0 {
-		e.t.Fatalf("wc -l %s reported %q, want a line count", remotePath, reported)
+		e.t.Fatalf("wc -l %s reported %q, want a line count", writerLogPath, reported)
 	}
 	count, err := strconv.Atoi(fields[0])
 	if err != nil {
-		e.t.Fatalf("wc -l %s reported %q, want a line count: %v", remotePath, reported, err)
+		e.t.Fatalf("wc -l %s reported %q, want a line count: %v", writerLogPath, reported, err)
 	}
 	return count
 }
@@ -256,34 +354,35 @@ func (e *ec2Environment) assertTheSameProcessIsStillWriting(before, after writer
 		e.t.Errorf("%s holds %d lines after reattaching, want more than the %d it held before the disconnect",
 			writerLogPath, after.lines, before.lines)
 	}
-	e.assertProcessIsStillTheWriter(after.pid)
+	e.assertProcessIsStillTheWriter(after)
 }
 
 // assertProcessIsStillTheWriter reads back what the recorded PID is running, so
 // a PID the kernel handed to something else cannot pass for a writer that died
 // with the connection.
-func (e *ec2Environment) assertProcessIsStillTheWriter(pid string) {
+func (e *ec2Environment) assertProcessIsStillTheWriter(state writerState) {
 	e.t.Helper()
 
-	exitCode, output := e.run("ps", "-p", pid, "-o", "args=")
+	exitCode, output := e.askInstance("ps", "-p", state.pid, "-o", "args=")
 	if exitCode != 0 {
-		e.t.Fatalf("process %s is no longer running on the instance", pid)
+		e.t.Fatalf("process %s is no longer running on the instance", state.pid)
 	}
 	if !strings.Contains(output, writerScriptPath) {
-		e.t.Errorf("process %s is running %q, want %s", pid, strings.TrimSpace(output), writerScriptPath)
+		e.t.Errorf("process %s is running %q, want %s", state.pid, strings.TrimSpace(output), writerScriptPath)
 	}
 }
 
 func (e *ec2Environment) assertOnlyTheIsolariumSessionIsRunning() {
 	e.t.Helper()
 
-	names := e.listedSessionNames()
-	if len(names) != 1 || names[0] != ec2.DefaultSessionName {
+	if names := e.runningSessionNames(); !slices.Equal(names, []string{ec2.DefaultSessionName}) {
 		e.t.Errorf("tmux list-sessions reports %v, want exactly one session named %q", names, ec2.DefaultSessionName)
 	}
 }
 
-func (e *ec2Environment) listedSessionNames() []string {
+// runningSessionNames sorts what the instance reports, so comparing it against
+// an expected set does not depend on the order tmux happens to list sessions in.
+func (e *ec2Environment) runningSessionNames() []string {
 	e.t.Helper()
 
 	var names []string
@@ -292,15 +391,32 @@ func (e *ec2Environment) listedSessionNames() []string {
 			names = append(names, name)
 		}
 	}
+	slices.Sort(names)
 	return names
 }
 
 func (e *ec2Environment) instanceOutput(args ...string) string {
 	e.t.Helper()
 
-	exitCode, output := e.run(args...)
+	exitCode, output := e.askInstance(args...)
 	if exitCode != 0 {
 		e.t.Fatalf("%s on the instance exited %d, want 0; output: %s", strings.Join(args, " "), exitCode, output)
 	}
 	return strings.TrimSpace(output)
+}
+
+// askInstance runs args on the instance and hands back its exit status together
+// with what it wrote. It collects that output into a buffer of its own rather
+// than by borrowing the process-wide stdout, because this test reads the
+// instance while interactive connections are being opened — and a connection
+// that started mid-read would inherit the borrowed stdout in place of its
+// terminal and hold it open for as long as the session lived.
+func (e *ec2Environment) askInstance(args ...string) (int, string) {
+	e.t.Helper()
+
+	output, exitCode, err := ec2.CaptureCommand(e.base, e.publicDNS, ec2.RemoteCommand{Args: args})
+	if err != nil {
+		e.t.Fatalf("running %s on the instance: %v", strings.Join(args, " "), err)
+	}
+	return exitCode, output
 }

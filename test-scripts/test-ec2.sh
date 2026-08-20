@@ -31,7 +31,7 @@ exportCredentialsFromTheConfiguredProfile() {
 
 runEC2Tests() {
     local logFile="$1"
-    go test -v -tags=ec2 -timeout 30m ./internal/ec2/... 2>&1 | tee "$logFile"
+    go test -v -tags=ec2 -timeout 60m ./internal/ec2/... 2>&1 | tee "$logFile"
     return "${PIPESTATUS[0]}"
 }
 

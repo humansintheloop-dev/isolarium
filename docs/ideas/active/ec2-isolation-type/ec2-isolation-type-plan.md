@@ -372,14 +372,14 @@ Spec scenario 7. Thickens the tmux capability with a second concurrent session, 
     - [x] Reject `--new-session` for every non-`ec2` type with the exact message above
     - [x] Add a `SessionNameFunc` field to `EC2Backend` resolving the session name per invocation
     - [x] Document `--new-session` in the `run` flags table of `README.md`
-- [ ] **Task 5.2: Two concurrent sessions run side by side on a real instance without disturbing each other**
+- [x] **Task 5.2: Two concurrent sessions run side by side on a real instance without disturbing each other**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: with a long-running process already in session `isolarium`, `run -i --new-session` opens `isolarium-2`, `tmux list-sessions` on the instance reports both, and the original process is still running with an unchanged PID after the second session exits
   - Evidence: `TestEC2Session_NewSessionLeavesExistingUntouched` in `internal/ec2/tmux_ec2_test.go` behind `//go:build ec2`, asserting both session names and the unchanged PID`
   - Steps:
-    - [ ] Extend `internal/ec2/tmux_ec2_test.go` with the two-session case, reusing the writer process from Steel Thread 4
-    - [ ] Assert the PID of the first session's process is unchanged after the second session is created and closed
+    - [x] Extend `internal/ec2/tmux_ec2_test.go` with the two-session case, reusing the writer process from Steel Thread 4
+    - [x] Assert the PID of the first session's process is unchanged after the second session is created and closed
 ## Steel Thread 6: Claude credentials reach the instance and `claude` runs authenticated there
 Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with fakes; the claim that matters — that an agent can actually authenticate and refresh its own token on the instance — is verified by running `claude` on a real one. That real test replaces the indirect Lima-based A1 verification the spec proposed.
 
@@ -734,3 +734,6 @@ Real-AWS run proved the branch, isolated git author, clean tree, and project con
 
 ### 2026-08-20 10:16 - mark-task-complete
 Proved on a real EC2 instance: a writer started through ExecInteractive kept the same PID and kept growing its log after its local ssh process was SIGKILLed, and tmux list-sessions reported exactly one isolarium session across both connections.
+
+### 2026-08-20 11:52 - mark-task-complete
+TestEC2Session_NewSessionLeavesExistingUntouched passes on a real instance; ./test-scripts/test-ec2.sh green end to end
