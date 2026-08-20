@@ -25,12 +25,18 @@ func NewInstanceQuery(base, publicDNS string, run RemoteOutputRunner) InstanceQu
 	return InstanceQuery{base: base, publicDNS: publicDNS, run: run}
 }
 
+// capture runs cmd on the instance and brings back both what it printed and the
+// exit status it printed it with.
+func (q InstanceQuery) capture(cmd RemoteCommand) (string, int, error) {
+	return q.run(q.base, q.publicDNS, cmd)
+}
+
 // mustRun turns a non-zero remote exit code into an error, because a step of a
 // multi-command operation has no exit status worth propagating — it either
 // happened or the operation cannot continue. It is InstanceSession.mustRun for
 // the transport that also carries output back.
 func (q InstanceQuery) mustRun(cmd RemoteCommand, description string) error {
-	_, exitCode, err := q.run(q.base, q.publicDNS, cmd)
+	_, exitCode, err := q.capture(cmd)
 	if err != nil {
 		return err
 	}
@@ -45,7 +51,7 @@ func (q InstanceQuery) mustRun(cmd RemoteCommand, description string) error {
 // failure. The format string is quoted because the remote shell would otherwise
 // read its leading '#' as the start of a comment.
 func (q InstanceQuery) ListSessions() ([]string, error) {
-	output, exitCode, err := q.run(q.base, q.publicDNS, RemoteCommand{
+	output, exitCode, err := q.capture(RemoteCommand{
 		Args: []string{"tmux", "list-sessions", "-F", shellQuote("#{session_name}")},
 	})
 	if err != nil {

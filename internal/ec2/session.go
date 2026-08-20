@@ -71,7 +71,7 @@ func (q InstanceQuery) ReadInstanceExpiresAt() (int64, bool) {
 // instanceCredentials reads the instance's own credential file. An instance that
 // cannot produce one yields an empty blob, which no comparison can favour.
 func (q InstanceQuery) instanceCredentials() claudeCredentials {
-	output, exitCode, err := q.run(q.base, q.publicDNS, readCredentialsCommand())
+	output, exitCode, err := q.capture(readCredentialsCommand())
 	if err != nil || exitCode != 0 {
 		return claudeCredentials{}
 	}

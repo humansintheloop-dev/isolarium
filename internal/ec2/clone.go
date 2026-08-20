@@ -19,6 +19,20 @@ const SSHTimeout = 5 * time.Minute
 // instance that has not finished the toolchain by then is not going to.
 const CloudInitTimeout = 15 * time.Minute
 
+// cloudInitLogPath is where the instance keeps everything first-boot
+// provisioning printed, which is the only place a failed module's own output
+// survives.
+const cloudInitLogPath = "/var/log/cloud-init-output.log"
+
+// sshTransportFailureExit is the code ssh reserves for its own failures. On a
+// freshly launched instance it means sshd is not listening yet, which is the one
+// probe result worth waiting out.
+const sshTransportFailureExit = 255
+
+// cloudInitDegradedExit is what `cloud-init status` reports when provisioning
+// ran to the end but some of its modules failed.
+const cloudInitDegradedExit = 2
+
 // isolationNameSuffix distinguishes commits authored inside an isolated
 // environment from ones authored on the host, matching the Lima flow.
 const isolationNameSuffix = " - i2code"
@@ -57,9 +71,9 @@ func (s InstanceSession) exitCode(cmd RemoteCommand) (int, error) {
 	return s.run(s.base, s.publicDNS, cmd)
 }
 
-// succeeded distinguishes an instance that is not answering yet, which is worth
-// retrying, from a transport that cannot be launched at all, which never
-// recovers.
+// succeeded reports whether the instance accepted the command, keeping a
+// transport that could not be launched at all separate from one the instance
+// itself rejected.
 func (s InstanceSession) succeeded(cmd RemoteCommand) (bool, error) {
 	exitCode, err := s.exitCode(cmd)
 	if err != nil {
@@ -82,27 +96,84 @@ func (s InstanceSession) mustRun(cmd RemoteCommand, description string) error {
 	return nil
 }
 
-// readinessLoop retries a probe on a fixed interval until the instance answers
-// it, or the budget runs out.
+// probeOutcome is what a readiness loop should do about one probe result: stop
+// because the instance is ready, stop because no amount of waiting can change
+// the answer, or wait and probe again.
+type probeOutcome struct {
+	settled bool
+	err     error
+}
+
+func instanceIsReady() probeOutcome { return probeOutcome{settled: true} }
+
+func waitingCannotHelp(err error) probeOutcome { return probeOutcome{settled: true, err: err} }
+
+func notReadyYet() probeOutcome { return probeOutcome{} }
+
+// readinessLoop retries a probe on a fixed interval until its outcome settles,
+// or the budget runs out. What each exit code means belongs to the probe rather
+// than to the loop, so assess decides and the loop only carries out the verdict.
 type readinessLoop struct {
 	budget    time.Duration
 	interval  time.Duration
 	probe     RemoteCommand
+	assess    func(exitCode int, output string) probeOutcome
 	giveUpMsg string
 }
 
-func (l readinessLoop) wait(session InstanceSession, sleep SleepFunc) error {
+func (l readinessLoop) wait(query InstanceQuery, sleep SleepFunc) error {
 	for waited := time.Duration(0); waited < l.budget; waited += l.interval {
-		ready, err := session.succeeded(l.probe)
+		output, exitCode, err := query.capture(l.probe)
 		if err != nil {
 			return err
 		}
-		if ready {
-			return nil
+		if outcome := l.assess(exitCode, output); outcome.settled {
+			return outcome.err
 		}
 		sleep(l.interval)
 	}
 	return fmt.Errorf("%s within %s", l.giveUpMsg, l.budget)
+}
+
+// everyFailureMeansNotUpYet is how the SSH probe reads its exit codes: until the
+// instance answers at all, nothing distinguishes a failure worth reporting from
+// one worth waiting out.
+func everyFailureMeansNotUpYet(exitCode int, _ string) probeOutcome {
+	if exitCode == 0 {
+		return instanceIsReady()
+	}
+	return notReadyYet()
+}
+
+// assessCloudInit separates the answers the instance itself gives — provisioning
+// finished, finished with failed modules, or failed outright — from the ssh
+// transport failure that means sshd is not listening yet. Only that last one is
+// worth probing again for; the other three are the instance's final word.
+func assessCloudInit(exitCode int, output string) probeOutcome {
+	switch exitCode {
+	case 0:
+		return instanceIsReady()
+	case sshTransportFailureExit:
+		return notReadyYet()
+	case cloudInitDegradedExit:
+		return waitingCannotHelp(cloudInitFinishedBadly("finished degraded — some provisioning modules failed", output))
+	default:
+		return waitingCannotHelp(cloudInitFinishedBadly("failed", output))
+	}
+}
+
+// cloudInitFinishedBadly reports a provisioning run the instance has declared
+// over, quoting the status it gave so the failing modules are named, and
+// pointing at the log that holds the rest.
+func cloudInitFinishedBadly(condition, output string) error {
+	return fmt.Errorf("cloud-init %s on the instance:\n%s\nsee %s on the instance for the full output",
+		condition, cloudInitStatusReport(output), cloudInitLogPath)
+}
+
+// cloudInitStatusReport is what the long status said, without the progress dots
+// `--wait` prints while first-boot provisioning is still running.
+func cloudInitStatusReport(output string) string {
+	return strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(output), "."))
 }
 
 // sshReadiness covers the window in which AWS calls the instance running but
@@ -111,24 +182,27 @@ var sshReadiness = readinessLoop{
 	budget:    SSHTimeout,
 	interval:  5 * time.Second,
 	probe:     RemoteCommand{Args: []string{"true"}},
+	assess:    everyFailureMeansNotUpYet,
 	giveUpMsg: "instance did not become reachable over SSH",
 }
 
 // cloudInitReadiness leans on `cloud-init status --wait`, which blocks on the
-// instance until first-boot provisioning finishes.
+// instance until first-boot provisioning finishes, and asks for the long report
+// so a run that finished degraded can name the modules that failed.
 var cloudInitReadiness = readinessLoop{
 	budget:    CloudInitTimeout,
 	interval:  15 * time.Second,
-	probe:     RemoteCommand{Args: []string{"cloud-init", "status", "--wait"}},
+	probe:     RemoteCommand{Args: []string{"cloud-init", "status", "--wait", "--long"}},
+	assess:    assessCloudInit,
 	giveUpMsg: "instance did not finish cloud-init",
 }
 
-func WaitForSSH(session InstanceSession, sleep SleepFunc) error {
-	return sshReadiness.wait(session, sleep)
+func WaitForSSH(query InstanceQuery, sleep SleepFunc) error {
+	return sshReadiness.wait(query, sleep)
 }
 
-func WaitForCloudInit(session InstanceSession, sleep SleepFunc) error {
-	return cloudInitReadiness.wait(session, sleep)
+func WaitForCloudInit(query InstanceQuery, sleep SleepFunc) error {
+	return cloudInitReadiness.wait(query, sleep)
 }
 
 // RepositorySpec is everything the instance needs in order to end up holding the

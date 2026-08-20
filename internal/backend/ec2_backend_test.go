@@ -84,6 +84,13 @@ func (s *ec2RemoteSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int,
 	return 0, nil
 }
 
+// capture stands in for the same transport when the caller reads the command's
+// output as well as its exit code, which is how the readiness probes run.
+func (s *ec2RemoteSpy) capture(base, publicDNS string, cmd ec2.RemoteCommand) (string, int, error) {
+	exitCode, err := s.exec(base, publicDNS, cmd)
+	return "", exitCode, err
+}
+
 func (s *ec2RemoteSpy) ranCommand(marker string) bool {
 	for _, cmd := range s.commands {
 		if strings.Contains(renderRemoteCommand(cmd), marker) {
@@ -194,6 +201,7 @@ func (f ec2BackendFixture) backend() *EC2Backend {
 		EnsureKeypairFunc:      f.host.ensureKeypair,
 		DetectPublicIPFunc:     f.host.detectPublicIP,
 		ExecFunc:               f.remote.exec,
+		CaptureFunc:            f.remote.capture,
 		SleepFunc:              func(time.Duration) {},
 	}
 }

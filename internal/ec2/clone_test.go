@@ -11,10 +11,13 @@ import (
 	"time"
 )
 
-// remoteRunnerSpy answers a scripted sequence of exit codes and records what was
-// asked of the instance, so a readiness loop can be driven without an instance.
+// remoteRunnerSpy answers a scripted sequence of exit codes — and, where the
+// probe's output is what the caller reads, a matching sequence of outputs — and
+// records what was asked of the instance, so a readiness loop can be driven
+// without an instance.
 type remoteRunnerSpy struct {
 	exitCodes []int
+	outputs   []string
 	err       error
 	commands  []RemoteCommand
 }
@@ -30,10 +33,28 @@ func (s *remoteRunnerSpy) run(base, publicDNS string, cmd RemoteCommand) (int, e
 	return s.exitCodes[len(s.commands)-1], nil
 }
 
+func (s *remoteRunnerSpy) capture(base, publicDNS string, cmd RemoteCommand) (string, int, error) {
+	exitCode, err := s.run(base, publicDNS, cmd)
+	return s.scriptedOutput(len(s.commands) - 1), exitCode, err
+}
+
+func (s *remoteRunnerSpy) scriptedOutput(attempt int) string {
+	if attempt >= len(s.outputs) {
+		return ""
+	}
+	return s.outputs[attempt]
+}
+
 func (s *remoteRunnerSpy) session(t *testing.T) InstanceSession {
 	t.Helper()
 
 	return NewInstanceSession(t.TempDir(), testPublicDNS, s.run)
+}
+
+func (s *remoteRunnerSpy) query(t *testing.T) InstanceQuery {
+	t.Helper()
+
+	return NewInstanceQuery(t.TempDir(), testPublicDNS, s.capture)
 }
 
 // sleepSpy accumulates what the loop would have waited for, so a fifteen-minute
@@ -58,7 +79,7 @@ func (s *sleepSpy) total() time.Duration {
 // launch-failure behaviour they share is asserted once for both.
 type readinessCase struct {
 	name      string
-	wait      func(InstanceSession, SleepFunc) error
+	wait      func(InstanceQuery, SleepFunc) error
 	budget    time.Duration
 	giveUpErr string
 }
@@ -76,7 +97,7 @@ func TestReadinessLoops_GiveUpOnceTheirBudgetIsSpent(t *testing.T) {
 			runner := &remoteRunnerSpy{exitCodes: []int{255}}
 			sleeper := &sleepSpy{}
 
-			err := readiness.wait(runner.session(t), sleeper.sleep)
+			err := readiness.wait(runner.query(t), sleeper.sleep)
 
 			if err == nil {
 				t.Fatalf("waiting for %s returned nil, want a timeout error", readiness.name)
@@ -97,7 +118,7 @@ func TestReadinessLoops_ReportAFailureToLaunchSSHWithoutRetrying(t *testing.T) {
 			launchFailure := errors.New("ssh: executable file not found in $PATH")
 			runner := &remoteRunnerSpy{exitCodes: []int{1}, err: launchFailure}
 
-			err := readiness.wait(runner.session(t), (&sleepSpy{}).sleep)
+			err := readiness.wait(runner.query(t), (&sleepSpy{}).sleep)
 
 			if !errors.Is(err, launchFailure) {
 				t.Fatalf("error = %v, want it to wrap %v", err, launchFailure)
@@ -113,7 +134,7 @@ func TestWaitForSSH_ProbesTheInstanceUntilItAnswers(t *testing.T) {
 	runner := &remoteRunnerSpy{exitCodes: []int{255, 255, 0}}
 	sleeper := &sleepSpy{}
 
-	if err := WaitForSSH(runner.session(t), sleeper.sleep); err != nil {
+	if err := WaitForSSH(runner.query(t), sleeper.sleep); err != nil {
 		t.Fatalf("WaitForSSH returned %v, want nil", err)
 	}
 
@@ -128,15 +149,31 @@ func TestWaitForSSH_ProbesTheInstanceUntilItAnswers(t *testing.T) {
 	}
 }
 
+// TestWaitForSSH_KeepsRetryingWhateverTheProbeExitsWith pins the difference
+// between the two loops: before the instance answers at all, no exit code
+// distinguishes a failure worth reporting from one worth waiting out.
+func TestWaitForSSH_KeepsRetryingWhateverTheProbeExitsWith(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{1, 2, 0}}
+	sleeper := &sleepSpy{}
+
+	if err := WaitForSSH(runner.query(t), sleeper.sleep); err != nil {
+		t.Fatalf("WaitForSSH returned %v, want nil", err)
+	}
+
+	if len(runner.commands) != 3 {
+		t.Errorf("probed %d times, want 3 — no exit code is terminal before the instance answers", len(runner.commands))
+	}
+}
+
 func TestWaitForCloudInit_AsksTheInstanceToWaitForProvisioningToFinish(t *testing.T) {
 	runner := &remoteRunnerSpy{exitCodes: []int{0}}
 	sleeper := &sleepSpy{}
 
-	if err := WaitForCloudInit(runner.session(t), sleeper.sleep); err != nil {
+	if err := WaitForCloudInit(runner.query(t), sleeper.sleep); err != nil {
 		t.Fatalf("WaitForCloudInit returned %v, want nil", err)
 	}
 
-	want := []string{"cloud-init", "status", "--wait"}
+	want := []string{"cloud-init", "status", "--wait", "--long"}
 	if len(runner.commands) != 1 || !reflect.DeepEqual(runner.commands[0].Args, want) {
 		t.Errorf("remote commands = %v, want exactly one %v", runner.commands, want)
 	}
@@ -149,7 +186,7 @@ func TestWaitForCloudInit_RetriesWhileTheInstanceIsStillUnreachable(t *testing.T
 	runner := &remoteRunnerSpy{exitCodes: []int{255, 255, 0}}
 	sleeper := &sleepSpy{}
 
-	if err := WaitForCloudInit(runner.session(t), sleeper.sleep); err != nil {
+	if err := WaitForCloudInit(runner.query(t), sleeper.sleep); err != nil {
 		t.Fatalf("WaitForCloudInit returned %v, want nil", err)
 	}
 
@@ -159,6 +196,71 @@ func TestWaitForCloudInit_RetriesWhileTheInstanceIsStillUnreachable(t *testing.T
 	want := []time.Duration{cloudInitReadiness.interval, cloudInitReadiness.interval}
 	if !reflect.DeepEqual(sleeper.calls, want) {
 		t.Errorf("slept %v, want %v", sleeper.calls, want)
+	}
+}
+
+// degradedCloudInitStatus is what `cloud-init status --wait --long` prints when
+// provisioning ran to the end but a module failed on the way: the run is over —
+// `status: done` — so re-probing it can only spend the budget.
+const degradedCloudInitStatus = `.....
+status: degraded done
+extended_status: degraded done
+last_update: Thu, 20 Aug 2026 14:03:21 +0000
+detail: DataSourceEc2Local
+errors: []
+recoverable_errors:
+	WARNING: Failed to run module install_claude_code
+`
+
+func TestWaitForCloudInit_FailsFastWhenProvisioningFinishesDegraded(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{2}, outputs: []string{degradedCloudInitStatus}}
+	sleeper := &sleepSpy{}
+
+	err := WaitForCloudInit(runner.query(t), sleeper.sleep)
+
+	if err == nil {
+		t.Fatal("WaitForCloudInit returned nil, want an error for a degraded provisioning run")
+	}
+	assertSettledWithoutRetrying(t, runner, sleeper)
+	for _, want := range []string{"degraded", "install_claude_code", "/var/log/cloud-init-output.log"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "did not finish") {
+		t.Errorf("error = %q, want it not to claim cloud-init never finished", err)
+	}
+}
+
+func TestWaitForCloudInit_FailsFastWhenProvisioningErrors(t *testing.T) {
+	errorStatus := "status: error\nerrors:\n\t- Failed to run module write_files\n"
+	runner := &remoteRunnerSpy{exitCodes: []int{1}, outputs: []string{errorStatus}}
+	sleeper := &sleepSpy{}
+
+	err := WaitForCloudInit(runner.query(t), sleeper.sleep)
+
+	if err == nil {
+		t.Fatal("WaitForCloudInit returned nil, want an error for a failed provisioning run")
+	}
+	assertSettledWithoutRetrying(t, runner, sleeper)
+	for _, want := range []string{"write_files", "/var/log/cloud-init-output.log"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to contain %q", err, want)
+		}
+	}
+}
+
+// assertSettledWithoutRetrying checks that the loop accepted the instance's
+// answer as final, rather than spending the fifteen-minute budget on a run that
+// is already over.
+func assertSettledWithoutRetrying(t *testing.T, runner *remoteRunnerSpy, sleeper *sleepSpy) {
+	t.Helper()
+
+	if len(runner.commands) != 1 {
+		t.Errorf("probed %d times, want 1 — the instance already reported the run over", len(runner.commands))
+	}
+	if len(sleeper.calls) != 0 {
+		t.Errorf("slept %v, want no wait at all", sleeper.calls)
 	}
 }
 

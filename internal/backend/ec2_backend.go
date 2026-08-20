@@ -227,19 +227,21 @@ func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInsta
 // provisionInstance waits out the gap between an instance AWS calls running and
 // one that can actually be worked in, then places the repository inside it.
 func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySpec) error {
-	session := ec2.NewInstanceSession(b.MetadataDir, publicDNS, b.ExecFunc)
+	// The readiness probes are queries rather than plain commands: cloud-init's
+	// own report of a degraded run is what names the modules that failed.
+	query := ec2.NewInstanceQuery(b.MetadataDir, publicDNS, b.capture())
 
-	if err := ec2.WaitForSSH(session, b.sleep()); err != nil {
+	if err := ec2.WaitForSSH(query, b.sleep()); err != nil {
 		return err
 	}
 
 	b.print("Waiting for cloud-init...")
-	if err := ec2.WaitForCloudInit(session, b.sleep()); err != nil {
+	if err := ec2.WaitForCloudInit(query, b.sleep()); err != nil {
 		return err
 	}
 
 	b.print("Cloning repository...")
-	return ec2.PlaceRepository(session, source)
+	return ec2.PlaceRepository(ec2.NewInstanceSession(b.MetadataDir, publicDNS, b.ExecFunc), source)
 }
 
 func (b *EC2Backend) sleep() ec2.SleepFunc {
