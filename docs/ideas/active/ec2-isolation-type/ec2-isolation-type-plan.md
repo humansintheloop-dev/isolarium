@@ -242,21 +242,21 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Add a `NowFunc func() time.Time` field to `EC2Backend` so `created_at` is deterministic in tests
     - [x] Wire the sequence into `EC2Backend.Create` after the host provisioning of Task 1.4
     - [x] Note in `README.md` that `create` cold start takes several minutes and that instances bill until destroyed
-- [ ] **Task 1.6: `Exec` runs a command over SSH and propagates its exit code**
+- [x] **Task 1.6: `Exec` runs a command over SSH and propagates its exit code**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/backend/... -run TestEC2Exec`
   - Observable: the command line built for `Exec` is `ssh -i <base>/ec2/id_ed25519 -o UserKnownHostsFile=<base>/ec2/known_hosts -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 ubuntu@<public_dns> -- env KEY=VALUE ... <cmd>` with **no** `-t` and **no** `tmux`; a remote command exiting 42 makes `Exec` return `42, nil`; `Exec` reads `metadata.json` for the DNS and makes no AWS SDK call and no `terraform` invocation
   - Evidence: `TestEC2ExecCommandArgs` in `internal/ec2/ssh_test.go` asserts the exact argument slice; `TestEC2Backend_Exec_PropagatesExitCode` drives `Exec` through an injected exec function returning 42 and asserts `(42, nil)` plus spy AWS and terraform clients recording zero calls`
   - Steps:
-    - [ ] Write `internal/ec2/ssh_test.go` first for `BuildSSHArgs(base, publicDNS string, tty bool) []string`, `BuildExecCommand(base, publicDNS, workdir string, envVars map[string]string, args []string) []string`, and `BuildInteractiveExecCommand(...)`
-    - [ ] Implement `internal/ec2/ssh.go`; reuse a single option-set helper so `Exec`, `ExecInteractive`, `OpenShell`, and `CopyCredentials` cannot drift, mirroring `internal/lima/ssh.go`
-    - [ ] Sort environment-variable keys when building the `env KEY=VALUE ...` prefix, matching `buildEnvPrefix` in `internal/lima/exec.go:11`
-    - [ ] Add `internal/ec2/exec.go` with `ExecCommand` and `ExecInteractiveCommand` streaming stdio and mapping `*exec.ExitError` to an exit code, mirroring `internal/lima/exec.go:47`
-    - [ ] Define `RemoteUser = "ubuntu"` in `internal/ec2/ec2.go`. `RemoteRepoDir` arrives with Steel Thread 3; until then `Exec` runs from the login directory
-    - [ ] Add `ExecFunc` and `ExecInteractiveFunc` fields to `EC2Backend` and implement `Exec` and `ExecInteractive` against them
-    - [ ] Add `case "ec2": envNames = cfg.EC2.Run.Env` to `loadRunEnvVarsImpl` in `internal/cli/cmd_run.go:31` and add the `EC2 IsolationTypeConfig` field with tag `yaml:"ec2"` to `internal/config/pidconfig.go:41`
-    - [ ] Route `ec2` through `runInContainer`'s generic backend path in `internal/cli/cmd_run.go`, building env vars with `buildRunEnvVars("ec2", ...)` and calling `execBackendCommand`
-    - [ ] Reject `--create` for `--type ec2` with `--create is not supported with --type ec2; run isolarium create --type ec2 first`
+    - [x] Write `internal/ec2/ssh_test.go` first for `BuildSSHArgs(base, publicDNS string, tty bool) []string`, `BuildExecCommand(base, publicDNS, workdir string, envVars map[string]string, args []string) []string`, and `BuildInteractiveExecCommand(...)`
+    - [x] Implement `internal/ec2/ssh.go`; reuse a single option-set helper so `Exec`, `ExecInteractive`, `OpenShell`, and `CopyCredentials` cannot drift, mirroring `internal/lima/ssh.go`
+    - [x] Sort environment-variable keys when building the `env KEY=VALUE ...` prefix, matching `buildEnvPrefix` in `internal/lima/exec.go:11`
+    - [x] Add `internal/ec2/exec.go` with `ExecCommand` and `ExecInteractiveCommand` streaming stdio and mapping `*exec.ExitError` to an exit code, mirroring `internal/lima/exec.go:47`
+    - [x] Define `RemoteUser = "ubuntu"` in `internal/ec2/ec2.go`. `RemoteRepoDir` arrives with Steel Thread 3; until then `Exec` runs from the login directory
+    - [x] Add `ExecFunc` and `ExecInteractiveFunc` fields to `EC2Backend` and implement `Exec` and `ExecInteractive` against them
+    - [x] Add `case "ec2": envNames = cfg.EC2.Run.Env` to `loadRunEnvVarsImpl` in `internal/cli/cmd_run.go:31` and add the `EC2 IsolationTypeConfig` field with tag `yaml:"ec2"` to `internal/config/pidconfig.go:41`
+    - [x] Route `ec2` through `runInContainer`'s generic backend path in `internal/cli/cmd_run.go`, building env vars with `buildRunEnvVars("ec2", ...)` and calling `execBackendCommand`
+    - [x] Reject `--create` for `--type ec2` with `--create is not supported with --type ec2; run isolarium create --type ec2 first`
 - [ ] **Task 1.7: `destroy` terminates the instance and cleans up host state**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/cli/... ./internal/backend/... -run TestEC2Destroy`
@@ -692,3 +692,6 @@ Adds the CLI-level e2e_ec2 capstone alongside the full-suite gate, and requires 
 
 ### 2026-08-19 17:28 - mark-task-complete
 ec2 accepted by --type flag, resolveDefaultName, and ResolveBackend; EC2Backend stub returns 'not yet implemented for --type ec2'; verified by go tests and test-scripts/test-ec2-preflight.sh
+
+### 2026-08-19 19:27 - mark-task-complete
+Exec and ExecInteractive run over SSH via BuildSSHArgs/BuildExecCommand; exit codes propagate; run --type ec2 routed with ec2 run.env and --create rejected

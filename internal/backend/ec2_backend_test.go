@@ -363,6 +363,166 @@ func assertRecordedMetadata(t *testing.T, metadataDir string) {
 	}
 }
 
+// ec2ExecSpy stands in for the SSH transport, recording what Exec asked it to
+// run and returning a canned exit code.
+type ec2ExecSpy struct {
+	called    bool
+	base      string
+	publicDNS string
+	command   ec2.RemoteCommand
+	exitCode  int
+	err       error
+}
+
+func (s *ec2ExecSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int, error) {
+	s.called = true
+	s.base = base
+	s.publicDNS = publicDNS
+	s.command = cmd
+	return s.exitCode, s.err
+}
+
+// ec2ExecFixture is a backend whose environment "my-work" has already been
+// created, so Exec has metadata to read, with every remote collaborator spied on.
+type ec2ExecFixture struct {
+	backend     *EC2Backend
+	exec        *ec2ExecSpy
+	interactive *ec2ExecSpy
+	bucket      *ensureBucketSpy
+	terraform   *command.FakeRunner
+}
+
+func ec2BackendWithRecordedInstance(t *testing.T, exitCode int) ec2ExecFixture {
+	t.Helper()
+
+	runner := command.NewFakeRunner(t)
+	bucket := &ensureBucketSpy{name: ec2SpyBucket}
+	execSpy := &ec2ExecSpy{exitCode: exitCode}
+	interactiveSpy := &ec2ExecSpy{exitCode: exitCode}
+
+	fixture := ec2BackendFixture{
+		env:         map[string]string{"AWS_REGION": "us-west-2"},
+		bucket:      bucket,
+		host:        newHostProvisioningSpy(),
+		metadataDir: t.TempDir(),
+		runner:      runner,
+	}
+	seedRecordedInstance(t, fixture.metadataDir)
+
+	b := fixture.backend()
+	b.ExecFunc = execSpy.exec
+	b.ExecInteractiveFunc = interactiveSpy.exec
+	return ec2ExecFixture{backend: b, exec: execSpy, interactive: interactiveSpy, bucket: bucket, terraform: runner}
+}
+
+func seedRecordedInstance(t *testing.T, metadataDir string) {
+	t.Helper()
+
+	err := ec2.NewMetadataStore(metadataDir, "my-work").Write(ec2.Metadata{
+		InstanceID: ec2SpyInstanceID,
+		PublicDNS:  ec2SpyPublicDNS,
+		Region:     "us-west-2",
+		CreatedAt:  ec2SpyCreatedAt,
+	})
+	if err != nil {
+		t.Fatalf("seeding metadata: %v", err)
+	}
+}
+
+func TestEC2Exec_BackendPropagatesExitCode(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 42)
+
+	exitCode, err := f.backend.Exec(ExecRequest{
+		ContainerName: "my-work",
+		EnvVars:       map[string]string{"GH_TOKEN": "tok123"},
+		Args:          []string{"sh", "-c", "exit 42"},
+	})
+
+	if err != nil {
+		t.Fatalf("Exec() error = %v, want nil", err)
+	}
+	if exitCode != 42 {
+		t.Errorf("Exec() exit code = %d, want 42", exitCode)
+	}
+	assertExecUsedRecordedInstance(t, f.exec, f.backend.MetadataDir)
+	assertNoRemoteInfrastructureCalls(t, f.bucket, f.terraform)
+}
+
+func assertExecUsedRecordedInstance(t *testing.T, spy *ec2ExecSpy, metadataDir string) {
+	t.Helper()
+
+	if !spy.called {
+		t.Fatal("Exec() did not reach the SSH transport")
+	}
+	if spy.publicDNS != ec2SpyPublicDNS {
+		t.Errorf("Exec() used public DNS %q, want the one recorded in metadata.json (%q)", spy.publicDNS, ec2SpyPublicDNS)
+	}
+	if spy.base != metadataDir {
+		t.Errorf("Exec() used base %q, want %q", spy.base, metadataDir)
+	}
+	if spy.command.EnvVars["GH_TOKEN"] != "tok123" {
+		t.Errorf("Exec() passed GH_TOKEN %q, want %q", spy.command.EnvVars["GH_TOKEN"], "tok123")
+	}
+	assertArgsEqual(t, "exec args", spy.command.Args, []string{"sh", "-c", "exit 42"})
+}
+
+func assertArgsEqual(t *testing.T, label string, got, want []string) {
+	t.Helper()
+
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("%s = %v, want %v", label, got, want)
+	}
+}
+
+func assertNoRemoteInfrastructureCalls(t *testing.T, bucket *ensureBucketSpy, runner *command.FakeRunner) {
+	t.Helper()
+
+	if bucket.called {
+		t.Error("Exec() made an AWS SDK call, want metadata.json to be the only source")
+	}
+	if len(runner.Calls()) != 0 {
+		t.Errorf("Exec() ran %v, want no terraform invocation", runner.Calls())
+	}
+}
+
+func TestEC2Exec_BackendFailsWhenTheEnvironmentWasNeverCreated(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+
+	exitCode, err := f.backend.Exec(ExecRequest{ContainerName: "never-created", Args: []string{"echo", "hello"}})
+
+	if err == nil {
+		t.Fatal("Exec() returned nil error for an environment with no metadata.json")
+	}
+	if exitCode != 1 {
+		t.Errorf("Exec() exit code = %d, want 1", exitCode)
+	}
+	if f.exec.called {
+		t.Error("Exec() reached the SSH transport despite the missing metadata")
+	}
+}
+
+func TestEC2ExecInteractive_BackendPropagatesExitCode(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 7)
+
+	exitCode, err := f.backend.ExecInteractive(ExecRequest{ContainerName: "my-work", Args: []string{"claude"}})
+
+	if err != nil {
+		t.Fatalf("ExecInteractive() error = %v, want nil", err)
+	}
+	if exitCode != 7 {
+		t.Errorf("ExecInteractive() exit code = %d, want 7", exitCode)
+	}
+	if !f.interactive.called {
+		t.Fatal("ExecInteractive() did not reach the interactive SSH transport")
+	}
+	if f.exec.called {
+		t.Error("ExecInteractive() used the non-interactive transport")
+	}
+	if f.interactive.publicDNS != ec2SpyPublicDNS {
+		t.Errorf("ExecInteractive() used public DNS %q, want %q", f.interactive.publicDNS, ec2SpyPublicDNS)
+	}
+}
+
 func TestEC2Backend_Create_ReturnsBucketBootstrapError(t *testing.T) {
 	accessDenied := errors.New("AccessDenied")
 	spy := &ensureBucketSpy{name: ec2SpyBucket, err: accessDenied}

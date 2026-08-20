@@ -14,6 +14,10 @@ import (
 // returns its name.
 type EnsureBucketFunc func(ctx context.Context, region string) (string, error)
 
+// ec2ExecFunc runs a command on the instance reachable at publicDNS, using the
+// SSH material under base, and returns the remote command's exit code.
+type ec2ExecFunc func(base, publicDNS string, cmd ec2.RemoteCommand) (int, error)
+
 type EC2Backend struct {
 	MetadataDir            string
 	Runner                 command.Runner
@@ -23,6 +27,8 @@ type EC2Backend struct {
 	ExtractScaffoldingFunc func(base string) error
 	EnsureKeypairFunc      func(base string) (string, error)
 	DetectPublicIPFunc     func() (string, error)
+	ExecFunc               ec2ExecFunc
+	ExecInteractiveFunc    ec2ExecFunc
 }
 
 // hostState is what the host contributes to a terraform apply.
@@ -152,11 +158,22 @@ func (b *EC2Backend) Destroy(name string) error {
 }
 
 func (b *EC2Backend) Exec(req ExecRequest) (int, error) {
-	return 1, notYetImplemented()
+	return b.runOnInstance(b.ExecFunc, req)
 }
 
 func (b *EC2Backend) ExecInteractive(req ExecRequest) (int, error) {
-	return 1, notYetImplemented()
+	return b.runOnInstance(b.ExecInteractiveFunc, req)
+}
+
+// runOnInstance resolves where the environment can be reached from the metadata
+// recorded at create time, so running a command costs no AWS or terraform call.
+// The remote working directory arrives with the repository clone.
+func (b *EC2Backend) runOnInstance(run ec2ExecFunc, req ExecRequest) (int, error) {
+	meta, err := ec2.NewMetadataStore(b.MetadataDir, req.ContainerName).Read()
+	if err != nil {
+		return 1, err
+	}
+	return run(b.MetadataDir, meta.PublicDNS, ec2.RemoteCommand{EnvVars: req.EnvVars, Args: req.Args})
 }
 
 func (b *EC2Backend) OpenShell(req ExecRequest) (int, error) {

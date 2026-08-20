@@ -38,6 +38,7 @@ type PidConfig struct {
 	Container IsolationTypeConfig `yaml:"container"`
 	VM        IsolationTypeConfig `yaml:"vm"`
 	Nono      IsolationTypeConfig `yaml:"nono"`
+	EC2       IsolationTypeConfig `yaml:"ec2"`
 }
 
 type pidFile struct {

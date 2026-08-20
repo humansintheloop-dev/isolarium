@@ -63,6 +63,27 @@ func TestLoadPidConfigParsesLifecycleGroupedYAML(t *testing.T) {
 	assertRunEnv(t, cfg.VM.Run.Env, []string{"CS_ACCESS_TOKEN"}, "vm.run.env")
 }
 
+func TestLoadPidConfigParsesEC2RunEnv(t *testing.T) {
+	dir := t.TempDir()
+	writePidYaml(t, dir, `isolarium:
+  ec2:
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
+`)
+
+	cfg, err := LoadPidConfig(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+
+	assertRunEnv(t, cfg.EC2.Run.Env, []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"}, "ec2.run.env")
+}
+
 func TestLoadPidConfigReturnsNilWhenFileAbsent(t *testing.T) {
 	dir := t.TempDir()
 

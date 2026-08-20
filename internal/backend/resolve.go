@@ -57,6 +57,8 @@ func newEC2Backend() *EC2Backend {
 		ExtractScaffoldingFunc: ec2.ExtractScaffolding,
 		EnsureKeypairFunc:      ec2.EnsureKeypair,
 		DetectPublicIPFunc:     func() (string, error) { return ec2.DetectPublicIP(ec2.DefaultHTTPGet) },
+		ExecFunc:               ec2.ExecCommand,
+		ExecInteractiveFunc:    ec2.ExecInteractiveCommand,
 	}
 }
 

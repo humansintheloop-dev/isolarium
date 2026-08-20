@@ -35,6 +35,8 @@ func loadRunEnvVarsImpl(isolationType string) (map[string]string, error) {
 		envNames = cfg.VM.Run.Env
 	case "nono":
 		envNames = cfg.Nono.Run.Env
+	case "ec2":
+		envNames = cfg.EC2.Run.Env
 	}
 
 	return resolveEnvEntries(envNames), nil
@@ -87,18 +89,7 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 				return fmt.Errorf("--work-directory requires --create")
 			}
 
-			if envType == "vm" {
-				return runInVM(opts, cmd)
-			}
-
-			if envType == "nono" {
-				if err := rejectVMOnlyFlags(cmd); err != nil {
-					return err
-				}
-				return runInNono(opts, resolver)
-			}
-
-			return runInContainer(opts, resolver, envType)
+			return runInEnvironment(envType, opts, cmd, resolver)
 		},
 	}
 
@@ -112,6 +103,22 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 	cmd.Flags().StringVar(&opts.workDirectory, "work-directory", cwd, "Work directory to mount (container mode, requires --create)")
 
 	return cmd
+}
+
+func runInEnvironment(envType string, opts runOptions, cmd *cobra.Command, resolver BackendResolver) error {
+	switch envType {
+	case "vm":
+		return runInVM(opts, cmd)
+	case "nono":
+		if err := rejectVMOnlyFlags(cmd); err != nil {
+			return err
+		}
+		return runInNono(opts, resolver)
+	case "ec2":
+		return runInEC2(opts, resolver)
+	default:
+		return runInContainer(opts, resolver, envType)
+	}
 }
 
 func rejectVMOnlyFlags(cmd *cobra.Command) error {
@@ -327,6 +334,31 @@ func runInNono(opts runOptions, resolver BackendResolver) error {
 	}
 
 	envVars, err := buildNonoEnvVars(opts.noGHToken)
+	if err != nil {
+		return err
+	}
+
+	return execBackendCommand(b, opts, envVars)
+}
+
+func buildEC2EnvVars(noGHToken bool) (map[string]string, error) {
+	return buildRunEnvVars("ec2", nil, noGHToken, mintGitHubToken, vmTokenVars)
+}
+
+// runInEC2 executes against an instance that isolarium create already launched;
+// creating one on demand would mean a multi-minute cold start behind an
+// ordinary run.
+func runInEC2(opts runOptions, resolver BackendResolver) error {
+	if opts.create {
+		return fmt.Errorf("--create is not supported with --type ec2; run isolarium create --type ec2 first")
+	}
+
+	b, err := resolver("ec2")
+	if err != nil {
+		return err
+	}
+
+	envVars, err := buildEC2EnvVars(opts.noGHToken)
 	if err != nil {
 		return err
 	}
