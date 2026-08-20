@@ -347,16 +347,16 @@ Spec 3.6, scenario 6, acceptance criteria 3 and 4. This is the capability's prim
     - [x] Add an `ErrWriter io.Writer` field to `EC2Backend` defaulting to `os.Stderr` so the notice is assertable
     - [x] Wire `ExecInteractive` and `OpenShell` on `EC2Backend` through the tmux wrapper; leave `Exec` outside tmux
     - [x] Add an `ec2` branch to `newShellCmdWithResolver` in `internal/cli/cmd_shell.go` that resolves the backend and calls `OpenShell` without the container credential copy
-- [ ] **Task 4.2: A long-running process on a real instance survives an abrupt disconnect and is still running on reattach**
+- [x] **Task 4.2: A long-running process on a real instance survives an abrupt disconnect and is still running on reattach**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: a command started through `ExecInteractive` inside the tmux session writes to a file on the instance once per second; killing the local SSH process abruptly leaves the remote process alive, and a second `ExecInteractive` reattaches to the same session and finds the file still growing and the same PID still running; `tmux list-sessions` on the instance reports exactly one session named `isolarium` across both connections
   - Evidence: `TestEC2Session_SurvivesDisconnect` in `internal/ec2/tmux_ec2_test.go` behind `//go:build ec2`, which starts the writer, kills the SSH child process, sleeps past several write intervals, reconnects, and asserts the PID is unchanged and the file grew`
   - Steps:
-    - [ ] Add `internal/ec2/tmux_ec2_test.go` behind `//go:build ec2` implementing the disconnect-and-reattach sequence
-    - [ ] Kill the local `ssh` process with `SIGKILL` rather than closing the session cleanly, so the test reproduces a laptop sleep or network drop rather than a graceful exit
-    - [ ] Assert the remote PID recorded before the disconnect is identical after reattach — a reattach that silently started a second process would otherwise pass
-    - [ ] Document in `README.md` that agent sessions run inside tmux, survive laptop sleep, and that the nested-tmux prefix key is `Ctrl-b Ctrl-b` when the user runs tmux locally as well
+    - [x] Add `internal/ec2/tmux_ec2_test.go` behind `//go:build ec2` implementing the disconnect-and-reattach sequence
+    - [x] Kill the local `ssh` process with `SIGKILL` rather than closing the session cleanly, so the test reproduces a laptop sleep or network drop rather than a graceful exit
+    - [x] Assert the remote PID recorded before the disconnect is identical after reattach — a reattach that silently started a second process would otherwise pass
+    - [x] Document in `README.md` that agent sessions run inside tmux, survive laptop sleep, and that the nested-tmux prefix key is `Ctrl-b Ctrl-b` when the user runs tmux locally as well
 ## Steel Thread 5: `--new-session` starts an additional session alongside a running one
 Spec scenario 7. Thickens the tmux capability with a second concurrent session, proven on a real instance where an existing agent session must survive untouched.
 
@@ -731,3 +731,6 @@ Verified against a real AWS account: cloud-init reports status: done in 1m37s an
 
 ### 2026-08-20 09:01 - mark-task-complete
 Real-AWS run proved the branch, isolated git author, clean tree, and project config on the instance. The token-persistence assertion failed against a real instance because git clone records the authenticated URL in .git/config, so CloneRepo now rewrites origin to the credential-free URL and run injects a per-run token via GIT_CONFIG insteadOf.
+
+### 2026-08-20 10:16 - mark-task-complete
+Proved on a real EC2 instance: a writer started through ExecInteractive kept the same PID and kept growing its log after its local ssh process was SIGKILLed, and tmux list-sessions reported exactly one isolarium session across both connections.

@@ -81,6 +81,27 @@ Commands run over SSH as the `ubuntu` user, rooted at `/home/ubuntu/repo`.
 The instance comes pre-installed with Git, GitHub CLI, Node.js, tmux, uv, Claude
 Code, and rootless Docker.
 
+#### Agent sessions survive a closed laptop
+
+Interactive work — `isolarium run -i` and `isolarium shell` — runs inside a tmux
+session named `isolarium` on the instance, wrapped as
+`tmux new-session -A -s isolarium -- <cmd>` over `ssh -t`.
+Because the process belongs to the instance's tmux server rather than to the SSH
+connection, closing the laptop, losing the network, or killing the SSH client
+leaves the agent running.
+The next `run -i` or `shell` reattaches to that same session and finds the work
+where it left off; isolarium prints
+`attaching to existing session 'isolarium'` to stderr when it does, because tmux
+discards the command it was handed once the session already exists.
+
+Non-interactive `isolarium run` deliberately stays outside tmux, so the exit code
+and output you see are the remote command's own.
+
+If you also run tmux on your own machine, the instance's session is nested inside
+your local one, which swallows the prefix key. Press `Ctrl-b Ctrl-b` to send the
+prefix through to the instance's tmux — `Ctrl-b Ctrl-b d` detaches from the
+instance's session rather than your local one.
+
 See [EC2 mode configuration](#ec2-mode-configuration) for the required
 credentials and IAM permissions, cold-start latency, running cost, and teardown.
 
@@ -276,12 +297,13 @@ existed and only the instances had to be built:
 
 | Measurement | Value |
 | --- | --- |
-| `go test -tags=ec2 ./internal/ec2/...` | 581s for all four instances |
-| Lifecycle test | 147s, of which `TIMING: create` was 1m48s |
-| Repository test | 152s, of which `TIMING: create` was 1m53s |
-| Persisted-token test | 145s, of which `TIMING: create` was 1m46s |
-| Toolchain test | 137s, of which `TIMING: create` was 1m46s |
-| `TIMING: cloud-init reported done` | 1m47s after create started |
+| `go test -tags=ec2 ./internal/ec2/...` | 726s for all five instances |
+| Lifecycle test | 140s, of which `TIMING: create` was 1m51s |
+| Repository test | 148s, of which `TIMING: create` was 1m48s |
+| Persisted-token test | 141s, of which `TIMING: create` was 1m54s |
+| Survives-disconnect test | 151s, of which `TIMING: create` was 1m45s |
+| Toolchain test | 145s, of which `TIMING: create` was 1m44s |
+| `TIMING: cloud-init reported done` | 1m45s after create started |
 | `SIZE: rendered user_data` | 3418 bytes of the 16384-byte limit |
 
 Each test builds its own instance, so the wall clock is roughly the instance
@@ -305,7 +327,11 @@ from this repository's own checkout, `/home/ubuntu/repo` was on the branch
 `create` ran from, `git config user.name` there carried the ` - i2code` suffix,
 no tracked file was modified, `.claude/settings.local.json` and `CLAUDE.md` had
 travelled from the host, and a recursive search of `/home/ubuntu` found the
-installation token in no file at all. Expect the first run in a fresh account to
+installation token in no file at all. On the disconnect instance, a
+once-per-second writer started through `run -i` kept the same PID and kept
+growing its log after its local `ssh` process was `SIGKILL`ed, and
+`tmux list-sessions` reported exactly one session named `isolarium` both before
+the disconnect and after the reattach. Expect the first run in a fresh account to
 take longer, because that apply also builds the shared network.
 
 ## Quickstart
