@@ -10,10 +10,11 @@ Isolarium protects your workstation when running AI coding agents like Claude Co
 
 ## Features
 
-- Three isolation backends with different security/speed tradeoffs:
+- Four isolation backends with different security/speed tradeoffs:
   - VM ([Lima](https://lima-vm.io/)) — strongest isolation, separate kernel, no host mounts (macOS only)
   - Container (Docker) — fast provisioning, cross-platform, shared host directory
   - [Nono](https://nono.sh/) sandbox — lightweight process-level sandboxing, no provisioning overhead
+  - EC2 isolation (AWS) — remote Linux instance, isolation off your machine entirely
 - Repo-scoped credentials — GitHub App installation tokens scoped to a single repository, minted fresh per command
 - Separate agent identity — agent actions use a GitHub App identity, not your personal account
 - Claude Code authentication token management — copy existing token

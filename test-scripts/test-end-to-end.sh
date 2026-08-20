@@ -22,6 +22,9 @@ echo "=== Cleaning up existing VM ==="
 echo ""
 "$SCRIPT_DIR/test-unit.sh"
 
+echo ""
+"$SCRIPT_DIR/test-ec2-preflight.sh"
+
 if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
     echo ""
     "$SCRIPT_DIR/test-docker-integration.sh"

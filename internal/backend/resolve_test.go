@@ -34,6 +34,16 @@ func TestResolveBackendReturnsNonoBackendForNono(t *testing.T) {
 	}
 }
 
+func TestResolveBackendReturnsEC2BackendForEC2(t *testing.T) {
+	b, err := ResolveBackend("ec2")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := b.(*EC2Backend); !ok {
+		t.Errorf("expected *EC2Backend, got %T", b)
+	}
+}
+
 func TestResolveBackendReturnsErrorForUnknownType(t *testing.T) {
 	_, err := ResolveBackend("unknown")
 	if err == nil {

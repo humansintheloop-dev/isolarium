@@ -10,11 +10,11 @@ func (e *environmentType) String() string {
 
 func (e *environmentType) Set(val string) error {
 	switch val {
-	case "vm", "container", "nono":
+	case "vm", "container", "nono", "ec2":
 		*e = environmentType(val)
 		return nil
 	default:
-		return fmt.Errorf("invalid type %q: must be \"vm\", \"container\", or \"nono\"", val)
+		return fmt.Errorf("invalid type %q: must be \"vm\", \"container\", \"nono\", or \"ec2\"", val)
 	}
 }
 

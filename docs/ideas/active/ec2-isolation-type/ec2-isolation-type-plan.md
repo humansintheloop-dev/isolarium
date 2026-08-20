@@ -177,22 +177,22 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Run `make build` and confirm `bin/isolarium` is written
     - [x] Run `./test-scripts/test-unit.sh` and confirm exit code 0
     - [x] Confirm `.github/workflows/ci.yml` already invokes `./test-scripts/test-end-to-end.sh --skip-docker-integration` — do not modify CI in this task
-- [ ] **Task 1.2: `isolarium create --type ec2 --name my-work` is accepted and routed to `EC2Backend`**
+- [x] **Task 1.2: `isolarium create --type ec2 --name my-work` is accepted and routed to `EC2Backend`**
   - TaskType: OUTCOME
   - Entrypoint: `./bin/isolarium create --type ec2 --name my-work`
   - Observable: the command reaches `EC2Backend.Create` and fails with `not yet implemented for --type ec2` on stderr — not with an unknown-type error — proving flag parsing, `resolveDefaultName`, and `ResolveBackend` all accept `ec2`; `./bin/isolarium create --type ec2` with no `--name` reports the same message for the default name `isolarium-ec2`
   - Evidence: `./test-scripts/test-ec2-preflight.sh` builds the binary and asserts both behaviors, including that the `--type ec2` failure text is the not-yet-implemented message rather than an unknown-type message`
   - Steps:
-    - [ ] Add `"ec2"` to the accepted values in `internal/cli/environment_type.go:13` and update the error text to `must be "vm", "container", "nono", or "ec2"`
-    - [ ] Update both `--type` flag descriptions in `internal/cli/root.go:79,105` to list `ec2`
-    - [ ] Add `defaultEC2Name = "isolarium-ec2"` next to `defaultContainerName` in `internal/cli/cmd_create.go:11` and return it from `resolveDefaultName` for `envType == "ec2"`
-    - [ ] Add `"ec2"` to `knownEnvironmentTypes` in `internal/backend/resolve_env.go:11`
-    - [ ] Create `internal/backend/ec2_backend.go` with an `EC2Backend` struct implementing all seven `Backend` methods, every one returning a `not yet implemented for --type ec2` error for now
-    - [ ] Add `case "ec2": return newEC2Backend(), nil` to `ResolveBackend` in `internal/backend/resolve.go:16`, with a `newEC2Backend()` factory following the shape of `newDockerBackend()`
-    - [ ] Reject `--work-directory` for `ec2` in `internal/cli/cmd_create.go` alongside the existing `vm` and `nono` rejections
-    - [ ] Add `internal/cli/cmd_create_ec2_test.go` driving the cobra root command with `--type ec2 --name my-work` and with `--type ec2` alone
-    - [ ] Create `test-scripts/test-ec2-preflight.sh` running `go build -o bin/isolarium ./cmd/isolarium` plus the assertions above; make it executable and add it to `test-scripts/test-end-to-end.sh` after `test-unit.sh`
-    - [ ] Add an `EC2 isolation (AWS)` bullet to the Features list in `README.md`
+    - [x] Add `"ec2"` to the accepted values in `internal/cli/environment_type.go:13` and update the error text to `must be "vm", "container", "nono", or "ec2"`
+    - [x] Update both `--type` flag descriptions in `internal/cli/root.go:79,105` to list `ec2`
+    - [x] Add `defaultEC2Name = "isolarium-ec2"` next to `defaultContainerName` in `internal/cli/cmd_create.go:11` and return it from `resolveDefaultName` for `envType == "ec2"`
+    - [x] Add `"ec2"` to `knownEnvironmentTypes` in `internal/backend/resolve_env.go:11`
+    - [x] Create `internal/backend/ec2_backend.go` with an `EC2Backend` struct implementing all seven `Backend` methods, every one returning a `not yet implemented for --type ec2` error for now
+    - [x] Add `case "ec2": return newEC2Backend(), nil` to `ResolveBackend` in `internal/backend/resolve.go:16`, with a `newEC2Backend()` factory following the shape of `newDockerBackend()`
+    - [x] Reject `--work-directory` for `ec2` in `internal/cli/cmd_create.go` alongside the existing `vm` and `nono` rejections
+    - [x] Add `internal/cli/cmd_create_ec2_test.go` driving the cobra root command with `--type ec2 --name my-work` and with `--type ec2` alone
+    - [x] Create `test-scripts/test-ec2-preflight.sh` running `go build -o bin/isolarium ./cmd/isolarium` plus the assertions above; make it executable and add it to `test-scripts/test-end-to-end.sh` after `test-unit.sh`
+    - [x] Add an `EC2 isolation (AWS)` bullet to the Features list in `README.md`
 - [ ] **Task 1.3: The region is resolved and the S3 state bucket is bootstrapped idempotently**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run 'TestRequireRegion|TestEnsureStateBucket'`
@@ -689,3 +689,6 @@ The refresh-on-failure claim is verified against a real DNS change rather than a
 
 ### 2026-08-19 17:02 - insert-thread-after
 Adds the CLI-level e2e_ec2 capstone alongside the full-suite gate, and requires CI to compile both new tags so tagged tests cannot rot.
+
+### 2026-08-19 17:28 - mark-task-complete
+ec2 accepted by --type flag, resolveDefaultName, and ResolveBackend; EC2Backend stub returns 'not yet implemented for --type ec2'; verified by go tests and test-scripts/test-ec2-preflight.sh

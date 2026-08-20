@@ -22,6 +22,8 @@ func ResolveBackend(envType string) (Backend, error) {
 		return newDockerBackend(), nil
 	case "nono":
 		return newNonoBackend(), nil
+	case "ec2":
+		return newEC2Backend(), nil
 	default:
 		return nil, fmt.Errorf("unknown environment type: %q", envType)
 	}
@@ -38,6 +40,16 @@ func newNonoBackend() *NonoBackend {
 		ExecFunc:            nono.ExecCommand,
 		ExecInteractiveFunc: nono.ExecInteractiveCommand,
 		OpenShellFunc:       func(req ExecRequest) (int, error) { return nono.OpenShell(req.ContainerName, req.EnvVars) },
+	}
+}
+
+func newEC2Backend() *EC2Backend {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	return &EC2Backend{
+		MetadataDir: filepath.Join(home, ".isolarium"),
 	}
 }
 
