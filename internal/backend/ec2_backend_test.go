@@ -427,6 +427,8 @@ func TestEC2Backend_Create_PlacesRepository(t *testing.T) {
 		"cloud-init status --wait",
 		"git clone --branch " + ec2SpyBranch +
 			" https://x-access-token:" + ec2SpyToken + "@github.com/" + ec2SpyOwner + "/" + ec2SpyRepo + ".git repo",
+		"cd " + ec2.RemoteRepoDir + " && git remote set-url origin https://github.com/" +
+			ec2SpyOwner + "/" + ec2SpyRepo + ".git",
 		"cd " + ec2.RemoteRepoDir + " && git config user.email 'chris+i2code@example.com'",
 		"cd " + ec2.RemoteRepoDir + " && git config user.name 'Chris Richardson - i2code'",
 		"> " + ec2.RemoteRepoDir + "/.claude/settings.local.json",

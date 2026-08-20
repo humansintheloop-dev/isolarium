@@ -144,6 +144,13 @@ func (s RepositorySpec) cloneURL() string {
 	return "https://x-access-token:" + s.Token + "@github.com/" + s.Owner + "/" + s.Repo + ".git"
 }
 
+// remoteURL is the credential-free origin the clone is left pointing at. Each
+// run injects a fresh token instead, so the instance never holds one that
+// outlives the command it was minted for.
+func (s RepositorySpec) remoteURL() string {
+	return "https://github.com/" + s.Owner + "/" + s.Repo + ".git"
+}
+
 // isolatedAuthor is who commits made inside the instance are attributed to, kept
 // distinguishable from the same person's host commits.
 func (s RepositorySpec) isolatedAuthor() (email, name string) {
@@ -165,7 +172,21 @@ func PlaceRepository(session InstanceSession, spec RepositorySpec) error {
 
 func CloneRepo(session InstanceSession, spec RepositorySpec) error {
 	clone := RemoteCommand{Args: []string{"git", "clone", "--branch", spec.Branch, spec.cloneURL(), "repo"}}
-	return session.mustRun(clone, "clone the repository")
+	if err := session.mustRun(clone, "clone the repository"); err != nil {
+		return err
+	}
+	return stripTokenFromOrigin(session, spec)
+}
+
+// stripTokenFromOrigin overwrites the remote URL git records in .git/config,
+// which is the one place the clone token would otherwise survive the command
+// that carried it.
+func stripTokenFromOrigin(session InstanceSession, spec RepositorySpec) error {
+	setURL := RemoteCommand{
+		Workdir: RemoteRepoDir,
+		Args:    []string{"git", "remote", "set-url", "origin", spec.remoteURL()},
+	}
+	return session.mustRun(setURL, "strip the token from the origin URL")
 }
 
 func ConfigureGitAuthor(session InstanceSession, spec RepositorySpec) error {

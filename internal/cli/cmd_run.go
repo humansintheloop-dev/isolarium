@@ -171,6 +171,20 @@ func containerTokenVars(token string) map[string]string {
 	}
 }
 
+// ec2TokenVars rewrites the credential-free origin the clone was left with, so
+// each run authenticates git with a token minted for that run rather than one
+// persisted on the instance. The container and nono variants rewrite the SSH
+// form instead, because their clones point at git@github.com:.
+func ec2TokenVars(token string) map[string]string {
+	return map[string]string{
+		"GIT_TOKEN":          token,
+		"GH_TOKEN":           token,
+		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_KEY_0":   "url.https://x-access-token:" + token + "@github.com/.insteadOf",
+		"GIT_CONFIG_VALUE_0": "https://github.com/",
+	}
+}
+
 func nonoTokenVars(token string) map[string]string {
 	return map[string]string{
 		"GH_TOKEN":           token,
@@ -342,7 +356,7 @@ func runInNono(opts runOptions, resolver BackendResolver) error {
 }
 
 func buildEC2EnvVars(noGHToken bool) (map[string]string, error) {
-	return buildRunEnvVars("ec2", nil, noGHToken, mintGitHubToken, vmTokenVars)
+	return buildRunEnvVars("ec2", nil, noGHToken, mintGitHubToken, ec2TokenVars)
 }
 
 // runInEC2 executes against an instance that isolarium create already launched;

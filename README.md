@@ -45,6 +45,45 @@ Isolarium clones the repository by performing the following steps:
 The VM comes pre-installed with Git, Node.js, GitHub CLI, Docker (rootless), Java 17, and Gradle.
 Custom setup steps can be added via `isolation_scripts` in `pid.yaml`.
 
+### EC2 isolation (AWS)
+
+The EC2 backend moves the isolated environment off the laptop entirely, so an
+agent session outlives the machine that started it.
+`isolarium create --type ec2` provisions a `t3.large` Ubuntu 24.04 instance
+through Terraform, installs its toolchain from an embedded
+[cloud-init document](internal/ec2/cloud-init.yaml), and clones the repository
+inside it at `/home/ubuntu/repo`.
+As with the VM backend, the instance has no host filesystem mounts — the repo is
+a fully independent copy.
+Commands run over SSH as the `ubuntu` user, rooted at `/home/ubuntu/repo`.
+
+`create --type ec2` places the repository by performing the following steps:
+
+1. Apply the Terraform configuration, reusing the shared VPC, subnet, internet
+   gateway, route table, security group, and key pair when they already exist.
+2. Wait for the instance to answer on SSH (up to 5 minutes), then for
+   `cloud-init status --wait` to report first-boot provisioning done (up to 15
+   minutes).
+3. Mint a short-lived GitHub App installation token.
+4. Read the git remote URL and current branch from the host working tree and
+   construct an authenticated clone URL
+   (`https://x-access-token:<token>@github.com/owner/repo`).
+5. Run `git clone --branch <branch>` inside the instance over SSH, so no host
+   credentials are exposed. The token is an argument to that one command and is
+   never written to the instance's disk — `create` rewrites the clone's `origin`
+   to the token-free URL, which is the one place git would otherwise persist it.
+6. Configure `user.email` and `user.name` inside `/home/ubuntu/repo`, suffixing
+   the name with ` - i2code` so commits authored in the environment stay
+   distinguishable from commits authored on the host.
+7. Copy project config files (`.claude/settings.local.json`, `CLAUDE.md`) from
+   the host into the instance's `/home/ubuntu/repo`.
+
+The instance comes pre-installed with Git, GitHub CLI, Node.js, tmux, uv, Claude
+Code, and rootless Docker.
+
+See [EC2 mode configuration](#ec2-mode-configuration) for the required
+credentials and IAM permissions, cold-start latency, running cost, and teardown.
+
 ### Container isolation (Docker)
 
 The container backend bind-mounts the current working tree into a Docker container at `/home/isolarium/repo`.
@@ -237,11 +276,17 @@ existed and only the instances had to be built:
 
 | Measurement | Value |
 | --- | --- |
-| `go test -tags=ec2 ./internal/ec2/...` | 320s for both instances |
-| Lifecycle test | 185s, of which `TIMING: create` was 2m18s |
-| Toolchain test | 135s, of which `TIMING: create` was 1m36s |
-| `TIMING: cloud-init reported done` | 1m37s after create started |
+| `go test -tags=ec2 ./internal/ec2/...` | 581s for all four instances |
+| Lifecycle test | 147s, of which `TIMING: create` was 1m48s |
+| Repository test | 152s, of which `TIMING: create` was 1m53s |
+| Persisted-token test | 145s, of which `TIMING: create` was 1m46s |
+| Toolchain test | 137s, of which `TIMING: create` was 1m46s |
+| `TIMING: cloud-init reported done` | 1m47s after create started |
 | `SIZE: rendered user_data` | 3418 bytes of the 16384-byte limit |
+
+Each test builds its own instance, so the wall clock is roughly the instance
+count times the cold start. Earlier runs measured `TIMING: create` as high as
+2m18s.
 
 EC2 caps `user_data` at 16 KB, which makes that limit a live constraint on
 `internal/ec2/cloud-init.yaml` rather than a theoretical one. The document
@@ -255,8 +300,13 @@ The run exited 0: `Exec` of `echo hello` returned `hello` with exit code 0,
 status --wait` reported `status: done` while `git --version`, `gh --version`,
 `node --version`, `tmux -V`, `uv --version`, `claude --version`, and a rootless
 `docker info` each exited 0 with
-`kernel.apparmor_restrict_unprivileged_userns = 0`. Expect the first run in a
-fresh account to take longer, because that apply also builds the shared network.
+`kernel.apparmor_restrict_unprivileged_userns = 0`. On the instances created
+from this repository's own checkout, `/home/ubuntu/repo` was on the branch
+`create` ran from, `git config user.name` there carried the ` - i2code` suffix,
+no tracked file was modified, `.claude/settings.local.json` and `CLAUDE.md` had
+travelled from the host, and a recursive search of `/home/ubuntu` found the
+installation token in no file at all. Expect the first run in a fresh account to
+take longer, because that apply also builds the shared network.
 
 ## Quickstart
 

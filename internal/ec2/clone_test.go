@@ -184,20 +184,35 @@ func TestCloneRepo_ClonesTheRequestedBranchWithTheTokenOnlyInTheURL(t *testing.T
 	if err != nil {
 		t.Fatalf("CloneRepo returned %v, want nil", err)
 	}
-	if len(runner.commands) != 1 {
-		t.Fatalf("ran %v, want exactly one clone", runner.commands)
+	want := []RemoteCommand{
+		{Args: []string{
+			"git", "clone", "--branch", "idea/ec2-isolation-type",
+			"https://x-access-token:" + testCloneToken + "@github.com/humansintheloop-dev/isolarium.git",
+			"repo",
+		}},
+		{Workdir: RemoteRepoDir, Args: []string{
+			"git", "remote", "set-url", "origin",
+			"https://github.com/humansintheloop-dev/isolarium.git",
+		}},
 	}
-	want := []string{
-		"git", "clone", "--branch", "idea/ec2-isolation-type",
-		"https://x-access-token:" + testCloneToken + "@github.com/humansintheloop-dev/isolarium.git",
-		"repo",
+	if !reflect.DeepEqual(runner.commands, want) {
+		t.Errorf("ran %v, want %v", runner.commands, want)
 	}
-	if !reflect.DeepEqual(runner.commands[0].Args, want) {
-		t.Errorf("clone = %v, want %v", runner.commands[0].Args, want)
+}
+
+// TestCloneRepo_LeavesNoTokenInTheRemoteGitRecords covers what git itself
+// writes: the clone URL lands in .git/config, so the token has to be overwritten
+// there rather than merely kept out of every command isolarium issues.
+func TestCloneRepo_LeavesNoTokenInTheRemoteGitRecords(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{0}}
+
+	if err := CloneRepo(runner.session(t), testRepositorySpec(t.TempDir())); err != nil {
+		t.Fatalf("CloneRepo returned %v, want nil", err)
 	}
-	if runner.commands[0].Workdir != "" {
-		t.Errorf("clone ran from %q, want the login directory so it creates %s",
-			runner.commands[0].Workdir, RemoteRepoDir)
+
+	last := runner.commands[len(runner.commands)-1]
+	if strings.Contains(strings.Join(last.Args, " "), testCloneToken) {
+		t.Errorf("the last command %v still carries the token, so .git/config keeps it", last.Args)
 	}
 }
 
@@ -287,6 +302,7 @@ func TestPlaceRepository_ClonesConfiguresTheAuthorAndCopiesTheProjectConfig(t *t
 
 	assertRemoteCommandOrder(t, runner.commands, []string{
 		"git clone",
+		"git remote set-url origin",
 		"git config user.email",
 		"git config user.name",
 		RemoteRepoDir + "/.claude/settings.local.json",
@@ -305,6 +321,7 @@ func TestPlaceRepository_SkipsProjectConfigTheHostDoesNotHave(t *testing.T) {
 
 	assertRemoteCommandOrder(t, runner.commands, []string{
 		"git clone",
+		"git remote set-url origin",
 		"git config user.email",
 		"git config user.name",
 		RemoteRepoDir + "/CLAUDE.md",

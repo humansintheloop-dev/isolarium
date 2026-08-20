@@ -323,15 +323,15 @@ Spec 3.10 and 3.13 steps 12–14, acceptance criterion 1. Thickens the working i
     - [x] Populate `owner`, `repo`, and `branch` in `metadata.json` from the resolved repo info
     - [x] Define `RemoteRepoDir = "/home/ubuntu/repo"` in `internal/ec2/ec2.go` and make `Exec` run from it
     - [x] Print progress lines mirroring the Lima flow: `Creating EC2 instance...`, `Waiting for cloud-init...`, `Cloning repository...`
-- [ ] **Task 3.2: A real instance holds the repository at the right branch with the git author configured**
+- [x] **Task 3.2: A real instance holds the repository at the right branch with the git author configured**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: on an instance created from this repository's checkout, `Exec` of `git rev-parse --abbrev-ref HEAD` inside `/home/ubuntu/repo` prints the branch `create` was run from, `git config user.name` there ends with ` - i2code`, `git status --porcelain` there is empty, and `grep -r x-access-token /home/ubuntu` finds nothing — the clone token is never persisted on the instance
   - Evidence: `TestEC2Instance_HasRepositoryAtBranch` and `TestEC2Instance_HasNoPersistedToken` in `internal/ec2/repo_ec2_test.go` behind `//go:build ec2`, run by `./test-scripts/test-ec2.sh``
   - Steps:
-    - [ ] Add `internal/ec2/repo_ec2_test.go` behind `//go:build ec2` asserting the branch, the git author, a clean tree, and the absence of the token anywhere under `/home/ubuntu`
-    - [ ] Assert that `.claude/settings.local.json` and `CLAUDE.md` are present on the instance when they exist on the host
-    - [ ] Add an **EC2 isolation (AWS)** section to `README.md` describing the flow, mirroring the existing VM isolation section
+    - [x] Add `internal/ec2/repo_ec2_test.go` behind `//go:build ec2` asserting the branch, the git author, a clean tree, and the absence of the token anywhere under `/home/ubuntu`
+    - [x] Assert that `.claude/settings.local.json` and `CLAUDE.md` are present on the instance when they exist on the host
+    - [x] Add an **EC2 isolation (AWS)** section to `README.md` describing the flow, mirroring the existing VM isolation section
 ## Steel Thread 4: An interactive session runs inside tmux and survives disconnect
 Spec 3.6, scenario 6, acceptance criteria 3 and 4. This is the capability's primary goal — an agent session that outlives the laptop — so it is proven by actually severing the connection to a real instance and reattaching, not by inspecting a command line.
 
@@ -728,3 +728,6 @@ The entrypoint creates a real instance, runs echo hello and exit 42 over SSH, de
 
 ### 2026-08-20 08:02 - mark-task-complete
 Verified against a real AWS account: cloud-init reports status: done in 1m37s and every toolchain probe exits 0. Required two supporting fixes discovered by the run - a generated aws_key_pair name with create_before_destroy so a rotated host keypair cannot leave a new instance holding the superseded key, and publishing the user-level toolchain to /etc/environment plus loading nf_tables so uv and rootless docker are reachable from the non-interactive ssh that Exec uses.
+
+### 2026-08-20 09:01 - mark-task-complete
+Real-AWS run proved the branch, isolated git author, clean tree, and project config on the instance. The token-persistence assertion failed against a real instance because git clone records the authenticated URL in .git/config, so CloneRepo now rewrites origin to the credential-free URL and run injects a per-run token via GIT_CONFIG insteadOf.

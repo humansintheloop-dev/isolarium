@@ -52,6 +52,7 @@ type ec2Environment struct {
 	base       string
 	region     string
 	backend    *backend.EC2Backend
+	repository ec2.RepositorySpec
 	instanceID string
 	publicDNS  string
 	createdAt  time.Time
@@ -69,24 +70,25 @@ func startEC2Environment(t *testing.T, name string) *ec2Environment {
 	instance.MetadataDir = t.TempDir()
 
 	environment := &ec2Environment{
-		t:       t,
-		name:    name,
-		base:    instance.MetadataDir,
-		region:  region,
-		backend: instance,
+		t:          t,
+		name:       name,
+		base:       instance.MetadataDir,
+		region:     region,
+		backend:    instance,
+		repository: integrationRepositorySpec(t),
 	}
 
 	t.Cleanup(environment.destroyIfStillRunning)
-	environment.create(integrationRepositorySource(t))
+	environment.create()
 	environment.waitForSSH()
 	return environment
 }
 
-// integrationRepositorySource resolves the checkout under test exactly as the
+// integrationRepositorySpec resolves the checkout under test exactly as the
 // CLI does before create: the repository it belongs to, the branch being worked
 // on, and a freshly minted installation token. The branch is pushed so the
 // instance has something to clone.
-func integrationRepositorySource(t *testing.T) backend.RepositorySource {
+func integrationRepositorySpec(t *testing.T) ec2.RepositorySpec {
 	t.Helper()
 
 	checkout := repositoryCheckout(t)
@@ -106,7 +108,7 @@ func integrationRepositorySource(t *testing.T) backend.RepositorySource {
 		t.Fatalf("pushing %s so the instance can clone it: %v", branch, err)
 	}
 
-	spec := ec2.RepositorySpec{
+	return ec2.RepositorySpec{
 		Owner:       owner,
 		Repo:        repo,
 		Branch:      branch,
@@ -115,7 +117,6 @@ func integrationRepositorySource(t *testing.T) backend.RepositorySource {
 		AuthorEmail: hostGitSetting(t, checkout, git.GetUserEmail, "user.email"),
 		AuthorName:  hostGitSetting(t, checkout, git.GetUserName, "user.name"),
 	}
-	return func() (ec2.RepositorySpec, error) { return spec, nil }
 }
 
 // repositoryCheckout is the root of the working copy, which is where the project
@@ -189,11 +190,11 @@ func requireEnvVar(t *testing.T, name string) string {
 	return value
 }
 
-func (e *ec2Environment) create(repository backend.RepositorySource) {
+func (e *ec2Environment) create() {
 	e.t.Helper()
 
 	e.createdAt = time.Now()
-	if err := e.backend.Create(backend.CreateOptions{Name: e.name, Repository: repository}); err != nil {
+	if err := e.backend.Create(backend.CreateOptions{Name: e.name, Repository: e.repositorySource()}); err != nil {
 		e.t.Fatalf("creating %s: %v", e.name, err)
 	}
 	e.t.Logf("TIMING: create %s took %s", e.name, time.Since(e.createdAt).Round(time.Second))
@@ -204,6 +205,10 @@ func (e *ec2Environment) create(repository backend.RepositorySource) {
 	}
 	e.instanceID = meta.InstanceID
 	e.publicDNS = meta.PublicDNS
+}
+
+func (e *ec2Environment) repositorySource() backend.RepositorySource {
+	return func() (ec2.RepositorySpec, error) { return e.repository, nil }
 }
 
 func (e *ec2Environment) waitForSSH() {

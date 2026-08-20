@@ -61,6 +61,24 @@ func TestRunCommand_EC2InjectsMintedGitHubToken(t *testing.T) {
 	}
 }
 
+// TestRunCommand_EC2RewritesTheHTTPSOriginWithTheMintedToken covers the other
+// half of keeping the clone token off the instance: create leaves origin
+// credential-free, so each run has to supply a token of its own for git to push.
+func TestRunCommand_EC2RewritesTheHTTPSOriginWithTheMintedToken(t *testing.T) {
+	spy := ec2RunWithSpy(t, "--", "git", "push")
+
+	want := map[string]string{
+		"GIT_CONFIG_COUNT":   "1",
+		"GIT_CONFIG_KEY_0":   "url.https://x-access-token:test-token@github.com/.insteadOf",
+		"GIT_CONFIG_VALUE_0": "https://github.com/",
+	}
+	for key, value := range want {
+		if spy.execEnvVars[key] != value {
+			t.Errorf("expected %s=%q, got %q", key, value, spy.execEnvVars[key])
+		}
+	}
+}
+
 func TestRunCommand_EC2RejectsCreateFlag(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{state: "none"}
