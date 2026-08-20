@@ -274,13 +274,13 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
   - Observable: against a real AWS account the script creates an instance, `Exec` of `echo hello` returns `hello` on stdout with exit code 0, `Exec` of `exit 42` returns 42, `destroy` terminates the instance, and a follow-up `DescribeInstances` reports `terminated` or `shutting-down`; the S3 state bucket, VPC, subnet, internet gateway, route table, security group, and key pair all exist in the account after `create`; without `ISOLARIUM_EC2_INTEGRATION=1` the script exits non-zero with `FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 tests`; when `go test` output contains `no tests to run`, it exits non-zero
   - Evidence: `./test-scripts/test-ec2.sh` exits 0 against a real account with the gate variable set; run without it, it exits non-zero with that exact message — the assertion runnable in CI and locally without AWS`
   - Steps:
-    - [ ] Create `internal/ec2/lifecycle_ec2_test.go` behind `//go:build ec2`, covering create → `Exec` of `echo hello` → `Exec` of `exit 42` → `destroy` → `DescribeInstances` confirming termination, following the shape of `internal/nono/integration_test.go`
-    - [ ] Have the test call `t.Fatal` (not `t.Skip`) when `ISOLARIUM_EC2_INTEGRATION` or the AWS credential variables are absent, per the CLAUDE.md test-integrity rule
-    - [ ] Register `t.Cleanup` that destroys the instance even when an assertion fails, so a failed run never leaks a billing instance
-    - [ ] Create `test-scripts/test-ec2.sh` that fails when the gate variable is unset, runs `go test -v -tags=ec2 -timeout 30m ./internal/ec2/...`, and exits non-zero when the output contains `no tests to run`
-    - [ ] Add a `test-ec2` target to `Makefile` running `go test -tags=ec2 -timeout 30m ./internal/ec2/...`
-    - [ ] Add a `--with-ec2` flag to `test-scripts/test-end-to-end.sh` following the existing `--skip-docker-integration` pattern; leave `.github/workflows/ci.yml` unchanged so CI never needs AWS credentials
-    - [ ] Run `shellcheck test-scripts/test-ec2.sh` and fix any findings
+    - [x] Create `internal/ec2/lifecycle_ec2_test.go` behind `//go:build ec2`, covering create → `Exec` of `echo hello` → `Exec` of `exit 42` → `destroy` → `DescribeInstances` confirming termination, following the shape of `internal/nono/integration_test.go`
+    - [x] Have the test call `t.Fatal` (not `t.Skip`) when `ISOLARIUM_EC2_INTEGRATION` or the AWS credential variables are absent, per the CLAUDE.md test-integrity rule
+    - [x] Register `t.Cleanup` that destroys the instance even when an assertion fails, so a failed run never leaks a billing instance
+    - [x] Create `test-scripts/test-ec2.sh` that fails when the gate variable is unset, runs `go test -v -tags=ec2 -timeout 30m ./internal/ec2/...`, and exits non-zero when the output contains `no tests to run`
+    - [x] Add a `test-ec2` target to `Makefile` running `go test -tags=ec2 -timeout 30m ./internal/ec2/...`
+    - [x] Add a `--with-ec2` flag to `test-scripts/test-end-to-end.sh` following the existing `--skip-docker-integration` pattern; leave `.github/workflows/ci.yml` unchanged so CI never needs AWS credentials
+    - [x] Run `shellcheck test-scripts/test-ec2.sh` and fix any findings
     - [ ] Run the entrypoint against a real AWS account and record the outcome, the wall-clock duration, and the observed cold-start time in `README.md`
 ## Steel Thread 2: Instances come up with the full toolchain installed
 Spec 3.7. The skeleton instance from Steel Thread 1 boots a stock Ubuntu image; this thread gives it the toolchain by way of a cloud-init document embedded in the binary, and proves on a real instance that every tool is actually present and runnable. The 16 KB `user_data` guard is Steel Thread 10.
@@ -698,3 +698,24 @@ Exec and ExecInteractive run over SSH via BuildSSHArgs/BuildExecCommand; exit co
 
 ### 2026-08-19 19:42 - mark-task-complete
 Destroy removes instance-<name>.tf, re-applies, evicts the known_hosts entry, and cleans up host metadata; a second destroy reports 'no EC2 environment to destroy' and exits 0. destroyEC2 takes an io.Writer so the CLI can assert on the message, a small deviation from the planned destroyEC2(name string) signature.
+
+### 2026-08-19 20:28 - mark-step-complete
+Added internal/ec2/lifecycle_ec2_test.go behind //go:build ec2 covering create, Exec of echo hello, Exec of exit 42, destroy, and DescribeInstances
+
+### 2026-08-19 20:28 - mark-step-complete
+requireIntegrationGate and requireAWSCredentials call t.Fatalf, never t.Skip
+
+### 2026-08-19 20:28 - mark-step-complete
+t.Cleanup(destroyIfStillRunning) is registered before Create so a failed assertion still tears the instance down
+
+### 2026-08-19 20:28 - mark-step-complete
+test-scripts/test-ec2.sh gates on ISOLARIUM_EC2_INTEGRATION, runs the tagged tests, and fails on 'no tests to run'
+
+### 2026-08-19 20:28 - mark-step-complete
+Added the test-ec2 target to the Makefile
+
+### 2026-08-19 20:28 - mark-step-complete
+Added --with-ec2 to test-scripts/test-end-to-end.sh; .github/workflows/ci.yml is unchanged
+
+### 2026-08-19 20:28 - mark-step-complete
+shellcheck reports no findings for test-scripts/test-ec2.sh

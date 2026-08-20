@@ -194,6 +194,32 @@ Two things worth knowing before your first `create --type ec2`:
   roughly $64/month. Run `isolarium destroy --type ec2 --name <name>` when you
   are done with an environment.
 
+### Testing EC2 mode against a real account
+
+The EC2 lifecycle tests are behind the `ec2` build tag, so `go test ./...` and CI
+can never launch a billable instance. Nothing in `.github/workflows/ci.yml` needs
+AWS credentials.
+
+```bash
+ISOLARIUM_EC2_INTEGRATION=1 ./test-scripts/test-ec2.sh
+```
+
+The script refuses to run without `ISOLARIUM_EC2_INTEGRATION=1`, and fails when
+`go test` selected no test rather than reporting a green run over nothing. The
+tests themselves fail — they never skip — when `AWS_REGION`,
+`AWS_ACCESS_KEY_ID`, or `AWS_SECRET_ACCESS_KEY` is missing. Every test registers
+a cleanup that destroys its instance even after a failed assertion, so a red run
+does not leave one billing.
+
+`./test-scripts/test-end-to-end.sh --with-ec2` adds the same script to the
+end-to-end suite; without the flag the suite stays AWS-free. `make test-ec2` runs
+the tagged tests directly.
+
+The run reports two timings you should expect to see in the output: `TIMING:
+create` (the `terraform apply` wall clock) and `TIMING: cold start from create to
+first SSH login`. Measured values for this repository's account have not been
+recorded yet.
+
 ## Quickstart
 
 ## With Idea to Code

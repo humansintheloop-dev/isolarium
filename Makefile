@@ -1,4 +1,4 @@
-.PHONY: build test test-integration test-integration-docker clean
+.PHONY: build test test-integration test-integration-docker test-ec2 clean
 
 build:
 	go build -o bin/isolarium ./cmd/isolarium
@@ -11,6 +11,9 @@ test-integration:
 
 test-integration-docker:
 	go test -tags=integration ./internal/docker/...
+
+test-ec2:
+	go test -tags=ec2 -timeout 30m ./internal/ec2/...
 
 clean:
 	rm -rf bin/
