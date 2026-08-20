@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
@@ -151,6 +152,67 @@ func assertSessionProbe(t *testing.T, spy *ec2ExecSpy) {
 	if spy.command.Workdir != "" {
 		t.Errorf("session probe workdir = %q, want it to run from the login directory", spy.command.Workdir)
 	}
+}
+
+// sessionListSpy answers the backend's `tmux list-sessions` probe with the
+// sessions an instance is running.
+type sessionListSpy struct {
+	output  string
+	called  bool
+	command ec2.RemoteCommand
+}
+
+func (s *sessionListSpy) capture(base, publicDNS string, cmd ec2.RemoteCommand) (string, int, error) {
+	s.called = true
+	s.command = cmd
+	return s.output, 0, nil
+}
+
+func TestEC2NewSessionBackendStartsAnAdditionalSession(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	lister := &sessionListSpy{output: "isolarium\n"}
+	f.backend.CaptureFunc = lister.capture
+	f.backend.UseNewSession()
+
+	if _, err := f.backend.ExecInteractive(ExecRequest{ContainerName: "my-work", Args: []string{"bash"}}); err != nil {
+		t.Fatalf("ExecInteractive() error = %v, want nil", err)
+	}
+
+	if !lister.called {
+		t.Fatal("--new-session never asked the instance which sessions are running")
+	}
+	want := []string{"tmux", "new-session", "-A", "-s", "isolarium-2", "--", "bash"}
+	assertArgsEqual(t, "interactive args", f.interactive.command.Args, want)
+}
+
+// TestEC2NewSessionBackendOpensAShellInTheAdditionalSession also pins that the
+// reattach notice is announced about the session actually being joined: an
+// instance already running `isolarium` must not be described as one --new-session
+// is reattaching to.
+func TestEC2NewSessionBackendOpensAShellInTheAdditionalSession(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	f.backend.ExecFunc = onlyDefaultSessionIsRunning
+	f.backend.CaptureFunc = (&sessionListSpy{output: "isolarium\n"}).capture
+	f.backend.UseNewSession()
+	var notice bytes.Buffer
+	f.backend.ErrWriter = &notice
+
+	if _, err := f.backend.OpenShell(ExecRequest{ContainerName: "my-work"}); err != nil {
+		t.Fatalf("OpenShell() error = %v, want nil", err)
+	}
+
+	if notice.String() != "" {
+		t.Errorf("--new-session wrote %q to stderr, want no reattach notice", notice.String())
+	}
+	want := []string{"tmux", "new-session", "-A", "-s", "isolarium-2", "--", "bash", "-il"}
+	assertArgsEqual(t, "shell args", f.interactive.command.Args, want)
+}
+
+func onlyDefaultSessionIsRunning(base, publicDNS string, cmd ec2.RemoteCommand) (int, error) {
+	if strings.Join(cmd.Args, " ") == "tmux has-session -t isolarium" {
+		return 0, nil
+	}
+	return 1, nil
 }
 
 func TestEC2TmuxNoticeGoesToStderrByDefault(t *testing.T) {

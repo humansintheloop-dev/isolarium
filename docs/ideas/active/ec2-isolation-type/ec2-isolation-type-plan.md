@@ -360,18 +360,18 @@ Spec 3.6, scenario 6, acceptance criteria 3 and 4. This is the capability's prim
 ## Steel Thread 5: `--new-session` starts an additional session alongside a running one
 Spec scenario 7. Thickens the tmux capability with a second concurrent session, proven on a real instance where an existing agent session must survive untouched.
 
-- [ ] **Task 5.1: `--new-session` starts an additional numbered session and never kills an existing one**
+- [x] **Task 5.1: `--new-session` starts an additional numbered session and never kills an existing one**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/cli/... -run TestEC2NewSession`
   - Observable: given remote sessions `isolarium` and `isolarium-2`, `NextSessionName` returns `isolarium-3`; given only `isolarium`, it returns `isolarium-2`; given `isolarium` and `isolarium-3`, it returns `isolarium-2`; given none, it returns `isolarium`; the resulting command line contains `tmux new-session -A -s isolarium-2` and contains neither `kill-session` nor `kill-server`; `isolarium run -i --type container --new-session -- bash` exits non-zero with `--new-session is only supported with --type ec2`
   - Evidence: `TestEC2NewSessionPicksLowestFreeNumber`, `TestEC2NewSessionNeverKills`, and `TestNewSessionRejectedForNonEC2Types` — the last driving the cobra root command for `container`, `vm`, and `nono``
   - Steps:
-    - [ ] Extend `internal/ec2/tmux_test.go` with `NextSessionName(existing []string) string` and `ListSessions(base, publicDNS string, run execFunc) ([]string, error)` cases, including the gap case
-    - [ ] Implement `ListSessions` using `tmux list-sessions -F '#{session_name}'` and `NextSessionName` selecting the lowest integer at least 2 that is unused
-    - [ ] Add a `NewSession bool` field to `runOptions` and a `--new-session` flag to both `run` and `shell` in `internal/cli/cmd_run.go` and `internal/cli/cmd_shell.go`
-    - [ ] Reject `--new-session` for every non-`ec2` type with the exact message above
-    - [ ] Add a `SessionNameFunc` field to `EC2Backend` resolving the session name per invocation
-    - [ ] Document `--new-session` in the `run` flags table of `README.md`
+    - [x] Extend `internal/ec2/tmux_test.go` with `NextSessionName(existing []string) string` and `ListSessions(base, publicDNS string, run execFunc) ([]string, error)` cases, including the gap case
+    - [x] Implement `ListSessions` using `tmux list-sessions -F '#{session_name}'` and `NextSessionName` selecting the lowest integer at least 2 that is unused
+    - [x] Add a `NewSession bool` field to `runOptions` and a `--new-session` flag to both `run` and `shell` in `internal/cli/cmd_run.go` and `internal/cli/cmd_shell.go`
+    - [x] Reject `--new-session` for every non-`ec2` type with the exact message above
+    - [x] Add a `SessionNameFunc` field to `EC2Backend` resolving the session name per invocation
+    - [x] Document `--new-session` in the `run` flags table of `README.md`
 - [ ] **Task 5.2: Two concurrent sessions run side by side on a real instance without disturbing each other**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

@@ -416,6 +416,7 @@ isolarium run --type nono -i -- claude
 | `--fresh-login` | `false` | Authenticate via device code flow instead |
 | `--read` | | Grant nono sandbox read-only access to additional paths |
 | `--create` | `false` | Create the environment if it does not exist |
+| `--new-session` | `false` | Start an additional tmux session (`isolarium-<n>`) on the instance instead of joining the running one; `ec2` only, and never kills a session |
 | `--work-directory` | cwd | Work directory to mount (container mode, requires `--create`) |
 
 ## License

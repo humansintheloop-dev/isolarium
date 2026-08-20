@@ -1,6 +1,7 @@
 package ec2
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -19,6 +20,21 @@ func ExecInteractiveCommand(base, publicDNS string, cmd RemoteCommand) (int, err
 	return runRemoteCommand(BuildInteractiveExecCommand(base, publicDNS, cmd), true)
 }
 
+// CaptureCommand runs cmd on the instance over SSH and returns what it wrote to
+// standard output, so isolarium can read an answer out of the instance rather
+// than only relaying it to the terminal. Stderr still reaches the host, because
+// a remote diagnostic is worth seeing whichever way the command is run.
+func CaptureCommand(base, publicDNS string, cmd RemoteCommand) (string, int, error) {
+	cmdArgs := BuildExecCommand(base, publicDNS, cmd)
+	command := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+	var stdout bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = os.Stderr
+
+	exitCode, err := remoteExitCode(command.Run(), cmdArgs[0])
+	return stdout.String(), exitCode, err
+}
+
 // runRemoteCommand streams the command's stdio and maps a non-zero remote exit
 // into an exit code rather than an error, so callers can propagate it verbatim.
 func runRemoteCommand(cmdArgs []string, interactive bool) (int, error) {
@@ -29,7 +45,12 @@ func runRemoteCommand(cmdArgs []string, interactive bool) (int, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
+	return remoteExitCode(cmd.Run(), cmdArgs[0])
+}
+
+// remoteExitCode separates a command the instance ran and rejected, which has an
+// exit status worth propagating, from one the host could not launch at all.
+func remoteExitCode(err error, binary string) (int, error) {
 	if err == nil {
 		return 0, nil
 	}
@@ -37,5 +58,5 @@ func runRemoteCommand(cmdArgs []string, interactive bool) (int, error) {
 	if errors.As(err, &exitErr) {
 		return exitErr.ExitCode(), nil
 	}
-	return 1, fmt.Errorf("failed to run %s on the instance: %w", cmdArgs[0], err)
+	return 1, fmt.Errorf("failed to run %s on the instance: %w", binary, err)
 }

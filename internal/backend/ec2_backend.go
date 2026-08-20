@@ -19,6 +19,11 @@ type EnsureBucketFunc func(ctx context.Context, region string) (string, error)
 // SSH material under base, and returns the remote command's exit code.
 type ec2ExecFunc = ec2.RemoteRunner
 
+// SessionNameFunc chooses which tmux session an interactive invocation joins on
+// the instance reachable at publicDNS, resolved per invocation because the
+// answer depends on what is already running there.
+type SessionNameFunc func(base, publicDNS string) (string, error)
+
 type EC2Backend struct {
 	MetadataDir            string
 	Runner                 command.Runner
@@ -31,8 +36,35 @@ type EC2Backend struct {
 	SleepFunc              func(time.Duration)
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
+	CaptureFunc            ec2.RemoteOutputRunner
+	SessionNameFunc        SessionNameFunc
 	Out                    io.Writer
 	ErrWriter              io.Writer
+}
+
+// UseNewSession makes every interactive invocation join a session no other one
+// holds. It is what --new-session asks for: an additional session, never a
+// replaced one.
+func (b *EC2Backend) UseNewSession() {
+	b.SessionNameFunc = func(base, publicDNS string) (string, error) {
+		return ec2.NewInstanceQuery(base, publicDNS, b.capture()).ResolveNewSessionName()
+	}
+}
+
+func (b *EC2Backend) capture() ec2.RemoteOutputRunner {
+	if b.CaptureFunc != nil {
+		return b.CaptureFunc
+	}
+	return ec2.CaptureCommand
+}
+
+// sessionName defaults to the single shared session, so an ordinary run finds
+// the agent an earlier one left working.
+func (b *EC2Backend) sessionName(publicDNS string) (string, error) {
+	if b.SessionNameFunc == nil {
+		return ec2.DefaultSessionName, nil
+	}
+	return b.SessionNameFunc(b.MetadataDir, publicDNS)
 }
 
 // launchedInstance is where terraform says a newly applied instance can be
@@ -418,7 +450,12 @@ func (b *EC2Backend) attachSession(name string) (persistentSession, error) {
 		return persistentSession{}, err
 	}
 
-	session := persistentSession{publicDNS: meta.PublicDNS, name: ec2.DefaultSessionName}
+	sessionName, err := b.sessionName(meta.PublicDNS)
+	if err != nil {
+		return persistentSession{}, err
+	}
+
+	session := persistentSession{publicDNS: meta.PublicDNS, name: sessionName}
 	ec2.AnnounceReattach(b.errOut(), b.instanceSession(session.publicDNS, b.ExecFunc), session.name)
 	return session, nil
 }

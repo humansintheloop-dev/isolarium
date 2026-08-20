@@ -11,6 +11,7 @@ import (
 
 func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	var copySession bool
+	var newSession bool
 
 	cmd := &cobra.Command{
 		Use:   "shell",
@@ -23,16 +24,15 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 				return err
 			}
 
-			if envType == "nono" {
-				if cmd.Flags().Changed("copy-session") {
-					return fmt.Errorf("--copy-session is not supported with --type nono")
-				}
+			if err := rejectFlagsUnsupportedByShell(cmd, envType, newSession); err != nil {
+				return err
 			}
 
 			b, err := resolver(envType)
 			if err != nil {
 				return err
 			}
+			applyNewSession(b, newSession)
 
 			if err := copyCredentialsForContainerShell(b, envType, name, copySession); err != nil {
 				return err
@@ -56,8 +56,16 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 	}
 
 	cmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to container")
+	cmd.Flags().BoolVar(&newSession, "new-session", false, newSessionFlagUsage)
 
 	return cmd
+}
+
+func rejectFlagsUnsupportedByShell(cmd *cobra.Command, envType string, newSession bool) error {
+	if envType == "nono" && cmd.Flags().Changed("copy-session") {
+		return fmt.Errorf("--copy-session is not supported with --type nono")
+	}
+	return rejectNewSessionOutsideEC2(envType, newSession)
 }
 
 // copyCredentialsForContainerShell carries the host's Claude credentials into a

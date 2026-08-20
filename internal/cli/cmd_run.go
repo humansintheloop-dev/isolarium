@@ -63,6 +63,7 @@ type runOptions struct {
 	noGHToken     bool
 	readPaths     []string
 	create        bool
+	newSession    bool
 	workDirectory string
 }
 
@@ -100,12 +101,17 @@ func newRunCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *e
 	cmd.Flags().StringSliceVar(&opts.readPaths, "read", nil, "Grant nono sandbox read-only access to additional paths")
 	cmd.Flags().BoolVar(&opts.noGHToken, "no-gh-token", false, "Disable GitHub token minting and GH_TOKEN injection")
 	cmd.Flags().BoolVar(&opts.create, "create", false, "Create the environment if it does not exist")
+	cmd.Flags().BoolVar(&opts.newSession, "new-session", false, newSessionFlagUsage)
 	cmd.Flags().StringVar(&opts.workDirectory, "work-directory", cwd, "Work directory to mount (container mode, requires --create)")
 
 	return cmd
 }
 
 func runInEnvironment(envType string, opts runOptions, cmd *cobra.Command, resolver BackendResolver) error {
+	if err := rejectNewSessionOutsideEC2(envType, opts.newSession); err != nil {
+		return err
+	}
+
 	switch envType {
 	case "vm":
 		return runInVM(opts, cmd)
@@ -371,6 +377,7 @@ func runInEC2(opts runOptions, resolver BackendResolver) error {
 	if err != nil {
 		return err
 	}
+	applyNewSession(b, opts.newSession)
 
 	envVars, err := buildEC2EnvVars(opts.noGHToken)
 	if err != nil {
