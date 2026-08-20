@@ -404,7 +404,19 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
     - [ ] Have the test `t.Fatal` when host Claude credentials are unavailable rather than skipping, per the CLAUDE.md test-integrity rule
     - [ ] Assert the `0600` mode on the instance-side credential file
     - [ ] Add the spec 3.11 security disclosure to `README.md`: the copied blob contains `refreshToken` and `refreshTokenExpiresAt`, a long-lived credential to the user's Claude subscription, placed on a public-internet-reachable host that may run for weeks; mitigated by `0600` file mode, root-volume encryption, `delete_on_termination`, and `/32` ingress
-- [ ] **Task 6.3: The `ec2` suite runs against a single instance created first and terminated last**
+- [ ] **Task 6.3: `create` stops waiting once cloud-init has finished, and reports a degraded run**
+  - TaskType: INFRA
+  - Entrypoint: `go test ./internal/ec2/... -run TestWaitForCloudInit`
+  - Observable: with the probe reporting exit 2 and `status: done`, the wait returns an error naming the degraded run immediately rather than re-probing until the budget expires; exit 1 returns the reported error immediately; exit 0 returns nil; only a probe that could not reach the instance is retried, and the 15-minute budget applies to that case alone
+  - Evidence: ``TestWaitForCloudInit_FailsFastWhenProvisioningFinishesDegraded`, `TestWaitForCloudInit_FailsFastWhenProvisioningErrors`, and the existing `TestWaitForCloudInit_RetriesWhileTheInstanceIsStillUnreachable` in `internal/ec2/clone_test.go`, driven by an injected exec function returning canned exit codes and output`
+  - Steps:
+    - [ ] Write the `internal/ec2/clone_test.go` cases first: exit 2 with `status: done` fails immediately, exit 1 fails immediately, exit 0 succeeds, and an unreachable instance is still retried until the budget expires
+    - [ ] Give `readinessLoop` the probe's exit code instead of the bool `succeeded` returns, since that bool collapses `not ready yet`, `finished degraded`, and `could not connect` into one answer; `session.exitCode` already exposes what is needed
+    - [ ] Classify the cloud-init probe's exits: 0 is ready, 1 and 2 are terminal, and the ssh transport failure that means sshd is not listening yet is the only case worth retrying
+    - [ ] Carry the reason into the error: on exit 2 report which modules degraded from `cloud-init status --long` and point at `/var/log/cloud-init-output.log`, rather than the current message claiming the instance did not finish
+    - [ ] Leave `sshReadiness` retrying on any failure, because every failure there genuinely means the instance is not up yet
+    - [ ] Keep the 15-minute timeout message for the one case it now describes: cloud-init still running when the budget runs out
+- [ ] **Task 6.4: The `ec2` suite runs against a single instance created first and terminated last**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: a full suite run logs exactly one `TIMING: create` line instead of seven, and ends with the shared instance reported terminated; every test still runs alone under `./test-scripts/test-ec2.sh <pattern>`, creating the instance on demand
@@ -760,3 +772,6 @@ Restores the completion state of Task 6.1, which was unchanged by the thread 6 r
 
 ### 2026-08-20 14:13 - insert-task-after
 The ec2 suite creates one billable instance per test — seven cold starts of roughly two minutes each in the task 6.2 run — although only the create/destroy assertions and the two tmux tests need an instance of their own. Restructuring onto a single instance created first and terminated last removes about eleven minutes and six instances from every run.
+
+### 2026-08-20 14:25 - insert-task-after
+The task 6.2 suite run lost 1100s to TestEC2Instance_ClaudeAuthenticates: cloud-init had finished on that instance and was printing status: done, but exited non-zero, and readinessLoop.wait accepts only exit 0 — so it re-probed every 15 seconds for the full 15-minute budget and then reported that the instance did not finish cloud-init. Exit 2 means provisioning ended with a recoverable error, so waiting longer can never change the answer and the toolchain may be incomplete.
