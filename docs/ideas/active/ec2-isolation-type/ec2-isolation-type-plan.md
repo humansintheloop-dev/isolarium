@@ -431,6 +431,19 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
     - [ ] Keep the assertions that require a pristine instance ahead of anything that writes to it: the clone-cleanliness and token-grep checks must run before the Claude credentials copy and before the tmux writer script is placed
     - [ ] Kill the tmux server between the two tmux tests, because `TmuxCommand` uses `tmux new-session -A`, which attaches to the session the previous test deliberately left running rather than starting a fresh one
     - [ ] Record the shared-instance ordering constraints in a comment at the create test, so a later rename or a new test cannot silently break them
+- [ ] **Task 6.5: Claude Code is installed by the native installer as the user that runs it**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: after create, `command -v claude` on the instance resolves to `/home/ubuntu/.local/bin/claude`, that path is owned by `ubuntu`, `claude --version` exits 0, and no `@anthropic-ai/claude-code` remains in the root-owned npm global tree
+  - Evidence: ``TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` extended to assert where `claude` resolves and who owns it, so a root-installed binary fails the probe that `claude --version` alone would pass; the Lima integration test covering the same toolchain runs green against the matching change to `internal/lima/template.yaml``
+  - Steps:
+    - [ ] Replace `npm install -g @anthropic-ai/claude-code` in `internal/ec2/cloud-init.yaml` with `runuser -l ubuntu -c 'curl -fsSL https://claude.ai/install.sh | bash'`, matching how uv and SDKMAN are already installed for the user
+    - [ ] Apply the same replacement to `internal/lima/template.yaml`, which the cloud-init header records as a tracked duplicate of this toolchain; the CLAUDE.md rule on pattern-based fixes forbids changing only one of them
+    - [ ] Extend the toolchain probe to assert `command -v claude` resolves under `/home/ubuntu/.local/bin` and that the binary is owned by `ubuntu`, because `claude --version` passes just as well for the root-owned npm install this replaces
+    - [ ] Leave Node.js in the toolchain: the installed `claude` binary does not use it at runtime, but the instance is expected to carry node in its own right and the existing probe covers it
+    - [ ] Decide and record whether the instance pins a version — `bash -s stable`, `bash -s <version>`, or the default latest channel — so a run is not silently on a different Claude Code than the run before it
+    - [ ] Re-check the rendered user_data against the 16 KB EC2 limit that `reportRenderedUserDataSize` logs, since the replacement changes the document's size
+    - [ ] Run `./test-scripts/test-ec2.sh` and the Lima integration suite, so both copies of the toolchain are proven rather than only the one that changed first
 ## Steel Thread 7: `pid.yaml` `ec2` scripts run at create time
 Spec 3.12, acceptance criterion 8. Thickens `create` with the project's own script hooks, proven by marker files left on a real instance and on the host.
 
@@ -778,3 +791,6 @@ The task 6.2 suite run lost 1100s to TestEC2Instance_ClaudeAuthenticates: cloud-
 
 ### 2026-08-20 14:29 - mark-task-complete
 TestEC2Instance_ClaudeAuthenticates passes against a real instance: the copied credential file is mode 0600 and claude -p 'reply with the single word ok' exits 0 and answers ok. The spec 3.11 security disclosure was already present in README.md.
+
+### 2026-08-20 14:31 - insert-task-after
+cloud-init runs runcmd as root, so npm install -g @anthropic-ai/claude-code is the sudo global install the Claude Code documentation warns against: the binary lands in a root-owned npm tree that the ubuntu user cannot write, so its auto-update fails and Claude Code shows a notice at every start. The documented recommendation is the native installer, which puts the binary at ~/.local/bin/claude — already first on the PATH the instance publishes in /etc/environment.
