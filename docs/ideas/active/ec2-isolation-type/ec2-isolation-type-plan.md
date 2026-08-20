@@ -394,16 +394,16 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
     - [x] Compare only the two server-issued `expiresAt` values; never call `time.Now()` in this comparison
     - [x] Wire `CopyCredentials` on `EC2Backend` to it via an injectable `CopyCredentialsFunc` field
     - [x] Have the `ec2` branch of `internal/cli/cmd_run.go` call `readKeychainCredentials()` and `b.CopyCredentials` when `--copy-session` is on, matching the container flow
-- [ ] **Task 6.2: `claude` runs authenticated on a real instance**
+- [x] **Task 6.2: `claude` runs authenticated on a real instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: after `run --copy-session`, `~/.claude/.credentials.json` on the instance is mode `0600`, and `claude -p 'reply with the single word ok'` exits 0 and prints `ok`
   - Evidence: `TestEC2Instance_ClaudeAuthenticates` in `internal/ec2/session_ec2_test.go` behind `//go:build ec2`, gated additionally on host Claude credentials being present and failing loudly when they are not`
   - Steps:
-    - [ ] Add `internal/ec2/session_ec2_test.go` behind `//go:build ec2` covering the credential copy and the authenticated `claude -p` run; it neither rewinds `expiresAt` nor asserts anything about token refresh
-    - [ ] Have the test `t.Fatal` when host Claude credentials are unavailable rather than skipping, per the CLAUDE.md test-integrity rule
-    - [ ] Assert the `0600` mode on the instance-side credential file
-    - [ ] Add the spec 3.11 security disclosure to `README.md`: the copied blob contains `refreshToken` and `refreshTokenExpiresAt`, a long-lived credential to the user's Claude subscription, placed on a public-internet-reachable host that may run for weeks; mitigated by `0600` file mode, root-volume encryption, `delete_on_termination`, and `/32` ingress
+    - [x] Add `internal/ec2/session_ec2_test.go` behind `//go:build ec2` covering the credential copy and the authenticated `claude -p` run; it neither rewinds `expiresAt` nor asserts anything about token refresh
+    - [x] Have the test `t.Fatal` when host Claude credentials are unavailable rather than skipping, per the CLAUDE.md test-integrity rule
+    - [x] Assert the `0600` mode on the instance-side credential file
+    - [x] Add the spec 3.11 security disclosure to `README.md`: the copied blob contains `refreshToken` and `refreshTokenExpiresAt`, a long-lived credential to the user's Claude subscription, placed on a public-internet-reachable host that may run for weeks; mitigated by `0600` file mode, root-volume encryption, `delete_on_termination`, and `/32` ingress
 - [ ] **Task 6.3: `create` stops waiting once cloud-init has finished, and reports a degraded run**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run TestWaitForCloudInit`
@@ -775,3 +775,6 @@ The ec2 suite creates one billable instance per test — seven cold starts of ro
 
 ### 2026-08-20 14:25 - insert-task-after
 The task 6.2 suite run lost 1100s to TestEC2Instance_ClaudeAuthenticates: cloud-init had finished on that instance and was printing status: done, but exited non-zero, and readinessLoop.wait accepts only exit 0 — so it re-probed every 15 seconds for the full 15-minute budget and then reported that the instance did not finish cloud-init. Exit 2 means provisioning ended with a recoverable error, so waiting longer can never change the answer and the toolchain may be incomplete.
+
+### 2026-08-20 14:29 - mark-task-complete
+TestEC2Instance_ClaudeAuthenticates passes against a real instance: the copied credential file is mode 0600 and claude -p 'reply with the single word ok' exits 0 and answers ok. The spec 3.11 security disclosure was already present in README.md.

@@ -315,13 +315,33 @@ ISOLARIUM_EC2_INTEGRATION=1 ./test-scripts/test-ec2.sh
 The script refuses to run without `ISOLARIUM_EC2_INTEGRATION=1`, and fails when
 `go test` selected no test rather than reporting a green run over nothing. The
 tests themselves fail — they never skip — when `AWS_REGION`,
-`AWS_ACCESS_KEY_ID`, or `AWS_SECRET_ACCESS_KEY` is missing. Every test registers
-a cleanup that destroys its instance even after a failed assertion, so a red run
-does not leave one billing.
+`AWS_ACCESS_KEY_ID`, or `AWS_SECRET_ACCESS_KEY` is missing. The test that proves
+`claude` authenticates on the instance fails the same way when your host has no
+Claude credentials to copy: it reads them from the Keychain, falls back to the
+file named by `CLAUDE_CREDENTIALS_PATH`, and fails when neither is there. Every
+test registers a cleanup that destroys its instance even after a failed
+assertion, so a red run does not leave one billing.
 
 `./test-scripts/test-end-to-end.sh --with-ec2` adds the same script to the
 end-to-end suite; without the flag the suite stays AWS-free. `make test-ec2` runs
 the tagged tests directly.
+
+Every test builds its own billable instance, so re-running one after a failure
+should not have to rebuild all of them. An optional argument narrows the run:
+
+```bash
+ISOLARIUM_EC2_INTEGRATION=1 ./test-scripts/test-ec2.sh TestEC2Instance_ClaudeAuthenticates
+```
+
+A narrowed run that matches nothing still fails, because the script rejects a
+`go test` that reported `no tests to run`.
+
+One failure worth recognising: `create "<name>": instance did not finish
+cloud-init within 15m0s` while the log fills with `status: done`. That is an
+instance whose cloud-init finished degraded — `cloud-init status --wait` prints
+`done` but exits non-zero — which the readiness loop cannot distinguish from one
+still provisioning. It is an unlucky instance rather than a broken test; re-run
+that single test by name.
 
 The run reports three timings you should expect to see in the output: `TIMING:
 create` (the `terraform apply` wall clock, which includes waiting for cloud-init
@@ -334,13 +354,15 @@ existed and only the instances had to be built:
 
 | Measurement | Value |
 | --- | --- |
-| `go test -tags=ec2 ./internal/ec2/...` | 726s for all five instances |
-| Lifecycle test | 140s, of which `TIMING: create` was 1m51s |
-| Repository test | 148s, of which `TIMING: create` was 1m48s |
-| Persisted-token test | 141s, of which `TIMING: create` was 1m54s |
-| Survives-disconnect test | 151s, of which `TIMING: create` was 1m45s |
-| Toolchain test | 145s, of which `TIMING: create` was 1m44s |
-| `TIMING: cloud-init reported done` | 1m45s after create started |
+| `go test -tags=ec2 ./internal/ec2/...` | 1046s for all seven instances |
+| Lifecycle test | 155s, of which `TIMING: create` was 1m56s |
+| Repository test | 135s, of which `TIMING: create` was 1m45s |
+| Persisted-token test | 141s, of which `TIMING: create` was 1m52s |
+| Claude-authenticates test | 151s, of which `TIMING: create` was 1m50s |
+| Survives-disconnect test | 163s, of which `TIMING: create` was 1m55s |
+| New-session test | 153s, of which `TIMING: create` was 1m50s |
+| Toolchain test | 147s, of which `TIMING: create` was 1m45s |
+| `TIMING: cloud-init reported done` | 1m47s after create started |
 | `SIZE: rendered user_data` | 3418 bytes of the 16384-byte limit |
 
 Each test builds its own instance, so the wall clock is roughly the instance

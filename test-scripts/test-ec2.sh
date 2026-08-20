@@ -29,9 +29,13 @@ exportCredentialsFromTheConfiguredProfile() {
     export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 }
 
+# Every EC2 test builds its own billable instance, so re-running one after a
+# failure should not have to rebuild all of them. An optional first argument
+# narrows the run to the tests whose names match it; the default matches them all.
 runEC2Tests() {
     local logFile="$1"
-    go test -v -tags=ec2 -timeout 60m ./internal/ec2/... 2>&1 | tee "$logFile"
+    local namePattern="${2:-.}"
+    go test -v -tags=ec2 -timeout 60m -run "$namePattern" ./internal/ec2/... 2>&1 | tee "$logFile"
     return "${PIPESTATUS[0]}"
 }
 
@@ -60,7 +64,7 @@ LOG_FILE="$(mktemp)"
 trap 'rm -f "$LOG_FILE"' EXIT
 
 TEST_STATUS=0
-runEC2Tests "$LOG_FILE" || TEST_STATUS=$?
+runEC2Tests "$LOG_FILE" "${1:-}" || TEST_STATUS=$?
 
 failWhenGoTestSelectedNothing "$LOG_FILE"
 failWhenNoTestExecuted "$LOG_FILE"
