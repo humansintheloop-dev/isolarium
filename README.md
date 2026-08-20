@@ -127,6 +127,23 @@ bucket named `isolarium-tfstate-<account-id>-<region>`, with versioning enabled,
 `AES256` encryption, and all four public-access-block flags set. The bootstrap is
 idempotent — an existing bucket you already own is reused.
 
+The same first `create` also provisions host-side state under `~/.isolarium/ec2/`:
+
+- The Terraform working directory at `~/.isolarium/ec2/terraform/` is extracted
+  from the binary once. Later runs leave it alone, so edits you make there
+  survive — delete a file to have isolarium restore its shipped version.
+- An Ed25519 keypair is generated at `~/.isolarium/ec2/id_ed25519` (mode `0600`)
+  and `id_ed25519.pub` (mode `0644`). Both are reused once present; the public
+  half becomes the shared `aws_key_pair` every instance references.
+
+SSH ingress is restricted to your host's current public address, detected via
+`https://checkip.amazonaws.com` and applied as a single `/32`. There is one
+shared ingress rule for all instances, so **switching networks and then running
+any `create` or `destroy` re-points ingress and restores access to every
+instance**. Isolarium never writes `0.0.0.0/0`: on `create`, failed detection is
+fatal. Each successful detection is persisted to
+`~/.isolarium/ec2/terraform/isolarium.auto.tfvars`.
+
 These credentials must carry the following IAM permissions:
 
 - `sts:GetCallerIdentity`

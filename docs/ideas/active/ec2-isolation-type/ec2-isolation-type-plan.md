@@ -208,25 +208,25 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Add `newStateBucketClients(ctx, region)` building real SDK clients from the ambient environment, used only by `newEC2Backend()`
     - [x] Add an `EnsureBucketFunc` field to `EC2Backend`, wire it to `EnsureStateBucket`, and call it after `RequireRegion`
     - [x] Add the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` / `AWS_REGION` rows and the `sts:GetCallerIdentity` / `s3:*` permission list from spec 4.4 to `README.md`
-- [ ] **Task 1.4: The Terraform scaffolding, the Ed25519 keypair, and the host `/32` are provisioned on the host**
+- [x] **Task 1.4: The Terraform scaffolding, the Ed25519 keypair, and the host `/32` are provisioned on the host**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run 'TestExtractScaffolding|TestEnsureKeypair|TestIngress'`
   - Observable: after the first call against an empty base, `<base>/ec2/terraform/` holds `provider.tf`, `backend.tf`, `network.tf`, `security.tf`, `keypair.tf`, `ami.tf`, and `variables.tf` at mode `0644` in a `0755` directory, and a second call preserves a locally edited `provider.tf` byte for byte; `<base>/ec2/id_ed25519` exists at mode `0600` with `id_ed25519.pub` at `0644` beginning `ssh-ed25519 `, and a second call reuses both unchanged; `DetectPublicIP` against a fake returning `"203.0.113.7\n"` yields `203.0.113.7/32`, `PersistIngressCIDR` writes `ingress_cidr = "203.0.113.7/32"` to `isolarium.auto.tfvars`, and no path in `publicip.go` can return `0.0.0.0/0`
   - Evidence: `TestExtractScaffolding_WritesAllFiles`, `TestExtractScaffolding_DoesNotOverwriteExistingFiles`, `TestEnsureKeypair_GeneratesKeyWithCorrectModes`, `TestEnsureKeypair_ReusesExistingKey`, `TestIngressDetectsAndPersistsCIDR`, and `TestIngressNeverReturnsOpenCIDR`, all against `t.TempDir()` bases`
   - Steps:
-    - [ ] Add `internal/ec2/dirs.go` with `EC2Dir`, `TerraformDir`, `PrivateKeyPath`, `PublicKeyPath`, `KnownHostsPath`, and `TfvarsPath`, each taking the base directory so tests use `t.TempDir()`
-    - [ ] Write `internal/ec2/scaffold_test.go` first, then `internal/ec2/scaffold.go` with `//go:embed terraform` and `ExtractScaffolding(base string) error` skipping any file already present
-    - [ ] Create `internal/ec2/terraform/provider.tf` — `required_version = ">= 1.10"`, the `aws` provider pinned via `required_providers`, `region = var.region`, and `default_tags { tags = { ManagedBy = "isolarium" } }`
-    - [ ] Create `internal/ec2/terraform/backend.tf` — `terraform { backend "s3" { use_lockfile = true } }`, partial configuration only; bucket, key, and region come from `terraform init -backend-config=...`
-    - [ ] Create `internal/ec2/terraform/variables.tf` declaring `ingress_cidr`, `public_key`, and `region`
-    - [ ] Create `internal/ec2/terraform/network.tf` — `aws_vpc` (`10.42.0.0/16`, DNS hostnames and support enabled), `aws_subnet` (`10.42.1.0/24`, `map_public_ip_on_launch = true`), `aws_internet_gateway`, `aws_route_table` with a `0.0.0.0/0` default route, and `aws_route_table_association`
-    - [ ] Create `internal/ec2/terraform/security.tf` — `aws_security_group` with exactly one ingress rule (`from_port = 22`, `to_port = 22`, `protocol = "tcp"`, `cidr_blocks = [var.ingress_cidr]`) and unrestricted egress
-    - [ ] Create `internal/ec2/terraform/keypair.tf` — `aws_key_pair` with `public_key = var.public_key`
-    - [ ] Create `internal/ec2/terraform/ami.tf` — `data "aws_ssm_parameter" "ubuntu_ami"` at `/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id`
-    - [ ] Write `internal/ec2/keypair_test.go` first, then `internal/ec2/keypair.go` with `EnsureKeypair(base string) (publicKey string, err error)` using `crypto/ed25519` plus `golang.org/x/crypto/ssh`; add `golang.org/x/crypto` with `go get` and run `go mod tidy`
-    - [ ] Write `internal/ec2/publicip_test.go` first with an injected `httpGetFunc`, then `internal/ec2/publicip.go` with `DetectPublicIP` against `https://checkip.amazonaws.com` (trim, `net.ParseIP`, append `/32`), `PersistIngressCIDR`, and `ReadPersistedIngressCIDR`
-    - [ ] Add `ExtractScaffoldingFunc`, `EnsureKeypairFunc`, and `DetectPublicIPFunc` fields to `EC2Backend` and call them in that order after the bucket bootstrap, persisting the CIDR on success
-    - [ ] Note the `0600` private key and the network-switch ingress behavior in the EC2 section of `README.md`
+    - [x] Add `internal/ec2/dirs.go` with `EC2Dir`, `TerraformDir`, `PrivateKeyPath`, `PublicKeyPath`, `KnownHostsPath`, and `TfvarsPath`, each taking the base directory so tests use `t.TempDir()`
+    - [x] Write `internal/ec2/scaffold_test.go` first, then `internal/ec2/scaffold.go` with `//go:embed terraform` and `ExtractScaffolding(base string) error` skipping any file already present
+    - [x] Create `internal/ec2/terraform/provider.tf` — `required_version = ">= 1.10"`, the `aws` provider pinned via `required_providers`, `region = var.region`, and `default_tags { tags = { ManagedBy = "isolarium" } }`
+    - [x] Create `internal/ec2/terraform/backend.tf` — `terraform { backend "s3" { use_lockfile = true } }`, partial configuration only; bucket, key, and region come from `terraform init -backend-config=...`
+    - [x] Create `internal/ec2/terraform/variables.tf` declaring `ingress_cidr`, `public_key`, and `region`
+    - [x] Create `internal/ec2/terraform/network.tf` — `aws_vpc` (`10.42.0.0/16`, DNS hostnames and support enabled), `aws_subnet` (`10.42.1.0/24`, `map_public_ip_on_launch = true`), `aws_internet_gateway`, `aws_route_table` with a `0.0.0.0/0` default route, and `aws_route_table_association`
+    - [x] Create `internal/ec2/terraform/security.tf` — `aws_security_group` with exactly one ingress rule (`from_port = 22`, `to_port = 22`, `protocol = "tcp"`, `cidr_blocks = [var.ingress_cidr]`) and unrestricted egress
+    - [x] Create `internal/ec2/terraform/keypair.tf` — `aws_key_pair` with `public_key = var.public_key`
+    - [x] Create `internal/ec2/terraform/ami.tf` — `data "aws_ssm_parameter" "ubuntu_ami"` at `/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id`
+    - [x] Write `internal/ec2/keypair_test.go` first, then `internal/ec2/keypair.go` with `EnsureKeypair(base string) (publicKey string, err error)` using `crypto/ed25519` plus `golang.org/x/crypto/ssh`; add `golang.org/x/crypto` with `go get` and run `go mod tidy`
+    - [x] Write `internal/ec2/publicip_test.go` first with an injected `httpGetFunc`, then `internal/ec2/publicip.go` with `DetectPublicIP` against `https://checkip.amazonaws.com` (trim, `net.ParseIP`, append `/32`), `PersistIngressCIDR`, and `ReadPersistedIngressCIDR`
+    - [x] Add `ExtractScaffoldingFunc`, `EnsureKeypairFunc`, and `DetectPublicIPFunc` fields to `EC2Backend` and call them in that order after the bucket bootstrap, persisting the CIDR on success
+    - [x] Note the `0600` private key and the network-switch ingress behavior in the EC2 section of `README.md`
 - [ ] **Task 1.5: `create` writes `instance-<name>.tf`, applies, and records `metadata.json`**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/backend/... -run TestEC2Backend_Create_LaunchesInstance`

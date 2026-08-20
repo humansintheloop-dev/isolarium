@@ -50,9 +50,12 @@ func newEC2Backend() *EC2Backend {
 		home = os.Getenv("HOME")
 	}
 	return &EC2Backend{
-		MetadataDir:      filepath.Join(home, ".isolarium"),
-		LookupEnvFunc:    os.LookupEnv,
-		EnsureBucketFunc: ec2.BootstrapStateBucket,
+		MetadataDir:            filepath.Join(home, ".isolarium"),
+		LookupEnvFunc:          os.LookupEnv,
+		EnsureBucketFunc:       ec2.BootstrapStateBucket,
+		ExtractScaffoldingFunc: ec2.ExtractScaffolding,
+		EnsureKeypairFunc:      ec2.EnsureKeypair,
+		DetectPublicIPFunc:     func() (string, error) { return ec2.DetectPublicIP(ec2.DefaultHTTPGet) },
 	}
 }
 
