@@ -141,6 +141,62 @@ func TestLoadPidConfigRejectsInvalidScriptEntries(t *testing.T) {
 	}
 }
 
+func TestValidateConfig_RejectsEscapingEC2Paths(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		errText string
+	}{
+		{
+			name: "creation_scripts",
+			yaml: `isolarium:
+  ec2:
+    create:
+      creation_scripts:
+        - path: ../escape.sh
+`,
+			errText: `ec2.create.creation_scripts[0]: path "../escape.sh" escapes project root`,
+		},
+		{
+			name: "post_creation_scripts.host_scripts",
+			yaml: `isolarium:
+  ec2:
+    create:
+      post_creation_scripts:
+        host_scripts:
+          - path: ../escape.sh
+`,
+			errText: `ec2.create.post_creation_scripts.host_scripts[0]: path "../escape.sh" escapes project root`,
+		},
+		{
+			name: "post_creation_scripts.env_scripts",
+			yaml: `isolarium:
+  ec2:
+    create:
+      post_creation_scripts:
+        env_scripts:
+          - path: ../escape.sh
+`,
+			errText: `ec2.create.post_creation_scripts.env_scripts[0]: path "../escape.sh" escapes project root`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writePidYaml(t, dir, tt.yaml)
+
+			_, err := LoadPidConfig(dir)
+			if err == nil {
+				t.Fatalf("expected error %q", tt.errText)
+			}
+			if err.Error() != tt.errText {
+				t.Errorf("expected error %q, got: %v", tt.errText, err)
+			}
+		})
+	}
+}
+
 func writePidYaml(t *testing.T, dir, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, "pid.yaml"), []byte(content), 0644); err != nil {

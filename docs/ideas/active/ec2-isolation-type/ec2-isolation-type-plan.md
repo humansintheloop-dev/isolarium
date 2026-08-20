@@ -447,14 +447,14 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
 ## Steel Thread 7: `pid.yaml` `ec2` scripts run at create time
 Spec 3.12, acceptance criterion 8. Thickens `create` with the project's own script hooks, proven by marker files left on a real instance and on the host.
 
-- [ ] **Task 7.1: `pid.yaml` `ec2` sections are validated and their paths cannot escape the project root**
+- [x] **Task 7.1: `pid.yaml` `ec2` sections are validated and their paths cannot escape the project root**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/config/... -run TestValidateConfig`
   - Observable: a `pid.yaml` whose `ec2.create.creation_scripts[0].path` is `../escape.sh` is rejected by `LoadPidConfig` with `ec2.create.creation_scripts[0]: path "../escape.sh" escapes project root`, and the same holds for `ec2.create.post_creation_scripts.host_scripts` and `...env_scripts`
   - Evidence: `TestValidateConfig_RejectsEscapingEC2Paths` in `internal/config/pidconfig_test.go` drives all three new sections`
   - Steps:
-    - [ ] Add failing cases to `internal/config/pidconfig_test.go` for the three `ec2.*` path-validation sections
-    - [ ] Add the three `ec2.*` entries to the `sections` slice in `validateConfig` in `internal/config/pidconfig.go`
+    - [x] Add failing cases to `internal/config/pidconfig_test.go` for the three `ec2.*` path-validation sections
+    - [x] Add the three `ec2.*` entries to the `sections` slice in `validateConfig` in `internal/config/pidconfig.go`
 - [ ] **Task 7.2: Creation, host, and env scripts declared in `pid.yaml` actually run on a real instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

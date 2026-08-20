@@ -68,18 +68,24 @@ func LoadPidConfig(workDir string) (*PidConfig, error) {
 	return cfg, nil
 }
 
-func validateConfig(cfg *PidConfig, workDir string) error {
-	sections := []struct {
-		name    string
-		scripts []ScriptEntry
-	}{
-		{"container.create.creation_scripts", cfg.Container.Create.CreationScripts},
-		{"container.create.post_creation_scripts.host_scripts", cfg.Container.Create.PostCreationScripts.HostScripts},
-		{"container.create.post_creation_scripts.env_scripts", cfg.Container.Create.PostCreationScripts.EnvScripts},
-		{"vm.create.creation_scripts", cfg.VM.Create.CreationScripts},
-		{"vm.create.post_creation_scripts.host_scripts", cfg.VM.Create.PostCreationScripts.HostScripts},
-		{"vm.create.post_creation_scripts.env_scripts", cfg.VM.Create.PostCreationScripts.EnvScripts},
+type scriptSection struct {
+	name    string
+	scripts []ScriptEntry
+}
+
+func scriptSectionsOf(isolationType string, cfg IsolationTypeConfig) []scriptSection {
+	return []scriptSection{
+		{isolationType + ".create.creation_scripts", cfg.Create.CreationScripts},
+		{isolationType + ".create.post_creation_scripts.host_scripts", cfg.Create.PostCreationScripts.HostScripts},
+		{isolationType + ".create.post_creation_scripts.env_scripts", cfg.Create.PostCreationScripts.EnvScripts},
 	}
+}
+
+func validateConfig(cfg *PidConfig, workDir string) error {
+	var sections []scriptSection
+	sections = append(sections, scriptSectionsOf("container", cfg.Container)...)
+	sections = append(sections, scriptSectionsOf("vm", cfg.VM)...)
+	sections = append(sections, scriptSectionsOf("ec2", cfg.EC2)...)
 
 	absWorkDir, err := filepath.Abs(workDir)
 	if err != nil {
