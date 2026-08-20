@@ -168,15 +168,15 @@ internal/cli/cmd_ec2.go             ec2 command group + wipe subcommand
 ## Steel Thread 1: A real EC2 instance is created, runs a command over SSH, and is destroyed
 The walking skeleton. This thread cuts vertically through every seam the capability depends on — CLI dispatch, the S3 remote state backend, Terraform apply, the VPC/subnet/internet-gateway/route-table/security-group network, the key pair, SSH reachability, metadata, and teardown — and proves them together against a real AWS account in Task 1.8. The instance carries no `user_data` and no toolchain yet; every later thread thickens this working path. Spec scenarios 1, 2, and 8.
 
-- [ ] **Task 1.1: Existing build and unit test suite pass unchanged**
+- [x] **Task 1.1: Existing build and unit test suite pass unchanged**
   - TaskType: INFRA
   - Entrypoint: `make build && ./test-scripts/test-unit.sh`
   - Observable: `bin/isolarium` is produced and `go test ./...` reports `ok` for every package with exit code 0
   - Evidence: `make build && ./test-scripts/test-unit.sh` exits 0; its output is the baseline recorded before any EC2 code is added`
   - Steps:
-    - [ ] Run `make build` and confirm `bin/isolarium` is written
-    - [ ] Run `./test-scripts/test-unit.sh` and confirm exit code 0
-    - [ ] Confirm `.github/workflows/ci.yml` already invokes `./test-scripts/test-end-to-end.sh --skip-docker-integration` — do not modify CI in this task
+    - [x] Run `make build` and confirm `bin/isolarium` is written
+    - [x] Run `./test-scripts/test-unit.sh` and confirm exit code 0
+    - [x] Confirm `.github/workflows/ci.yml` already invokes `./test-scripts/test-end-to-end.sh --skip-docker-integration` — do not modify CI in this task
 - [ ] **Task 1.2: `isolarium create --type ec2 --name my-work` is accepted and routed to `EC2Backend`**
   - TaskType: OUTCOME
   - Entrypoint: `./bin/isolarium create --type ec2 --name my-work`
