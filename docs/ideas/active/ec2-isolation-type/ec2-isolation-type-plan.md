@@ -193,21 +193,21 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Add `internal/cli/cmd_create_ec2_test.go` driving the cobra root command with `--type ec2 --name my-work` and with `--type ec2` alone
     - [x] Create `test-scripts/test-ec2-preflight.sh` running `go build -o bin/isolarium ./cmd/isolarium` plus the assertions above; make it executable and add it to `test-scripts/test-end-to-end.sh` after `test-unit.sh`
     - [x] Add an `EC2 isolation (AWS)` bullet to the Features list in `README.md`
-- [ ] **Task 1.3: The region is resolved and the S3 state bucket is bootstrapped idempotently**
+- [x] **Task 1.3: The region is resolved and the S3 state bucket is bootstrapped idempotently**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run 'TestRequireRegion|TestEnsureStateBucket'`
   - Observable: `RequireRegion` returns the value of `AWS_REGION`; `EnsureStateBucket` derives `isolarium-tfstate-<account-id>-<region>` from STS `GetCallerIdentity`, then issues `CreateBucket`, `PutBucketVersioning` (Enabled), `PutBucketEncryption` (`AES256`), `PutPublicAccessBlock` (all four flags true) in that order, and returns the bucket name; a second call against a client returning `BucketAlreadyOwnedByYou` returns the same name with a nil error and still issues the three configuration calls
   - Evidence: `TestEnsureStateBucket_CreatesAndConfigures` and `TestEnsureStateBucket_IsIdempotent` in `internal/ec2/bucket_test.go` drive it with a fake S3/STS client recording an ordered call log; the real bucket is created for the first time by Task 1.8`
   - Steps:
-    - [ ] Add `internal/ec2/preflight_test.go` and `internal/ec2/preflight.go` with `RequireRegion(lookupEnv func(string) (string, bool)) (string, error)` returning the region when `AWS_REGION` is set; its failure messages belong to Steel Thread 10
-    - [ ] Add a `LookupEnvFunc` field to `EC2Backend` defaulting to `os.LookupEnv`, and call `RequireRegion` first in `Create`
-    - [ ] Add `github.com/aws/aws-sdk-go-v2/config`, `.../service/sts`, and `.../service/s3` to `go.mod` with `go get`, then run `go mod tidy`
-    - [ ] Define narrow interfaces in `internal/ec2/bucket.go` — `callerIdentityAPI` with `GetCallerIdentity`, and `stateBucketAPI` with `CreateBucket`, `PutBucketVersioning`, `PutBucketEncryption`, `PutPublicAccessBlock`
-    - [ ] Write `internal/ec2/bucket_test.go` first, with fakes implementing those interfaces and an ordered call log
-    - [ ] Implement `StateBucketName(accountID, region string) string` and `EnsureStateBucket(ctx, sts callerIdentityAPI, s3 stateBucketAPI, region string) (string, error)`; treat `BucketAlreadyOwnedByYou` as success and return every other `CreateBucket` error
-    - [ ] Add `newStateBucketClients(ctx, region)` building real SDK clients from the ambient environment, used only by `newEC2Backend()`
-    - [ ] Add an `EnsureBucketFunc` field to `EC2Backend`, wire it to `EnsureStateBucket`, and call it after `RequireRegion`
-    - [ ] Add the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` / `AWS_REGION` rows and the `sts:GetCallerIdentity` / `s3:*` permission list from spec 4.4 to `README.md`
+    - [x] Add `internal/ec2/preflight_test.go` and `internal/ec2/preflight.go` with `RequireRegion(lookupEnv func(string) (string, bool)) (string, error)` returning the region when `AWS_REGION` is set; its failure messages belong to Steel Thread 10
+    - [x] Add a `LookupEnvFunc` field to `EC2Backend` defaulting to `os.LookupEnv`, and call `RequireRegion` first in `Create`
+    - [x] Add `github.com/aws/aws-sdk-go-v2/config`, `.../service/sts`, and `.../service/s3` to `go.mod` with `go get`, then run `go mod tidy`
+    - [x] Define narrow interfaces in `internal/ec2/bucket.go` — `callerIdentityAPI` with `GetCallerIdentity`, and `stateBucketAPI` with `CreateBucket`, `PutBucketVersioning`, `PutBucketEncryption`, `PutPublicAccessBlock`
+    - [x] Write `internal/ec2/bucket_test.go` first, with fakes implementing those interfaces and an ordered call log
+    - [x] Implement `StateBucketName(accountID, region string) string` and `EnsureStateBucket(ctx, sts callerIdentityAPI, s3 stateBucketAPI, region string) (string, error)`; treat `BucketAlreadyOwnedByYou` as success and return every other `CreateBucket` error
+    - [x] Add `newStateBucketClients(ctx, region)` building real SDK clients from the ambient environment, used only by `newEC2Backend()`
+    - [x] Add an `EnsureBucketFunc` field to `EC2Backend`, wire it to `EnsureStateBucket`, and call it after `RequireRegion`
+    - [x] Add the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` / `AWS_REGION` rows and the `sts:GetCallerIdentity` / `s3:*` permission list from spec 4.4 to `README.md`
 - [ ] **Task 1.4: The Terraform scaffolding, the Ed25519 keypair, and the host `/32` are provisioned on the host**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run 'TestExtractScaffolding|TestEnsureKeypair|TestIngress'`

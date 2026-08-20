@@ -7,6 +7,7 @@ import (
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
 	"github.com/humansintheloop-dev/isolarium/internal/docker"
+	"github.com/humansintheloop-dev/isolarium/internal/ec2"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 	"github.com/humansintheloop-dev/isolarium/internal/nono"
 )
@@ -49,7 +50,9 @@ func newEC2Backend() *EC2Backend {
 		home = os.Getenv("HOME")
 	}
 	return &EC2Backend{
-		MetadataDir: filepath.Join(home, ".isolarium"),
+		MetadataDir:      filepath.Join(home, ".isolarium"),
+		LookupEnvFunc:    os.LookupEnv,
+		EnsureBucketFunc: ec2.BootstrapStateBucket,
 	}
 }
 

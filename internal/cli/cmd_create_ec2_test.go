@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,29 +41,34 @@ func TestCreateCommand_EC2UsesDefaultName(t *testing.T) {
 	}
 }
 
-func TestCreateCommand_EC2ResolvesToEC2Backend(t *testing.T) {
+// The real EC2Backend now resolves the region before anything else, so an
+// unset AWS_REGION is what proves create reached EC2Backend.Create rather than
+// being rejected as an unknown type.
+func createWithoutRegion(t *testing.T, args ...string) error {
+	t.Helper()
+	t.Setenv("AWS_REGION", "")
 	rootCmd := NewRootCmd()
-	rootCmd.SetArgs([]string{"create", "--type", "ec2", "--name", "my-work"})
+	rootCmd.SetArgs(append([]string{"create", "--env-file", filepath.Join(t.TempDir(), "absent.env")}, args...))
 	err := rootCmd.Execute()
 	if err == nil {
-		t.Fatal("expected not-yet-implemented error from the EC2 backend")
+		t.Fatal("expected an error from the EC2 backend")
 	}
+	return err
+}
 
-	expectedMessage := `create "my-work": not yet implemented for --type ec2`
+func TestCreateCommand_EC2ResolvesToEC2Backend(t *testing.T) {
+	err := createWithoutRegion(t, "--type", "ec2", "--name", "my-work")
+
+	expectedMessage := `create "my-work": AWS_REGION is not set`
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error containing %q, got %q", expectedMessage, err.Error())
 	}
 }
 
 func TestCreateCommand_EC2DefaultNameReachesEC2Backend(t *testing.T) {
-	rootCmd := NewRootCmd()
-	rootCmd.SetArgs([]string{"create", "--type", "ec2"})
-	err := rootCmd.Execute()
-	if err == nil {
-		t.Fatal("expected not-yet-implemented error from the EC2 backend")
-	}
+	err := createWithoutRegion(t, "--type", "ec2")
 
-	expectedMessage := `create "isolarium-ec2": not yet implemented for --type ec2`
+	expectedMessage := `create "isolarium-ec2": AWS_REGION is not set`
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error containing %q, got %q", expectedMessage, err.Error())
 	}

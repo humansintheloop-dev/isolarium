@@ -11,12 +11,17 @@ echo "=== Testing --type ec2 is accepted and routed to EC2Backend ==="
 echo "--- Building isolarium ---"
 go build -o bin/isolarium ./cmd/isolarium
 
-NOT_IMPLEMENTED_MESSAGE="not yet implemented for --type ec2"
+# EC2Backend.Create resolves the region first, so an unset AWS_REGION is the
+# EC2-specific failure that proves the command reached the backend. Clearing it
+# also guarantees this script never issues an AWS call.
+BACKEND_REACHED_MESSAGE="AWS_REGION is not set"
+EMPTY_ENV_FILE="$(mktemp)"
+trap 'rm -f "$EMPTY_ENV_FILE"' EXIT
 
 TESTS_RUN=0
 
 captureCreateFailure() {
-    if ./bin/isolarium create --type ec2 "$@" > /tmp/isolarium-ec2-preflight.out 2>&1; then
+    if env -u AWS_REGION ./bin/isolarium create --env-file "$EMPTY_ENV_FILE" --type ec2 "$@" > /tmp/isolarium-ec2-preflight.out 2>&1; then
         echo "FAIL: expected 'isolarium create --type ec2 $*' to fail, but it succeeded"
         exit 1
     fi
@@ -40,8 +45,8 @@ assertReachesEC2BackendWithName() {
         exit 1
     fi
 
-    if ! echo "$OUTPUT" | grep -q "create \"$expectedName\": $NOT_IMPLEMENTED_MESSAGE"; then
-        echo "FAIL: expected output to contain 'create \"$expectedName\": $NOT_IMPLEMENTED_MESSAGE' but got: $OUTPUT"
+    if ! echo "$OUTPUT" | grep -q "create \"$expectedName\": $BACKEND_REACHED_MESSAGE"; then
+        echo "FAIL: expected output to contain 'create \"$expectedName\": $BACKEND_REACHED_MESSAGE' but got: $OUTPUT"
         exit 1
     fi
 

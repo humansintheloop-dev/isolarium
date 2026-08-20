@@ -84,7 +84,7 @@ The `--no-gh-token` flag disables all token injection for commands that should r
 
 | Tool | Install | Required for |
 |------|---------|-------------|
-| Go 1.22+ | [go.dev](https://go.dev/dl/) | Building from source |
+| Go 1.24+ | [go.dev](https://go.dev/dl/) | Building from source |
 | Lima | `brew install lima` | VM mode (macOS only) |
 | Docker | `brew install docker` | Container mode |
 | nono | [nono](https://nono.sh/) | Nono sandbox mode |
@@ -108,6 +108,36 @@ Create a GitHub App for repo-scoped agent credentials and configure it in `.env.
 GITHUB_APP_ID=123456
 GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
 ```
+
+### EC2 mode configuration
+
+EC2 mode reads AWS credentials from the same `.env.local` file. There is no
+isolarium-specific AWS profile knob — on SSO, export the env-var form with
+`aws configure export-credentials`.
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `AWS_ACCESS_KEY_ID` | yes | Consumed natively by Terraform and the AWS SDK |
+| `AWS_SECRET_ACCESS_KEY` | yes | Consumed natively by Terraform and the AWS SDK |
+| `AWS_SESSION_TOKEN` | no | For temporary or SSO credentials |
+| `AWS_REGION` | yes | No implicit default; `create --type ec2` fails fast when unset |
+
+On the first `create --type ec2`, isolarium bootstraps a Terraform remote-state
+bucket named `isolarium-tfstate-<account-id>-<region>`, with versioning enabled,
+`AES256` encryption, and all four public-access-block flags set. The bootstrap is
+idempotent — an existing bucket you already own is reused.
+
+These credentials must carry the following IAM permissions:
+
+- `sts:GetCallerIdentity`
+- On the state bucket: `s3:CreateBucket`, `s3:PutBucketVersioning`,
+  `s3:PutEncryptionConfiguration`, `s3:PutBucketPublicAccessBlock`,
+  `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`
+- `ssm:GetParameter` for the AMI lookup
+- The EC2 and VPC permissions to create, describe, tag, and delete instances,
+  key pairs, security groups, VPCs, subnets, internet gateways, and route tables
+
+No `dynamodb:*` permission is required — state locking uses S3 conditional writes.
 
 ## Quickstart
 
