@@ -416,21 +416,21 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
     - [x] Carry the reason into the error: on exit 2 report which modules degraded from `cloud-init status --long` and point at `/var/log/cloud-init-output.log`, rather than the current message claiming the instance did not finish
     - [x] Leave `sshReadiness` retrying on any failure, because every failure there genuinely means the instance is not up yet
     - [x] Keep the 15-minute timeout message for the one case it now describes: cloud-init still running when the budget runs out
-- [ ] **Task 6.4: The `ec2` suite runs against a single instance created first and terminated last**
+- [x] **Task 6.4: The `ec2` suite runs against a single instance created first and terminated last**
   - TaskType: INFRA
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: a full suite run logs exactly one `TIMING: create` line instead of seven, and ends with the shared instance reported terminated; every test still runs alone under `./test-scripts/test-ec2.sh <pattern>`, creating the instance on demand
   - Evidence: ``./test-scripts/test-ec2.sh 2>&1 | grep -c 'TIMING: create'` reports 1, `TestEC2Lifecycle_Terminates` asserts the instance is terminated or shutting-down via `DescribeInstances`, and `aws ec2 describe-instances --filters Name=tag:ManagedBy,Values=isolarium Name=instance-state-name,Values=running` reports none left after the run`
   - Steps:
-    - [ ] Split `TestEC2Lifecycle_CreatesRunsCommandsAndDestroys` into a create test that runs first, asserting the shared infrastructure, `echo hello`, and exit-code propagation, and a terminate test that runs last, destroying the instance and asserting it is terminated
-    - [ ] Guarantee the ordering: `go test` runs tests in source order within a file but walks files in sorted-filename order, so the create test's file must sort first and the terminate test's file last (or both ends must sit in one file with the observers between them)
-    - [ ] Replace the per-test `t.TempDir()` metadata directory with a package-level directory created once and removed in `TestMain`, so the keypair, known_hosts, and instance metadata outlive the create test
-    - [ ] Rebind `ec2Environment.t` to the running test on each access, so helpers never call `Fatalf` or `Logf` on a `*testing.T` whose test has already returned
-    - [ ] Move `destroyIfStillRunning` from `t.Cleanup` to a `TestMain` teardown after `m.Run()`, so a filtered or aborted run never leaves an instance billing
-    - [ ] Have every remaining ec2 test take the shared instance from a lazy accessor that creates it on first use, keeping single-test reruns via `./test-scripts/test-ec2.sh <pattern>` working
-    - [ ] Keep the assertions that require a pristine instance ahead of anything that writes to it: the clone-cleanliness and token-grep checks must run before the Claude credentials copy and before the tmux writer script is placed
-    - [ ] Kill the tmux server between the two tmux tests, because `TmuxCommand` uses `tmux new-session -A`, which attaches to the session the previous test deliberately left running rather than starting a fresh one
-    - [ ] Record the shared-instance ordering constraints in a comment at the create test, so a later rename or a new test cannot silently break them
+    - [x] Split `TestEC2Lifecycle_CreatesRunsCommandsAndDestroys` into a create test that runs first, asserting the shared infrastructure, `echo hello`, and exit-code propagation, and a terminate test that runs last, destroying the instance and asserting it is terminated
+    - [x] Guarantee the ordering: `go test` runs tests in source order within a file but walks files in sorted-filename order, so the create test's file must sort first and the terminate test's file last (or both ends must sit in one file with the observers between them)
+    - [x] Replace the per-test `t.TempDir()` metadata directory with a package-level directory created once and removed in `TestMain`, so the keypair, known_hosts, and instance metadata outlive the create test
+    - [x] Rebind `ec2Environment.t` to the running test on each access, so helpers never call `Fatalf` or `Logf` on a `*testing.T` whose test has already returned
+    - [x] Move `destroyIfStillRunning` from `t.Cleanup` to a `TestMain` teardown after `m.Run()`, so a filtered or aborted run never leaves an instance billing
+    - [x] Have every remaining ec2 test take the shared instance from a lazy accessor that creates it on first use, keeping single-test reruns via `./test-scripts/test-ec2.sh <pattern>` working
+    - [x] Keep the assertions that require a pristine instance ahead of anything that writes to it: the clone-cleanliness and token-grep checks must run before the Claude credentials copy and before the tmux writer script is placed
+    - [x] Kill the tmux server between the two tmux tests, because `TmuxCommand` uses `tmux new-session -A`, which attaches to the session the previous test deliberately left running rather than starting a fresh one
+    - [x] Record the shared-instance ordering constraints in a comment at the create test, so a later rename or a new test cannot silently break them
 - [ ] **Task 6.5: Claude Code is installed by the native installer as the user that runs it**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
@@ -797,3 +797,6 @@ cloud-init runs runcmd as root, so npm install -g @anthropic-ai/claude-code is t
 
 ### 2026-08-20 14:42 - mark-task-complete
 readinessLoop now classifies the probe's exit code: cloud-init exit 0 is ready, 2 reports the degraded modules from the long status, 1 reports the failure, and only an ssh transport failure is retried against the 15-minute budget
+
+### 2026-08-20 15:01 - mark-task-complete
+The ec2 suite now shares one instance: TestEC2Lifecycle_Creates creates it, zz_lifecycle_terminate_ec2_test.go terminates it last, TestMain owns the metadata directory and the teardown, and test-ec2.sh fails a run that created more than one instance or left one running.

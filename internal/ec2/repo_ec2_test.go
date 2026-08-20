@@ -12,18 +12,19 @@ import (
 )
 
 const (
-	repositoryEnvironmentName = "isolarium-ec2-repository-test"
-	tokenEnvironmentName      = "isolarium-ec2-token-test"
-	isolationNameSuffix       = " - i2code"
-	grepFoundNothingExitCode  = 1
-	instanceHomeDir           = "/home/ubuntu"
+	isolationNameSuffix      = " - i2code"
+	grepFoundNothingExitCode = 1
+	instanceHomeDir          = "/home/ubuntu"
 )
 
 // TestEC2Instance_HasRepositoryAtBranch proves that create leaves a real
 // instance holding the branch it was run from, attributed to the isolated
 // author, with the host's project config alongside the clone.
+//
+// Its clone-cleanliness assertion needs an instance nothing has written to yet,
+// which is why this file sorts ahead of the ones that do.
 func TestEC2Instance_HasRepositoryAtBranch(t *testing.T) {
-	environment := startEC2Environment(t, repositoryEnvironmentName)
+	environment := sharedInstance(t)
 
 	environment.assertCheckedOutBranchIsTheOneCreateRanFrom()
 	environment.assertCommitsAreAttributedToTheIsolatedAuthor()
@@ -33,9 +34,10 @@ func TestEC2Instance_HasRepositoryAtBranch(t *testing.T) {
 
 // TestEC2Instance_HasNoPersistedToken proves the clone token lives only in the
 // argument list of the single git clone that needs it, and never lands on the
-// instance's disk.
+// instance's disk. It reads the whole home directory, so it too has to run
+// before anything else puts a file there.
 func TestEC2Instance_HasNoPersistedToken(t *testing.T) {
-	environment := startEC2Environment(t, tokenEnvironmentName)
+	environment := sharedInstance(t)
 
 	for _, search := range secretSearches(environment.repository.Token) {
 		environment.assertNothingOnTheInstanceContains(search)

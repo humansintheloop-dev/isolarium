@@ -11,17 +11,14 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
 )
 
-const (
-	toolchainEnvironmentName = "isolarium-ec2-toolchain-test"
-	userDataLimit            = 16384
-)
+const userDataLimit = 16384
 
 // TestEC2Instance_HasToolchain proves that the cloud-init document carried as
 // user_data actually provisions a usable instance, rather than merely rendering
 // the right text host-side.
 func TestEC2Instance_HasToolchain(t *testing.T) {
 	reportRenderedUserDataSize(t)
-	environment := startEC2Environment(t, toolchainEnvironmentName)
+	environment := sharedInstance(t)
 
 	environment.assertCloudInitReportsDone()
 	for _, probe := range toolchainProbes() {

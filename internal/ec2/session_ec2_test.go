@@ -12,11 +12,10 @@ import (
 )
 
 const (
-	credentialsEnvironmentName = "isolarium-ec2-credentials-test"
-	hostCredentialsPathEnvVar  = "CLAUDE_CREDENTIALS_PATH"
-	ownerOnlyFileMode          = "600"
-	authenticationPrompt       = "'reply with the single word ok'"
-	expectedReply              = "ok"
+	hostCredentialsPathEnvVar = "CLAUDE_CREDENTIALS_PATH"
+	ownerOnlyFileMode         = "600"
+	authenticationPrompt      = "'reply with the single word ok'"
+	expectedReply             = "ok"
 )
 
 // TestEC2Instance_ClaudeAuthenticates proves that the credentials isolarium
@@ -28,7 +27,7 @@ const (
 // A1, accepted unverified for v1.
 func TestEC2Instance_ClaudeAuthenticates(t *testing.T) {
 	credentials := requireHostClaudeCredentials(t)
-	environment := startEC2Environment(t, credentialsEnvironmentName)
+	environment := sharedInstance(t)
 
 	environment.copyClaudeCredentials(credentials)
 

@@ -21,20 +21,18 @@ import (
 )
 
 const (
-	tmuxEnvironmentName       = "isolarium-ec2-tmux-test"
-	newSessionEnvironmentName = "isolarium-ec2-new-session-test"
-	writerScriptPath          = instanceHomeDir + "/writer.sh"
-	writerLogPath             = instanceHomeDir + "/writer.log"
-	writerPIDPath             = instanceHomeDir + "/writer.pid"
-	writeInterval             = time.Second
-	intervalsSpentOffline     = 5
-	writerStartTimeout        = 60 * time.Second
-	writerStartInterval       = time.Second
-	sshChildTimeout           = 60 * time.Second
-	sshChildInterval          = 200 * time.Millisecond
-	bothSessionsTimeout       = 60 * time.Second
-	bothSessionsInterval      = 2 * time.Second
-	sessionCloseTimeout       = 60 * time.Second
+	writerScriptPath      = instanceHomeDir + "/writer.sh"
+	writerLogPath         = instanceHomeDir + "/writer.log"
+	writerPIDPath         = instanceHomeDir + "/writer.pid"
+	writeInterval         = time.Second
+	intervalsSpentOffline = 5
+	writerStartTimeout    = 60 * time.Second
+	writerStartInterval   = time.Second
+	sshChildTimeout       = 60 * time.Second
+	sshChildInterval      = 200 * time.Millisecond
+	bothSessionsTimeout   = 60 * time.Second
+	bothSessionsInterval  = 2 * time.Second
+	sessionCloseTimeout   = 60 * time.Second
 )
 
 // additionalSessionName is the session --new-session has to open while
@@ -63,7 +61,8 @@ done
 // for: work started on the instance outlives the connection that started it, so
 // a closed laptop or a dropped network costs nothing.
 func TestEC2Session_SurvivesDisconnect(t *testing.T) {
-	environment := startEC2Environment(t, tmuxEnvironmentName)
+	environment := sharedInstance(t)
+	environment.clearWhatAnEarlierTmuxTestLeftBehind()
 	attachPseudoTerminal(t)
 	environment.placeWriterScript()
 
@@ -87,7 +86,8 @@ func TestEC2Session_SurvivesDisconnect(t *testing.T) {
 // two run side by side, and once the second has closed the first is still
 // carrying the same process it was given.
 func TestEC2Session_NewSessionLeavesExistingUntouched(t *testing.T) {
-	environment := startEC2Environment(t, newSessionEnvironmentName)
+	environment := sharedInstance(t)
+	environment.clearWhatAnEarlierTmuxTestLeftBehind()
 	attachPseudoTerminal(t)
 	environment.placeWriterScript()
 
@@ -104,14 +104,35 @@ func TestEC2Session_NewSessionLeavesExistingUntouched(t *testing.T) {
 	firstConnection.killAbruptly()
 }
 
+// clearWhatAnEarlierTmuxTestLeftBehind gives this test the instance in the state
+// a first tmux test would find it in. Both things it removes matter: TmuxCommand
+// runs `tmux new-session -A`, which would attach to the session the previous
+// test deliberately left running rather than start the writer at all, and the
+// writer's own PID file would otherwise still be there from that run, so waiting
+// for the writer to start would read the dead process's PID.
+func (e *ec2Environment) clearWhatAnEarlierTmuxTestLeftBehind() {
+	e.t.Helper()
+
+	e.askInstance("tmux", "kill-server")
+	e.askInstance("rm", "-f", writerPIDPath, writerLogPath)
+}
+
 // startAdditionalSession opens a second session the way --new-session does. Its
 // command blocks forever, so the session stays up for as long as the test needs
 // both sessions running and ends only when the test closes it.
 func (e *ec2Environment) startAdditionalSession() *additionalSession {
 	e.t.Helper()
 
+	e.rejoinTheSharedSessionOnceTheTestIsOver()
 	e.backend.UseNewSession()
 	return &additionalSession{t: e.t, finished: e.launchInteractive("tail", "-f", "/dev/null")}
+}
+
+// rejoinTheSharedSessionOnceTheTestIsOver undoes UseNewSession, because the
+// backend is shared with every later test on this instance and they expect the
+// ordinary behaviour of joining the one session.
+func (e *ec2Environment) rejoinTheSharedSessionOnceTheTestIsOver() {
+	e.t.Cleanup(func() { e.backend.SessionNameFunc = nil })
 }
 
 // additionalSession is the second concurrent session in flight. It is kept apart

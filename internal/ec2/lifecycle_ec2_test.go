@@ -4,6 +4,7 @@ package ec2_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -26,22 +27,100 @@ import (
 )
 
 const (
-	lifecycleEnvironmentName = "isolarium-ec2-lifecycle-test"
-	integrationGateEnvVar    = "ISOLARIUM_EC2_INTEGRATION"
-	sshReadinessTimeout      = 5 * time.Minute
-	sshReadinessInterval     = 10 * time.Second
-	propagatedExitCode       = 42
+	sharedEnvironmentName = "isolarium-ec2-test"
+	integrationGateEnvVar = "ISOLARIUM_EC2_INTEGRATION"
+	sshReadinessTimeout   = 5 * time.Minute
+	sshReadinessInterval  = 10 * time.Second
+	propagatedExitCode    = 42
 )
 
-func TestEC2Lifecycle_CreatesRunsCommandsAndDestroys(t *testing.T) {
-	environment := startEC2Environment(t, lifecycleEnvironmentName)
+// The whole ec2 suite works against a single billable instance, so the order the
+// tests run in is part of the design rather than an accident:
+//
+//   - go test runs the tests of one package in source order within a file, and
+//     walks the files in sorted-filename order. This file sorts first, so
+//     TestEC2Lifecycle_Creates is what actually creates the instance; the
+//     terminate test lives in the file that sorts last.
+//   - repo_ec2_test.go sorts ahead of session_ec2_test.go and tmux_ec2_test.go
+//     on purpose: its clone-cleanliness and token-grep assertions need an
+//     instance nothing has written to yet, and those two later files copy the
+//     Claude credentials in and place a script in the home directory.
+//
+// Renaming one of those files, or adding a test that writes to the instance
+// ahead of them, breaks assertions elsewhere without breaking this test.
+func TestEC2Lifecycle_Creates(t *testing.T) {
+	environment := sharedInstance(t)
 
 	environment.assertSharedInfrastructureExists()
 	environment.assertEchoWritesHelloToStdout()
 	environment.assertExitCodeIsPropagated(propagatedExitCode)
+}
 
-	environment.destroy()
-	environment.assertInstanceIsTerminated()
+// sharedMetadataDir holds the keypair, the known_hosts entry, the Terraform
+// state and the instance metadata of the one instance the suite runs against.
+// All of it has to outlive the test that created the instance, so it cannot be
+// a t.TempDir().
+var sharedMetadataDir string
+
+// sharedEnvironment is the instance every ec2 test works against, created by
+// whichever test asks for it first.
+var sharedEnvironment *ec2Environment
+
+func TestMain(m *testing.M) {
+	os.Exit(runSuiteAgainstOneInstance(m))
+}
+
+func runSuiteAgainstOneInstance(m *testing.M) int {
+	dir, err := os.MkdirTemp("", "isolarium-ec2-suite")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "creating the shared metadata directory: %v\n", err)
+		return 1
+	}
+	sharedMetadataDir = dir
+
+	status := m.Run()
+	if err := terminateSharedInstance(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		status = 1
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "removing %s: %v\n", dir, err)
+		status = 1
+	}
+	return status
+}
+
+// terminateSharedInstance runs once every test has returned, so a run narrowed
+// to a single test — or one abandoned after a failure — never leaves an instance
+// billing. A run that reached TestEC2Lifecycle_Terminates has nothing left to do
+// here.
+func terminateSharedInstance() error {
+	if sharedEnvironment == nil || sharedEnvironment.destroyed {
+		return nil
+	}
+	if err := sharedEnvironment.backend.Destroy(sharedEnvironment.name); err != nil {
+		return fmt.Errorf("teardown failed to destroy %s; instance %s may still be billing: %w",
+			sharedEnvironment.name, sharedEnvironment.instanceID, err)
+	}
+	sharedEnvironment.destroyed = true
+	return nil
+}
+
+// sharedInstance hands the running test the instance the suite works against,
+// creating it on first use so that any one test still runs alone under
+// `./test-scripts/test-ec2.sh <pattern>`. The *testing.T is rebound on every
+// access, because the instance outlives the test that created it and its helpers
+// must never report against a test that has already returned.
+func sharedInstance(t *testing.T) *ec2Environment {
+	t.Helper()
+
+	if sharedEnvironment == nil {
+		sharedEnvironment = newEC2Environment(t, sharedEnvironmentName)
+		sharedEnvironment.create()
+		sharedEnvironment.waitForSSH()
+	}
+	sharedEnvironment.t = t
+	return sharedEnvironment
 }
 
 // ec2Environment is one real instance under test, together with the host state
@@ -60,16 +139,19 @@ type ec2Environment struct {
 	config     *aws.Config
 }
 
-func startEC2Environment(t *testing.T, name string) *ec2Environment {
+// newEC2Environment resolves everything create needs without launching anything,
+// so a missing gate, a missing credential or an unpushable branch fails before
+// the account is touched.
+func newEC2Environment(t *testing.T, name string) *ec2Environment {
 	t.Helper()
 
 	requireIntegrationGate(t)
 	region := requireAWSCredentials(t)
 
 	instance := backend.NewEC2Backend()
-	instance.MetadataDir = t.TempDir()
+	instance.MetadataDir = sharedMetadataDir
 
-	environment := &ec2Environment{
+	return &ec2Environment{
 		t:          t,
 		name:       name,
 		base:       instance.MetadataDir,
@@ -77,11 +159,6 @@ func startEC2Environment(t *testing.T, name string) *ec2Environment {
 		backend:    instance,
 		repository: integrationRepositorySpec(t),
 	}
-
-	t.Cleanup(environment.destroyIfStillRunning)
-	environment.create()
-	environment.waitForSSH()
-	return environment
 }
 
 // integrationRepositorySpec resolves the checkout under test exactly as the
@@ -267,58 +344,6 @@ func (e *ec2Environment) assertExitCodeIsPropagated(want int) {
 	if exitCode != want {
 		e.t.Errorf("Exec of exit %d returned %d, want %d", want, exitCode, want)
 	}
-}
-
-func (e *ec2Environment) destroy() {
-	e.t.Helper()
-
-	if e.destroyed {
-		return
-	}
-	if err := e.backend.Destroy(e.name); err != nil {
-		e.t.Fatalf("destroying %s: %v", e.name, err)
-	}
-	e.destroyed = true
-}
-
-// destroyIfStillRunning tears the instance down even when an assertion has
-// already failed, so a red run never leaves an instance billing.
-func (e *ec2Environment) destroyIfStillRunning() {
-	if e.destroyed {
-		return
-	}
-	if err := e.backend.Destroy(e.name); err != nil {
-		e.t.Errorf("cleanup failed to destroy %s; instance %s may still be billing: %v", e.name, e.instanceID, err)
-		return
-	}
-	e.destroyed = true
-}
-
-func (e *ec2Environment) assertInstanceIsTerminated() {
-	e.t.Helper()
-
-	described, err := e.ec2API().DescribeInstances(context.Background(), &awsec2.DescribeInstancesInput{
-		InstanceIds: []string{e.instanceID},
-	})
-	if err != nil {
-		e.t.Fatalf("describing instance %s: %v", e.instanceID, err)
-	}
-
-	state := reportedInstanceState(described)
-	if state != string(awsec2types.InstanceStateNameTerminated) && state != string(awsec2types.InstanceStateNameShuttingDown) {
-		e.t.Errorf("instance %s state = %q, want terminated or shutting-down", e.instanceID, state)
-	}
-}
-
-func reportedInstanceState(described *awsec2.DescribeInstancesOutput) string {
-	for _, reservation := range described.Reservations {
-		for _, instance := range reservation.Instances {
-			if instance.State != nil {
-				return string(instance.State.Name)
-			}
-		}
-	}
-	return ""
 }
 
 func (e *ec2Environment) assertSharedInfrastructureExists() {
