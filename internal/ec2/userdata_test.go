@@ -50,6 +50,25 @@ func TestRenderUserData_RunsUserLevelStepsAsUbuntu(t *testing.T) {
 	assertContainsNone(t, "cloud-init.yaml", rendered, "$USER")
 }
 
+// The toolchain has to be reachable from `ssh <host> <command>`, which runs a
+// non-interactive shell that returns out of ~/.bashrc before reaching anything
+// exported there. PAM reads /etc/environment for those sessions, so that is
+// where the user-level installs have to be published.
+func TestRenderUserData_PublishesTheUserToolchainToNonInteractiveSessions(t *testing.T) {
+	rendered := RenderUserData()
+
+	assertContainsAll(t, "cloud-init.yaml", rendered,
+		"/etc/environment",
+		"/home/ubuntu/bin",
+		"/home/ubuntu/.local/bin",
+		"DOCKER_HOST",
+	)
+}
+
+func TestRenderUserData_LoadsTheKernelModuleRootlessDockerRefusesToInstallWithout(t *testing.T) {
+	assertContainsAll(t, "cloud-init.yaml", RenderUserData(), "nf_tables")
+}
+
 func TestRenderUserData_IsParseableCloudConfig(t *testing.T) {
 	var document map[string]any
 

@@ -63,6 +63,22 @@ func newHostProvisioningSpy() *hostProvisioningSpy {
 	}
 }
 
+// cloudInitWaitSpy stands in for the wait on first-boot provisioning, recording
+// where Create asked it to wait.
+type cloudInitWaitSpy struct {
+	calls     int
+	base      string
+	publicDNS string
+	err       error
+}
+
+func (s *cloudInitWaitSpy) wait(base, publicDNS string) error {
+	s.calls++
+	s.base = base
+	s.publicDNS = publicDNS
+	return s.err
+}
+
 const (
 	ec2SpyBucket     = "isolarium-tfstate-123456789012-us-west-2"
 	ec2SpyInstanceID = "i-0123456789abcdef0"
@@ -82,6 +98,7 @@ type ec2BackendFixture struct {
 	env         map[string]string
 	bucket      *ensureBucketSpy
 	host        *hostProvisioningSpy
+	cloudInit   *cloudInitWaitSpy
 	metadataDir string
 	runner      command.Runner
 }
@@ -99,6 +116,7 @@ func (f ec2BackendFixture) backend() *EC2Backend {
 		ExtractScaffoldingFunc: f.host.extractScaffolding,
 		EnsureKeypairFunc:      f.host.ensureKeypair,
 		DetectPublicIPFunc:     f.host.detectPublicIP,
+		WaitForCloudInitFunc:   f.cloudInit.wait,
 	}
 }
 
@@ -109,6 +127,7 @@ func ec2BackendWithEnv(t *testing.T, env map[string]string, spy *ensureBucketSpy
 		env:         env,
 		bucket:      spy,
 		host:        newHostProvisioningSpy(),
+		cloudInit:   &cloudInitWaitSpy{},
 		metadataDir: t.TempDir(),
 		runner:      ec2FakeTerraform(t),
 	}.backend()
@@ -129,6 +148,7 @@ func ec2RegionalFixture(t *testing.T, host *hostProvisioningSpy, runner command.
 		env:         map[string]string{"AWS_REGION": "us-west-2"},
 		bucket:      &ensureBucketSpy{name: ec2SpyBucket},
 		host:        host,
+		cloudInit:   &cloudInitWaitSpy{},
 		metadataDir: t.TempDir(),
 		runner:      runner,
 	}
@@ -248,6 +268,38 @@ func TestEC2Backend_Create_LaunchesInstance(t *testing.T) {
 	assertInstanceFileDescribesOnlyTheInstance(t, fixture.metadataDir)
 	assertInstanceFileCarriesCloudInitUserData(t, fixture.metadataDir)
 	assertTerraformInvocations(t, runner, fixture.metadataDir, host.publicKey)
+	assertRecordedMetadata(t, fixture.metadataDir)
+}
+
+func TestEC2Backend_Create_WaitsForCloudInitOnTheNewInstance(t *testing.T) {
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), ec2FakeTerraform(t))
+
+	if err := fixture.backend().Create(CreateOptions{Name: "my-work"}); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if fixture.cloudInit.calls != 1 {
+		t.Fatalf("Create() waited for cloud-init %d times, want 1", fixture.cloudInit.calls)
+	}
+	if fixture.cloudInit.base != fixture.metadataDir {
+		t.Errorf("WaitForCloudInitFunc received base %q, want %q", fixture.cloudInit.base, fixture.metadataDir)
+	}
+	if fixture.cloudInit.publicDNS != ec2SpyPublicDNS {
+		t.Errorf("WaitForCloudInitFunc received public DNS %q, want the applied instance's %q",
+			fixture.cloudInit.publicDNS, ec2SpyPublicDNS)
+	}
+}
+
+func TestEC2Backend_Create_FailsWhenCloudInitNeverFinishes(t *testing.T) {
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), ec2FakeTerraform(t))
+	neverFinished := errors.New("instance did not finish cloud-init within 15m0s")
+	fixture.cloudInit.err = neverFinished
+
+	err := fixture.backend().Create(CreateOptions{Name: "my-work"})
+
+	if !errors.Is(err, neverFinished) {
+		t.Fatalf("Create() error = %v, want it to wrap %v", err, neverFinished)
+	}
 	assertRecordedMetadata(t, fixture.metadataDir)
 }
 
@@ -422,6 +474,7 @@ func ec2BackendWithRecordedInstance(t *testing.T, exitCode int) ec2ExecFixture {
 		env:         map[string]string{"AWS_REGION": "us-west-2"},
 		bucket:      bucket,
 		host:        newHostProvisioningSpy(),
+		cloudInit:   &cloudInitWaitSpy{},
 		metadataDir: t.TempDir(),
 		runner:      runner,
 	}

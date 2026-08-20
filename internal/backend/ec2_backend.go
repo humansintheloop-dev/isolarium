@@ -28,6 +28,7 @@ type EC2Backend struct {
 	ExtractScaffoldingFunc func(base string) error
 	EnsureKeypairFunc      func(base string) (string, error)
 	DetectPublicIPFunc     func() (string, error)
+	WaitForCloudInitFunc   func(base, publicDNS string) error
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
 	Out                    io.Writer
@@ -145,12 +146,19 @@ func (b *EC2Backend) launchInstance(plan environmentPlan) error {
 		return err
 	}
 
-	return ec2.NewMetadataStore(b.MetadataDir, plan.name).Write(ec2.Metadata{
+	err = ec2.NewMetadataStore(b.MetadataDir, plan.name).Write(ec2.Metadata{
 		InstanceID: instanceID,
 		PublicDNS:  publicDNS,
 		Region:     plan.region,
 		CreatedAt:  b.now(),
 	})
+	if err != nil {
+		return err
+	}
+
+	// Recording where the instance can be reached before waiting on it keeps a
+	// timed-out provisioning destroyable.
+	return b.WaitForCloudInitFunc(b.MetadataDir, publicDNS)
 }
 
 func (b *EC2Backend) lookupEnv() func(string) (string, bool) {

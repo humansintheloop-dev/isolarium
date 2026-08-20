@@ -25,10 +25,26 @@ write_files:
   - path: /etc/sysctl.d/99-rootless-docker.conf
     content: "kernel.apparmor_restrict_unprivileged_userns=0\n"
 
+  # rootless Docker's installer refuses to run until nf_tables is loaded, and
+  # the stock Ubuntu EC2 kernel does not load it on boot
+  - path: /etc/modules-load.d/99-rootless-docker.conf
+    content: "nf_tables\n"
+
+  # `isolarium run` reaches the instance as `ssh <host> <command>`, whose
+  # non-interactive shell returns out of ~/.bashrc before reading anything
+  # exported there. PAM reads /etc/environment for those sessions, so the
+  # user-level installs are only reachable if they are published here. The
+  # ubuntu user is uid 1000 on every Ubuntu cloud image.
+  - path: /etc/environment
+    content: |
+      PATH="/home/ubuntu/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      DOCKER_HOST="unix:///run/user/1000/docker.sock"
+
 runcmd:
   # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor,
   # which prevents rootless Docker from starting
   - sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+  - modprobe nf_tables
 
   # Install Node.js LTS
   - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
@@ -44,11 +60,14 @@ runcmd:
   # Install Claude Code via npm (global install needs root)
   - npm install -g @anthropic-ai/claude-code
 
-  # Install Docker in rootless mode for the ubuntu user
-  - runuser -l ubuntu -c 'curl -fsSL https://get.docker.com/rootless | sh'
-
-  # Keep user services (like rootless Docker) running after logout
+  # Keep user services (like rootless Docker) running after logout. This comes
+  # before the install because the installer only enables and starts the daemon
+  # when the ubuntu user already has a systemd session to own it.
   - loginctl enable-linger ubuntu
+
+  # Install Docker in rootless mode for the ubuntu user
+  - runuser -l ubuntu -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); curl -fsSL https://get.docker.com/rootless | sh'
+  - runuser -l ubuntu -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); systemctl --user enable --now docker'
 
   # Configure shell for rootless Docker
   - runuser -l ubuntu -c 'echo "export PATH=\$HOME/bin:\$PATH" >> ~/.bashrc'

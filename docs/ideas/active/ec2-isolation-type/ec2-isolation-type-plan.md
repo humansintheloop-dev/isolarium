@@ -296,16 +296,16 @@ Spec 3.7. The skeleton instance from Steel Thread 1 boots a stock Ubuntu image; 
     - [x] Add a comment at the top of `internal/ec2/cloud-init.yaml` recording that it is an accepted, tracked duplicate of `internal/lima/template.yaml`, per spec 7.3 and follow-up 8.2
     - [x] Add `internal/ec2/userdata.go` with `//go:embed cloud-init.yaml` and `RenderUserData() string`
     - [x] Pass the rendered document into the `userData` parameter of `WriteInstanceFile`, which Steel Thread 1 left empty
-- [ ] **Task 2.2: A freshly created instance has the whole toolchain installed and working**
+- [x] **Task 2.2: A freshly created instance has the whole toolchain installed and working**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: on an instance created by `isolarium create --type ec2`, `Exec` of `cloud-init status --wait` reports `status: done`, and `git --version`, `gh --version`, `node --version`, `tmux -V`, `uv --version`, `claude --version`, and `docker info` (rootless, as `ubuntu`) each exit 0; `sysctl kernel.apparmor_restrict_unprivileged_userns` reports `0`
   - Evidence: `TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` behind `//go:build ec2`, run by `./test-scripts/test-ec2.sh` against a real account, asserting the exit code of each version probe`
   - Steps:
-    - [ ] Add `internal/ec2/toolchain_ec2_test.go` behind `//go:build ec2` creating one instance, waiting on `cloud-init status --wait`, and probing each tool
-    - [ ] Reuse the Steel Thread 1 `t.Cleanup` destroy helper so a failed probe still tears the instance down
-    - [ ] Add `WaitForCloudInit` to `internal/ec2/clone.go` with an injected `SleepFunc`, capped at 15 minutes, and call it from `Create` after the apply
-    - [ ] Record the measured rendered `user_data` size and the observed cloud-init duration in `README.md`, since the 16 KB limit is a live constraint on this document
+    - [x] Add `internal/ec2/toolchain_ec2_test.go` behind `//go:build ec2` creating one instance, waiting on `cloud-init status --wait`, and probing each tool
+    - [x] Reuse the Steel Thread 1 `t.Cleanup` destroy helper so a failed probe still tears the instance down
+    - [x] Add `WaitForCloudInit` to `internal/ec2/clone.go` with an injected `SleepFunc`, capped at 15 minutes, and call it from `Create` after the apply
+    - [x] Record the measured rendered `user_data` size and the observed cloud-init duration in `README.md`, since the 16 KB limit is a live constraint on this document
 ## Steel Thread 3: `create` places the repository inside the instance
 Spec 3.10 and 3.13 steps 12–14, acceptance criterion 1. Thickens the working instance from Steel Thread 2 with the repository checkout, and proves on a real instance that the branch, the git author, and the absence of a persisted clone token are all as specified.
 
@@ -725,3 +725,6 @@ Ran ./test-scripts/test-ec2.sh against the real AWS account in us-west-1; it exi
 
 ### 2026-08-19 21:35 - mark-task-complete
 The entrypoint creates a real instance, runs echo hello and exit 42 over SSH, destroys it, and confirms termination; it fails without ISOLARIUM_EC2_INTEGRATION=1
+
+### 2026-08-20 08:02 - mark-task-complete
+Verified against a real AWS account: cloud-init reports status: done in 1m37s and every toolchain probe exits 0. Required two supporting fixes discovered by the run - a generated aws_key_pair name with create_before_destroy so a rotated host keypair cannot leave a new instance holding the superseded key, and publishing the user-level toolchain to /etc/environment plus loading nf_tables so uv and rootless docker are reachable from the non-interactive ssh that Exec uses.

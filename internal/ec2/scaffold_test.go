@@ -138,10 +138,25 @@ func TestExtractScaffolding_DeclaresRequiredVariablesAndAMILookup(t *testing.T) 
 	)
 	assertContainsAll(t, "keypair.tf", readScaffoldingFile(t, base, "keypair.tf"),
 		`resource "aws_key_pair"`,
-		"public_key = var.public_key",
+		"public_key      = var.public_key",
 	)
 	assertContainsAll(t, "ami.tf", readScaffoldingFile(t, base, "ami.tf"),
 		`data "aws_ssm_parameter" "ubuntu_ami"`,
 		"/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id",
+	)
+}
+
+func TestExtractScaffolding_RotatesTheKeypairBeforeAnInstanceCanUseTheSupersededKey(t *testing.T) {
+	base := t.TempDir()
+	if err := ExtractScaffolding(base); err != nil {
+		t.Fatalf("ExtractScaffolding() error = %v", err)
+	}
+
+	assertContainsAll(t, "keypair.tf", readScaffoldingFile(t, base, "keypair.tf"),
+		"key_name_prefix",
+		"create_before_destroy = true",
+	)
+	assertContainsNone(t, "keypair.tf", readScaffoldingFile(t, base, "keypair.tf"),
+		`key_name   = "isolarium"`,
 	)
 }

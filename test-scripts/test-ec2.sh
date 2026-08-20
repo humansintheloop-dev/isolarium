@@ -13,6 +13,22 @@ requireIntegrationGate() {
     fi
 }
 
+# The Go tests require the credentials in the environment so that a missing
+# account fails the run rather than skipping it. Lifting them from the profile
+# the AWS CLI already uses saves exporting them by hand, and leaves them empty —
+# so the tests still fail — when no profile is configured.
+exportCredentialsFromTheConfiguredProfile() {
+    if [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+        return
+    fi
+    if ! command -v aws > /dev/null 2>&1; then
+        return
+    fi
+    AWS_ACCESS_KEY_ID="$(aws configure get aws_access_key_id || true)"
+    AWS_SECRET_ACCESS_KEY="$(aws configure get aws_secret_access_key || true)"
+    export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+}
+
 runEC2Tests() {
     local logFile="$1"
     go test -v -tags=ec2 -timeout 30m ./internal/ec2/... 2>&1 | tee "$logFile"
@@ -36,6 +52,7 @@ failWhenNoTestExecuted() {
 }
 
 requireIntegrationGate
+exportCredentialsFromTheConfiguredProfile
 
 echo "=== Running EC2 tests against a real AWS account ==="
 

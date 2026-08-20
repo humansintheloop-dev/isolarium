@@ -134,7 +134,11 @@ The same first `create` also provisions host-side state under `~/.isolarium/ec2/
   survive — delete a file to have isolarium restore its shipped version.
 - An Ed25519 keypair is generated at `~/.isolarium/ec2/id_ed25519` (mode `0600`)
   and `id_ed25519.pub` (mode `0644`). Both are reused once present; the public
-  half becomes the shared `aws_key_pair` every instance references.
+  half becomes the shared `aws_key_pair` every instance references. That key pair
+  carries a generated name, so replacing the local keypair rotates it safely —
+  the new key pair is created before any instance that has to be launched with
+  it. Instances already running under the superseded key are replaced, since
+  their `authorized_keys` can no longer be reached.
 
 SSH ingress is restricted to your host's current public address, detected via
 `https://checkip.amazonaws.com` and applied as a single `/32`. There is one
@@ -192,9 +196,10 @@ fails rather than widening ingress.
 
 Two things worth knowing before your first `create --type ec2`:
 
-- **Cold start takes several minutes.** The instance is built from a stock Ubuntu
-  image at apply time rather than from a pre-baked AMI, so expect the command to
-  run for minutes, not seconds.
+- **Cold start takes minutes, not seconds.** The instance is built from a stock
+  Ubuntu image at apply time rather than from a pre-baked AMI, and `create` does
+  not return until cloud-init has finished installing the toolchain. Measured
+  runs took between 1m36s and 2m18s; `create` gives up after 15 minutes.
 - **Instances bill until you destroy them.** Isolarium has no idle auto-stop and
   no cost reporting. A forgotten `t3.large` with a 50 GiB `gp3` volume costs
   roughly $64/month. Run `isolarium destroy --type ec2 --name <name>` when you
@@ -221,25 +226,37 @@ does not leave one billing.
 end-to-end suite; without the flag the suite stays AWS-free. `make test-ec2` runs
 the tagged tests directly.
 
-The run reports two timings you should expect to see in the output: `TIMING:
-create` (the `terraform apply` wall clock) and `TIMING: cold start from create to
-first SSH login`.
+The run reports three timings you should expect to see in the output: `TIMING:
+create` (the `terraform apply` wall clock, which includes waiting for cloud-init
+to finish), `TIMING: cold start from create to first SSH login`, and `TIMING:
+cloud-init reported done`. It also reports `SIZE: rendered user_data`.
 
 Measured on 2026-08-20 in `us-west-1` against a real account, on a run where the
 shared VPC, subnet, gateway, route table, security group, and key pair already
-existed and only the instance had to be built:
+existed and only the instances had to be built:
 
 | Measurement | Value |
 | --- | --- |
-| `./test-scripts/test-ec2.sh` wall clock | 2m16s |
-| `TIMING: create` (`terraform apply`) | 1m11s |
-| `TIMING: cold start from create to first SSH login` | 1m34s |
-| Lifecycle test alone | 130s |
+| `go test -tags=ec2 ./internal/ec2/...` | 320s for both instances |
+| Lifecycle test | 185s, of which `TIMING: create` was 2m18s |
+| Toolchain test | 135s, of which `TIMING: create` was 1m36s |
+| `TIMING: cloud-init reported done` | 1m37s after create started |
+| `SIZE: rendered user_data` | 3418 bytes of the 16384-byte limit |
 
-The script exited 0: `Exec` of `echo hello` returned `hello` with exit code 0,
-`Exec` of `exit 42` returned 42, and `DescribeInstances` reported the instance
-`terminated` after `destroy`. Expect the first run in a fresh account to take
-longer, because that apply also builds the shared network.
+EC2 caps `user_data` at 16 KB, which makes that limit a live constraint on
+`internal/ec2/cloud-init.yaml` rather than a theoretical one. The document
+currently spends about a fifth of the budget, so the toolchain has room to grow —
+but a substantial addition should be measured against the reported size rather
+than assumed to fit.
+
+The run exited 0: `Exec` of `echo hello` returned `hello` with exit code 0,
+`Exec` of `exit 42` returned 42, `DescribeInstances` reported the instance
+`terminated` after `destroy`, and on a freshly created instance `cloud-init
+status --wait` reported `status: done` while `git --version`, `gh --version`,
+`node --version`, `tmux -V`, `uv --version`, `claude --version`, and a rootless
+`docker info` each exited 0 with
+`kernel.apparmor_restrict_unprivileged_userns = 0`. Expect the first run in a
+fresh account to take longer, because that apply also builds the shared network.
 
 ## Quickstart
 
