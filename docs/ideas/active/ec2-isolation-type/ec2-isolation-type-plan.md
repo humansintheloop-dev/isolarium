@@ -455,17 +455,17 @@ Spec 3.12, acceptance criterion 8. Thickens `create` with the project's own scri
   - Steps:
     - [x] Add failing cases to `internal/config/pidconfig_test.go` for the three `ec2.*` path-validation sections
     - [x] Add the three `ec2.*` entries to the `sections` slice in `validateConfig` in `internal/config/pidconfig.go`
-- [ ] **Task 7.2: Creation, host, and env scripts declared in `pid.yaml` actually run on a real instance**
+- [x] **Task 7.2: Creation, host, and env scripts declared in `pid.yaml` actually run on a real instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: with a `pid.yaml` declaring an `ec2` creation script that writes `/home/ubuntu/repo/creation-ran`, a host script that writes a file on the host, and an env script that writes `/home/ubuntu/repo/env-ran`, a real `create` leaves both instance-side marker files present with the expected contents, the host-side marker present, and `ISOLARIUM_NAME` and `ISOLARIUM_TYPE=ec2` recorded in each marker from the script's own environment
   - Evidence: `TestEC2Instance_RunsPidYamlScripts` in `internal/ec2/scripts_ec2_test.go` behind `//go:build ec2`, using a fixture `pid.yaml` and asserting the three marker files and the two environment variables`
   - Steps:
-    - [ ] Add creation-script, host-script, and env-script execution to `EC2Backend.Create` after repository placement, calling `hostscript.RunHostScripts(..., "ec2")` and `envscript.RunEnvScripts(..., "ec2", ...)`
-    - [ ] Add `internal/ec2/scripts_ec2_test.go` behind `//go:build ec2` with the fixture `pid.yaml` and the three marker assertions
-    - [ ] Assert the environment variables from inside the scripts, since a script that runs with the wrong environment would otherwise pass
-    - [ ] Add an `ec2` section to this repository's own `pid.yaml` mirroring the existing `vm` section, so the capability is exercised by this project
-    - [ ] Add the `ec2` `pid.yaml` block to the configuration section of `README.md`
+    - [x] Add creation-script, host-script, and env-script execution to `EC2Backend.Create` after repository placement, calling `hostscript.RunHostScripts(..., "ec2")` and `envscript.RunEnvScripts(..., "ec2", ...)`
+    - [x] Add `internal/ec2/scripts_ec2_test.go` behind `//go:build ec2` with the fixture `pid.yaml` and the three marker assertions
+    - [x] Assert the environment variables from inside the scripts, since a script that runs with the wrong environment would otherwise pass
+    - [x] Add an `ec2` section to this repository's own `pid.yaml` mirroring the existing `vm` section, so the capability is exercised by this project
+    - [x] Add the `ec2` `pid.yaml` block to the configuration section of `README.md`
 ## Steel Thread 8: `isolarium status` reports EC2 environments
 Spec 3.9 state mapping, scenario 16, acceptance criterion 5. The exhaustive state mapping is a table-driven unit test; that the mapping is wired to reality is proven against a real running instance and again after it is destroyed.
 
@@ -803,3 +803,6 @@ The ec2 suite now shares one instance: TestEC2Lifecycle_Creates creates it, zz_l
 
 ### 2026-08-20 15:22 - mark-task-complete
 Claude Code now installs via the native installer as the ubuntu user in both internal/ec2/cloud-init.yaml and internal/lima/template.yaml. Proven on a real instance by TestEC2Instance_HasToolchain, extended to assert claude resolves to /home/ubuntu/.local/bin/claude, is owned by ubuntu, and that no @anthropic-ai/claude-code remains in the root-owned npm global tree; the Lima suite ran green against a VM built fresh from the changed template. The release channel is pinned to the stable train rather than an exact version, so a run cannot silently land on a different Claude Code than the one before it while the pin cannot go stale in two duplicated files.
+
+### 2026-08-20 16:33 - mark-task-complete
+Verified by a real run of ./test-scripts/test-ec2.sh: TestEC2Instance_RunsPidYamlScripts passed against a live instance, with the creation, host, and env markers each recording ISOLARIUM_NAME and ISOLARIUM_TYPE=ec2.
