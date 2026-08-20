@@ -211,6 +211,7 @@ type backendSpy struct {
 	copyCredentialsCalled      bool
 	copyCredentialsName        string
 	copyCredentialsCredentials string
+	copyCredentialsErr         error
 
 	state string
 }
@@ -259,5 +260,5 @@ func (b *backendSpy) CopyCredentials(name string, credentials string) error {
 	b.copyCredentialsCalled = true
 	b.copyCredentialsName = name
 	b.copyCredentialsCredentials = credentials
-	return nil
+	return b.copyCredentialsErr
 }
