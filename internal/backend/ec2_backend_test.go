@@ -1100,6 +1100,91 @@ func TestEC2CopyCredentials_BackendReadsTheInstanceOverSSHByDefault(t *testing.T
 	}
 }
 
+// describeInstanceStub stands in for the AWS lookup GetState makes, recording
+// which instance it was asked about and answering with a fixed AWS state.
+type describeInstanceStub struct {
+	called     bool
+	region     string
+	instanceID string
+	state      string
+	err        error
+}
+
+func (s *describeInstanceStub) describe(ctx context.Context, region, instanceID string) (string, string, error) {
+	s.called = true
+	s.region = region
+	s.instanceID = instanceID
+	return ec2SpyPublicDNS, s.state, s.err
+}
+
+func TestEC2State_BackendMapsEveryAWSState(t *testing.T) {
+	mappings := []struct {
+		awsState string
+		want     string
+	}{
+		{"running", "running"},
+		{"stopped", "stopped"},
+		{"stopping", "stopped"},
+		{"pending", "pending"},
+		{"shutting-down", "none"},
+		{"terminated", "none"},
+		{"a-state-aws-has-not-invented-yet", "unknown"},
+	}
+
+	for _, mapping := range mappings {
+		t.Run(mapping.awsState, func(t *testing.T) {
+			f := ec2BackendWithRecordedInstance(t, 0)
+			describe := &describeInstanceStub{state: mapping.awsState}
+			f.backend.DescribeInstanceFunc = describe.describe
+
+			state := f.backend.GetState("my-work")
+
+			if state != mapping.want {
+				t.Errorf("GetState() = %q for AWS state %q, want %q", state, mapping.awsState, mapping.want)
+			}
+			assertDescribedRecordedInstance(t, describe)
+		})
+	}
+}
+
+func assertDescribedRecordedInstance(t *testing.T, describe *describeInstanceStub) {
+	t.Helper()
+
+	if describe.instanceID != ec2SpyInstanceID {
+		t.Errorf("GetState() described instance %q, want the one recorded in metadata.json (%q)", describe.instanceID, ec2SpyInstanceID)
+	}
+	if describe.region != "us-west-2" {
+		t.Errorf("GetState() described in region %q, want the one recorded in metadata.json (%q)", describe.region, "us-west-2")
+	}
+}
+
+func TestEC2State_BackendReportsNoneWhenMetadataIsAbsent(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	describe := &describeInstanceStub{state: "running"}
+	f.backend.DescribeInstanceFunc = describe.describe
+
+	state := f.backend.GetState("never-created")
+
+	if state != "none" {
+		t.Errorf("GetState() = %q for an environment with no metadata.json, want %q", state, "none")
+	}
+	if describe.called {
+		t.Error("GetState() called AWS despite the missing metadata")
+	}
+}
+
+func TestEC2State_BackendReportsUnknownWhenTheAWSCallFails(t *testing.T) {
+	f := ec2BackendWithRecordedInstance(t, 0)
+	describe := &describeInstanceStub{err: errors.New("NoCredentialProviders: no valid providers in chain")}
+	f.backend.DescribeInstanceFunc = describe.describe
+
+	state := f.backend.GetState("my-work")
+
+	if state != "unknown" {
+		t.Errorf("GetState() = %q when the AWS call failed, want %q", state, "unknown")
+	}
+}
+
 func TestEC2Backend_Create_ReturnsBucketBootstrapError(t *testing.T) {
 	accessDenied := errors.New("AccessDenied")
 	spy := &ensureBucketSpy{name: ec2SpyBucket, err: accessDenied}

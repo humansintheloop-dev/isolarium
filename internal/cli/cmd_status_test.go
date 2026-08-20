@@ -152,6 +152,22 @@ func TestFormatDetails_NonoReturnsWorkDirectory(t *testing.T) {
 	}
 }
 
+func TestFormatDetails_EC2ReturnsRepositoryAndBranch(t *testing.T) {
+	env := status.EnvironmentStatus{
+		Name:       "my-work",
+		Type:       "ec2",
+		State:      "running",
+		Repository: "humansintheloop-dev/isolarium",
+		Branch:     "main",
+	}
+
+	details := formatDetails(env)
+
+	if details != "humansintheloop-dev/isolarium (main)" {
+		t.Errorf("expected formatDetails to return 'humansintheloop-dev/isolarium (main)', got %q", details)
+	}
+}
+
 // --- helpers ---
 
 type stubEnvironmentLister struct {

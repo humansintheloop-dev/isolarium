@@ -4,15 +4,33 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
-func newStateBucketClients(ctx context.Context, region string) (callerIdentityAPI, stateBucketAPI, error) {
+func loadRegionalConfig(ctx context.Context, region string) (aws.Config, error) {
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
 	if err != nil {
-		return nil, nil, fmt.Errorf("loading AWS configuration: %w", err)
+		return aws.Config{}, fmt.Errorf("loading AWS configuration: %w", err)
+	}
+	return cfg, nil
+}
+
+func newInstanceClient(ctx context.Context, region string) (describeInstancesAPI, error) {
+	cfg, err := loadRegionalConfig(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	return awsec2.NewFromConfig(cfg), nil
+}
+
+func newStateBucketClients(ctx context.Context, region string) (callerIdentityAPI, stateBucketAPI, error) {
+	cfg, err := loadRegionalConfig(ctx, region)
+	if err != nil {
+		return nil, nil, err
 	}
 	return sts.NewFromConfig(cfg), s3.NewFromConfig(cfg), nil
 }

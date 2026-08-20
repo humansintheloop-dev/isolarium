@@ -469,19 +469,19 @@ Spec 3.12, acceptance criterion 8. Thickens `create` with the project's own scri
 ## Steel Thread 8: `isolarium status` reports EC2 environments
 Spec 3.9 state mapping, scenario 16, acceptance criterion 5. The exhaustive state mapping is a table-driven unit test; that the mapping is wired to reality is proven against a real running instance and again after it is destroyed.
 
-- [ ] **Task 8.1: `GetState` maps every AWS instance state to an isolarium state**
+- [x] **Task 8.1: `GetState` maps every AWS instance state to an isolarium state**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/status/... ./internal/backend/... -run TestEC2State`
   - Observable: `GetState` maps AWS `running`→`running`, `stopped`→`stopped`, `stopping`→`stopped`, `pending`→`pending`, `shutting-down`→`none`, `terminated`→`none`, an absent metadata file→`none`, and a failed AWS call or missing credentials→`unknown`; rows for `vm`, `container`, and `nono` environments are unaffected
   - Evidence: `TestEC2Backend_GetState_MapsAllAWSStates` (table-driven over every mapping) and `TestListAllEnvironments_IncludesEC2Rows` in `internal/status/status_test.go`, which builds a temp base directory containing both an `ec2` and a `container` environment and asserts both rows`
   - Steps:
-    - [ ] Write the table-driven state-mapping test first in `internal/backend/ec2_backend_test.go`
-    - [ ] Add `github.com/aws/aws-sdk-go-v2/service/ec2` to `go.mod` with `go get`, then run `go mod tidy`
-    - [ ] Write `internal/ec2/describe_test.go` first for `DescribeInstance(ctx, api describeInstancesAPI, instanceID string) (publicDNS, state string, err error)` against a narrow interface with a fake, then implement `internal/ec2/describe.go`
-    - [ ] Add a `DescribeInstanceFunc` field to `EC2Backend` and implement `GetState` reading `metadata.json` and calling it
-    - [ ] Add `"ec2"` to `knownTypes` in `internal/status/environment.go:41`
-    - [ ] Add an `ec2` case to `populateTypeSpecificFields` populating `Repository` and `Branch` from the same `owner`/`repo`/`branch` fields the `vm` case uses
-    - [ ] Add `"ec2"` to the `vm` case of `formatDetails` in `internal/cli/cmd_status.go:49` so the repository-and-branch format is shared
+    - [x] Write the table-driven state-mapping test first in `internal/backend/ec2_backend_test.go`
+    - [x] Add `github.com/aws/aws-sdk-go-v2/service/ec2` to `go.mod` with `go get`, then run `go mod tidy`
+    - [x] Write `internal/ec2/describe_test.go` first for `DescribeInstance(ctx, api describeInstancesAPI, instanceID string) (publicDNS, state string, err error)` against a narrow interface with a fake, then implement `internal/ec2/describe.go`
+    - [x] Add a `DescribeInstanceFunc` field to `EC2Backend` and implement `GetState` reading `metadata.json` and calling it
+    - [x] Add `"ec2"` to `knownTypes` in `internal/status/environment.go:41`
+    - [x] Add an `ec2` case to `populateTypeSpecificFields` populating `Repository` and `Branch` from the same `owner`/`repo`/`branch` fields the `vm` case uses
+    - [x] Add `"ec2"` to the `vm` case of `formatDetails` in `internal/cli/cmd_status.go:49` so the repository-and-branch format is shared
 - [ ] **Task 8.2: `isolarium status` reports a real instance as running, then as gone after destroy**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
@@ -806,3 +806,6 @@ Claude Code now installs via the native installer as the ubuntu user in both int
 
 ### 2026-08-20 16:33 - mark-task-complete
 Verified by a real run of ./test-scripts/test-ec2.sh: TestEC2Instance_RunsPidYamlScripts passed against a live instance, with the creation, host, and env markers each recording ISOLARIUM_NAME and ISOLARIUM_TYPE=ec2.
+
+### 2026-08-20 16:44 - mark-task-complete
+GetState reads metadata.json and maps every AWS instance state; status and cmd_status share the vm repository-and-branch handling for ec2. Tests named TestEC2State_* so the plan's -run TestEC2State entrypoint actually selects them.

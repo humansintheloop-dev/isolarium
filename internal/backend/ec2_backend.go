@@ -35,6 +35,10 @@ type SessionNameFunc func(base, publicDNS string) (string, error)
 // reachable at publicDNS, using the SSH material under base.
 type ec2CopyCredentialsFunc func(base, publicDNS, credentials string) error
 
+// DescribeInstanceFunc asks AWS where an instance can currently be reached and
+// what state it is in, given the region and instance ID create recorded.
+type DescribeInstanceFunc func(ctx context.Context, region, instanceID string) (publicDNS, state string, err error)
+
 type EC2Backend struct {
 	MetadataDir            string
 	Runner                 command.Runner
@@ -50,6 +54,7 @@ type EC2Backend struct {
 	CaptureFunc            ec2.RemoteOutputRunner
 	SessionNameFunc        SessionNameFunc
 	CopyCredentialsFunc    ec2CopyCredentialsFunc
+	DescribeInstanceFunc   DescribeInstanceFunc
 	Out                    io.Writer
 	ErrWriter              io.Writer
 }
@@ -527,8 +532,46 @@ func (b *EC2Backend) instanceSession(publicDNS string, run ec2ExecFunc) ec2.Inst
 	return ec2.NewInstanceSession(b.MetadataDir, publicDNS, run)
 }
 
+// GetState reports an environment that was never created, or whose instance AWS
+// has already reclaimed, as absent; a lookup it could not make at all is
+// reported as unknown, so status degrades rather than fails when the AWS
+// credentials are missing.
 func (b *EC2Backend) GetState(name string) string {
-	return "none"
+	meta, err := ec2.NewMetadataStore(b.MetadataDir, name).Read()
+	if err != nil {
+		return "none"
+	}
+
+	_, awsState, err := b.describeInstance()(context.Background(), meta.Region, meta.InstanceID)
+	if err != nil {
+		return "unknown"
+	}
+	return isolariumState(awsState)
+}
+
+// isolariumState translates the AWS instance lifecycle into the vocabulary the
+// status layer already speaks. An instance on its way out is reported as absent
+// rather than as stopping, because nothing can be run in it again.
+func isolariumState(awsState string) string {
+	switch awsState {
+	case "running":
+		return "running"
+	case "stopped", "stopping":
+		return "stopped"
+	case "pending":
+		return "pending"
+	case "shutting-down", "terminated":
+		return "none"
+	default:
+		return "unknown"
+	}
+}
+
+func (b *EC2Backend) describeInstance() DescribeInstanceFunc {
+	if b.DescribeInstanceFunc != nil {
+		return b.DescribeInstanceFunc
+	}
+	return ec2.LookupInstance
 }
 
 // CopyCredentials carries the host's Claude credentials to the instance, which
