@@ -178,6 +178,12 @@ for, evicts the host's entry from `~/.isolarium/ec2/known_hosts`, and deletes
   `terraform -chdir=~/.isolarium/ec2/terraform force-unlock <id>` and re-run
   `destroy`. Only do this once you are certain no other isolarium invocation is
   still running.
+- **An apply killed between an AWS call and the state write orphans that
+  resource.** Terraform will try to create it again on the next apply and AWS
+  will refuse — an orphaned subnet, for instance, fails the next `create` with
+  `InvalidSubnet.Conflict`. Either `terraform import` the orphan into state, or
+  delete it in the console once you have confirmed nothing is using it, and
+  re-run.
 
 Teardown also tolerates a failure to detect your public IP: it warns and falls
 back to the CIDR persisted in `isolarium.auto.tfvars`, so being off the network
@@ -217,8 +223,23 @@ the tagged tests directly.
 
 The run reports two timings you should expect to see in the output: `TIMING:
 create` (the `terraform apply` wall clock) and `TIMING: cold start from create to
-first SSH login`. Measured values for this repository's account have not been
-recorded yet.
+first SSH login`.
+
+Measured on 2026-08-20 in `us-west-1` against a real account, on a run where the
+shared VPC, subnet, gateway, route table, security group, and key pair already
+existed and only the instance had to be built:
+
+| Measurement | Value |
+| --- | --- |
+| `./test-scripts/test-ec2.sh` wall clock | 2m16s |
+| `TIMING: create` (`terraform apply`) | 1m11s |
+| `TIMING: cold start from create to first SSH login` | 1m34s |
+| Lifecycle test alone | 130s |
+
+The script exited 0: `Exec` of `echo hello` returned `hello` with exit code 0,
+`Exec` of `exit 42` returned 42, and `DescribeInstances` reported the instance
+`terminated` after `destroy`. Expect the first run in a fresh account to take
+longer, because that apply also builds the shared network.
 
 ## Quickstart
 

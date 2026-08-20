@@ -268,7 +268,7 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Return early with `no EC2 environment to destroy` and a nil error when `instance-<name>.tf` is absent, mirroring `destroyVM` in `internal/cli/cmd_destroy.go:35`
     - [x] Add `destroyEC2(name string) error` to a new `internal/cli/ec2_setup.go` and route `ec2` from `newDestroyCmdWithResolver` in `internal/cli/cmd_destroy.go`
     - [x] Note in `README.md` that an interrupted `destroy` is safe to re-run, and that a stale lock is cleared with `terraform force-unlock <id>`
-- [ ] **Task 1.8: A real EC2 instance is created, executes a command over SSH, and is destroyed**
+- [x] **Task 1.8: A real EC2 instance is created, executes a command over SSH, and is destroyed**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: against a real AWS account the script creates an instance, `Exec` of `echo hello` returns `hello` on stdout with exit code 0, `Exec` of `exit 42` returns 42, `destroy` terminates the instance, and a follow-up `DescribeInstances` reports `terminated` or `shutting-down`; the S3 state bucket, VPC, subnet, internet gateway, route table, security group, and key pair all exist in the account after `create`; without `ISOLARIUM_EC2_INTEGRATION=1` the script exits non-zero with `FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 tests`; when `go test` output contains `no tests to run`, it exits non-zero
@@ -281,7 +281,7 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
     - [x] Add a `test-ec2` target to `Makefile` running `go test -tags=ec2 -timeout 30m ./internal/ec2/...`
     - [x] Add a `--with-ec2` flag to `test-scripts/test-end-to-end.sh` following the existing `--skip-docker-integration` pattern; leave `.github/workflows/ci.yml` unchanged so CI never needs AWS credentials
     - [x] Run `shellcheck test-scripts/test-ec2.sh` and fix any findings
-    - [ ] Run the entrypoint against a real AWS account and record the outcome, the wall-clock duration, and the observed cold-start time in `README.md`
+    - [x] Run the entrypoint against a real AWS account and record the outcome, the wall-clock duration, and the observed cold-start time in `README.md`
 ## Steel Thread 2: Instances come up with the full toolchain installed
 Spec 3.7. The skeleton instance from Steel Thread 1 boots a stock Ubuntu image; this thread gives it the toolchain by way of a cloud-init document embedded in the binary, and proves on a real instance that every tool is actually present and runnable. The 16 KB `user_data` guard is Steel Thread 10.
 
@@ -719,3 +719,9 @@ Added --with-ec2 to test-scripts/test-end-to-end.sh; .github/workflows/ci.yml is
 
 ### 2026-08-19 20:28 - mark-step-complete
 shellcheck reports no findings for test-scripts/test-ec2.sh
+
+### 2026-08-19 21:35 - mark-step-complete
+Ran ./test-scripts/test-ec2.sh against the real AWS account in us-west-1; it exited 0 and the measured wall clock, create time, and cold start are recorded in README.md
+
+### 2026-08-19 21:35 - mark-task-complete
+The entrypoint creates a real instance, runs echo hello and exit 42 over SSH, destroys it, and confirms termination; it fails without ISOLARIUM_EC2_INTEGRATION=1
