@@ -393,11 +393,11 @@ provision:
       echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null
       apt-get update && apt-get install -y gh
 
-      # Install Claude Code
-      npm install -g @anthropic-ai/claude-code
-
   - mode: user
     script: |
+      # Install Claude Code as the user that runs it, so its auto-update works
+      curl -fsSL https://claude.ai/install.sh | bash -s stable
+
       # Install SDKMAN and JDK 17
       curl -s "https://get.sdkman.io" | bash
       source "$HOME/.sdkman/bin/sdkman-init.sh"

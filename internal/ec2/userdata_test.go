@@ -34,13 +34,26 @@ func TestRenderUserData_ContainsToolchainAndIsUnderLimit(t *testing.T) {
 		"get.docker.com/rootless",
 		"loginctl enable-linger",
 		"get.sdkman.io",
-		"@anthropic-ai/claude-code",
+		"claude.ai/install.sh",
 		"astral.sh/uv",
 	)
 	if len(rendered) >= ec2UserDataLimit {
 		t.Errorf("cloud-init.yaml renders to %d bytes, want fewer than %d",
 			len(rendered), ec2UserDataLimit)
 	}
+}
+
+// cloud-init runs runcmd as root, so an npm global install leaves a binary in a
+// tree the ubuntu user cannot write: Claude Code's auto-update then fails at
+// every start. The native installer run as ubuntu puts it in ~/.local/bin
+// instead, and naming the release channel keeps one run from silently landing on
+// a different train than the one before it.
+func TestRenderUserData_InstallsClaudeCodeAsTheUserThatRunsIt(t *testing.T) {
+	rendered := RenderUserData()
+
+	assertContainsAll(t, "cloud-init.yaml", rendered,
+		"runuser -l ubuntu -c 'curl -fsSL https://claude.ai/install.sh | bash -s stable'")
+	assertContainsNone(t, "cloud-init.yaml", rendered, "@anthropic-ai/claude-code")
 }
 
 func TestRenderUserData_RunsUserLevelStepsAsUbuntu(t *testing.T) {

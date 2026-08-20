@@ -11,7 +11,12 @@ import (
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
 )
 
-const userDataLimit = 16384
+const (
+	userDataLimit    = 16384
+	claudeBinaryPath = "/home/ubuntu/.local/bin/claude"
+	claudeOwner      = "ubuntu"
+	npmClaudeCode    = "@anthropic-ai/claude-code"
+)
 
 // TestEC2Instance_HasToolchain proves that the cloud-init document carried as
 // user_data actually provisions a usable instance, rather than merely rendering
@@ -24,7 +29,45 @@ func TestEC2Instance_HasToolchain(t *testing.T) {
 	for _, probe := range toolchainProbes() {
 		environment.assertToolIsInstalled(probe)
 	}
+	environment.assertClaudeIsInstalledForTheUserThatRunsIt()
 	environment.assertUnprivilegedUserNamespacesAreUnrestricted()
+}
+
+// The root-owned npm global install this replaced answered `claude --version`
+// just as well, so proving the switch means saying where the binary resolves and
+// who owns it: only an install the ubuntu user made can rewrite itself when
+// Claude Code auto-updates.
+func (e *ec2Environment) assertClaudeIsInstalledForTheUserThatRunsIt() {
+	e.t.Helper()
+
+	e.assertCommandPrints(claudeBinaryPath, "command", "-v", "claude")
+	e.assertCommandPrints(claudeOwner, "stat", "-c", "%U", claudeBinaryPath)
+	e.assertNpmGlobalTreeHasNoClaudeCode()
+}
+
+func (e *ec2Environment) assertCommandPrints(want string, args ...string) {
+	e.t.Helper()
+
+	command := strings.Join(args, " ")
+	exitCode, output := e.run(args...)
+	if exitCode != 0 {
+		e.t.Fatalf("%s exited %d, want 0; output: %s", command, exitCode, output)
+	}
+	if got := strings.TrimSpace(output); got != want {
+		e.t.Errorf("%s printed %q, want %q", command, got, want)
+	}
+}
+
+func (e *ec2Environment) assertNpmGlobalTreeHasNoClaudeCode() {
+	e.t.Helper()
+
+	exitCode, output := e.run("npm", "ls", "-g", "--depth=0")
+	if exitCode != 0 {
+		e.t.Fatalf("npm ls -g --depth=0 exited %d, want 0; output: %s", exitCode, output)
+	}
+	if strings.Contains(output, npmClaudeCode) {
+		e.t.Errorf("the root-owned npm global tree still carries %s: %s", npmClaudeCode, strings.TrimSpace(output))
+	}
 }
 
 // toolchainProbe is one tool the instance is expected to carry, together with
