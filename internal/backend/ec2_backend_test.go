@@ -246,8 +246,31 @@ func TestEC2Backend_Create_LaunchesInstance(t *testing.T) {
 	}
 
 	assertInstanceFileDescribesOnlyTheInstance(t, fixture.metadataDir)
+	assertInstanceFileCarriesCloudInitUserData(t, fixture.metadataDir)
 	assertTerraformInvocations(t, runner, fixture.metadataDir, host.publicKey)
 	assertRecordedMetadata(t, fixture.metadataDir)
+}
+
+func assertInstanceFileCarriesCloudInitUserData(t *testing.T, metadataDir string) {
+	t.Helper()
+
+	content := readInstanceFile(t, metadataDir)
+	for _, want := range []string{"user_data = <<-USER_DATA", "#cloud-config", "- tmux"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("instance-my-work.tf does not contain %q", want)
+		}
+	}
+}
+
+func readInstanceFile(t *testing.T, metadataDir string) string {
+	t.Helper()
+
+	path := ec2.InstanceFilePath(metadataDir, "my-work")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	return string(data)
 }
 
 func TestEC2Backend_Create_RefusesExistingInstanceFile(t *testing.T) {
@@ -274,13 +297,7 @@ func TestEC2Backend_Create_RefusesExistingInstanceFile(t *testing.T) {
 func assertInstanceFileDescribesOnlyTheInstance(t *testing.T, metadataDir string) {
 	t.Helper()
 
-	path := ec2.InstanceFilePath(metadataDir, "my-work")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v", path, err)
-	}
-
-	content := string(data)
+	content := readInstanceFile(t, metadataDir)
 	for _, want := range []string{
 		`resource "aws_instance" "my-work"`,
 		"data.aws_ssm_parameter.ubuntu_ami.value",

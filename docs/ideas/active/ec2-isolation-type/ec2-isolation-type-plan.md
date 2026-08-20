@@ -285,17 +285,17 @@ The walking skeleton. This thread cuts vertically through every seam the capabil
 ## Steel Thread 2: Instances come up with the full toolchain installed
 Spec 3.7. The skeleton instance from Steel Thread 1 boots a stock Ubuntu image; this thread gives it the toolchain by way of a cloud-init document embedded in the binary, and proves on a real instance that every tool is actually present and runnable. The 16 KB `user_data` guard is Steel Thread 10.
 
-- [ ] **Task 2.1: cloud-init provisioning renders the full toolchain**
+- [x] **Task 2.1: cloud-init provisioning renders the full toolchain**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... -run TestRenderUserData`
   - Observable: `RenderUserData()` returns a document starting with `#cloud-config` that installs the full toolchain and is under 16384 bytes
   - Evidence: `TestRenderUserData_ContainsToolchainAndIsUnderLimit` in `internal/ec2/userdata_test.go` asserts the `#cloud-config` prefix, the presence of each required toolchain marker, and `len < 16384``
   - Steps:
-    - [ ] Write `internal/ec2/userdata_test.go` first, asserting on markers for: `git`, `curl`, `wget`, `ca-certificates`, `gnupg`, `lsb-release`, `unzip`, `zip`, `uidmap`, `dbus-user-session`, `tmux`, `kernel.apparmor_restrict_unprivileged_userns=0`, `deb.nodesource.com`, `cli.github.com`, `get.docker.com/rootless`, `loginctl enable-linger`, `get.sdkman.io`, `@anthropic-ai/claude-code`, and `astral.sh/uv`
-    - [ ] Create `internal/ec2/cloud-init.yaml` by duplicating and adapting `internal/lima/template.yaml` per spec 3.7: root-level steps become `packages:` and `runcmd:`; user-level steps run as the `ubuntu` user via `runuser -l ubuntu -c`; `tmux` is added. Do **not** modify `internal/lima/template.yaml`
-    - [ ] Add a comment at the top of `internal/ec2/cloud-init.yaml` recording that it is an accepted, tracked duplicate of `internal/lima/template.yaml`, per spec 7.3 and follow-up 8.2
-    - [ ] Add `internal/ec2/userdata.go` with `//go:embed cloud-init.yaml` and `RenderUserData() string`
-    - [ ] Pass the rendered document into the `userData` parameter of `WriteInstanceFile`, which Steel Thread 1 left empty
+    - [x] Write `internal/ec2/userdata_test.go` first, asserting on markers for: `git`, `curl`, `wget`, `ca-certificates`, `gnupg`, `lsb-release`, `unzip`, `zip`, `uidmap`, `dbus-user-session`, `tmux`, `kernel.apparmor_restrict_unprivileged_userns=0`, `deb.nodesource.com`, `cli.github.com`, `get.docker.com/rootless`, `loginctl enable-linger`, `get.sdkman.io`, `@anthropic-ai/claude-code`, and `astral.sh/uv`
+    - [x] Create `internal/ec2/cloud-init.yaml` by duplicating and adapting `internal/lima/template.yaml` per spec 3.7: root-level steps become `packages:` and `runcmd:`; user-level steps run as the `ubuntu` user via `runuser -l ubuntu -c`; `tmux` is added. Do **not** modify `internal/lima/template.yaml`
+    - [x] Add a comment at the top of `internal/ec2/cloud-init.yaml` recording that it is an accepted, tracked duplicate of `internal/lima/template.yaml`, per spec 7.3 and follow-up 8.2
+    - [x] Add `internal/ec2/userdata.go` with `//go:embed cloud-init.yaml` and `RenderUserData() string`
+    - [x] Pass the rendered document into the `userData` parameter of `WriteInstanceFile`, which Steel Thread 1 left empty
 - [ ] **Task 2.2: A freshly created instance has the whole toolchain installed and working**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

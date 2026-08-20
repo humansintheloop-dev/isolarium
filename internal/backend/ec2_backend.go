@@ -121,9 +121,10 @@ func (b *EC2Backend) provisionHostState() (hostState, error) {
 
 // launchInstance describes the environment as one generated Terraform file,
 // applies it, and records where the resulting instance can be reached. The
-// cloud-init document arrives in Steel Thread 2 through the userData parameter.
+// cloud-init document rides along as user_data, so the instance provisions its
+// toolchain on first boot.
 func (b *EC2Backend) launchInstance(plan environmentPlan) error {
-	if err := ec2.WriteInstanceFile(b.MetadataDir, plan.name, ""); err != nil {
+	if err := ec2.WriteInstanceFile(b.MetadataDir, plan.name, ec2.RenderUserData()); err != nil {
 		return err
 	}
 
