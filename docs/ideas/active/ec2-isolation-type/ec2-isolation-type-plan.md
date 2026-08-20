@@ -404,6 +404,21 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
     - [ ] Have the test `t.Fatal` when host Claude credentials are unavailable rather than skipping, per the CLAUDE.md test-integrity rule
     - [ ] Assert the `0600` mode on the instance-side credential file
     - [ ] Add the spec 3.11 security disclosure to `README.md`: the copied blob contains `refreshToken` and `refreshTokenExpiresAt`, a long-lived credential to the user's Claude subscription, placed on a public-internet-reachable host that may run for weeks; mitigated by `0600` file mode, root-volume encryption, `delete_on_termination`, and `/32` ingress
+- [ ] **Task 6.3: The `ec2` suite runs against a single instance created first and terminated last**
+  - TaskType: INFRA
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: a full suite run logs exactly one `TIMING: create` line instead of seven, and ends with the shared instance reported terminated; every test still runs alone under `./test-scripts/test-ec2.sh <pattern>`, creating the instance on demand
+  - Evidence: ``./test-scripts/test-ec2.sh 2>&1 | grep -c 'TIMING: create'` reports 1, `TestEC2Lifecycle_Terminates` asserts the instance is terminated or shutting-down via `DescribeInstances`, and `aws ec2 describe-instances --filters Name=tag:ManagedBy,Values=isolarium Name=instance-state-name,Values=running` reports none left after the run`
+  - Steps:
+    - [ ] Split `TestEC2Lifecycle_CreatesRunsCommandsAndDestroys` into a create test that runs first, asserting the shared infrastructure, `echo hello`, and exit-code propagation, and a terminate test that runs last, destroying the instance and asserting it is terminated
+    - [ ] Guarantee the ordering: `go test` runs tests in source order within a file but walks files in sorted-filename order, so the create test's file must sort first and the terminate test's file last (or both ends must sit in one file with the observers between them)
+    - [ ] Replace the per-test `t.TempDir()` metadata directory with a package-level directory created once and removed in `TestMain`, so the keypair, known_hosts, and instance metadata outlive the create test
+    - [ ] Rebind `ec2Environment.t` to the running test on each access, so helpers never call `Fatalf` or `Logf` on a `*testing.T` whose test has already returned
+    - [ ] Move `destroyIfStillRunning` from `t.Cleanup` to a `TestMain` teardown after `m.Run()`, so a filtered or aborted run never leaves an instance billing
+    - [ ] Have every remaining ec2 test take the shared instance from a lazy accessor that creates it on first use, keeping single-test reruns via `./test-scripts/test-ec2.sh <pattern>` working
+    - [ ] Keep the assertions that require a pristine instance ahead of anything that writes to it: the clone-cleanliness and token-grep checks must run before the Claude credentials copy and before the tmux writer script is placed
+    - [ ] Kill the tmux server between the two tmux tests, because `TmuxCommand` uses `tmux new-session -A`, which attaches to the session the previous test deliberately left running rather than starting a fresh one
+    - [ ] Record the shared-instance ordering constraints in a comment at the create test, so a later rename or a new test cannot silently break them
 ## Steel Thread 7: `pid.yaml` `ec2` scripts run at create time
 Spec 3.12, acceptance criterion 8. Thickens `create` with the project's own script hooks, proven by marker files left on a real instance and on the host.
 
@@ -742,3 +757,6 @@ Task 6.2 no longer verifies token refresh; it stops at an authenticated claude r
 
 ### 2026-08-20 13:18 - mark-task-complete
 Restores the completion state of Task 6.1, which was unchanged by the thread 6 rewrite.
+
+### 2026-08-20 14:13 - insert-task-after
+The ec2 suite creates one billable instance per test — seven cold starts of roughly two minutes each in the task 6.2 run — although only the create/destroy assertions and the two tmux tests need an instance of their own. Restructuring onto a single instance created first and terminated last removes about eleven minutes and six instances from every run.
