@@ -51,11 +51,17 @@ func NewInstanceSession(base, publicDNS string, run RemoteRunner) InstanceSessio
 	return InstanceSession{base: base, publicDNS: publicDNS, run: run}
 }
 
+// exitCode runs cmd on the instance and reports the remote command's exit
+// status.
+func (s InstanceSession) exitCode(cmd RemoteCommand) (int, error) {
+	return s.run(s.base, s.publicDNS, cmd)
+}
+
 // succeeded distinguishes an instance that is not answering yet, which is worth
 // retrying, from a transport that cannot be launched at all, which never
 // recovers.
 func (s InstanceSession) succeeded(cmd RemoteCommand) (bool, error) {
-	exitCode, err := s.run(s.base, s.publicDNS, cmd)
+	exitCode, err := s.exitCode(cmd)
 	if err != nil {
 		return false, err
 	}

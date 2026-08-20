@@ -335,18 +335,18 @@ Spec 3.10 and 3.13 steps 12–14, acceptance criterion 1. Thickens the working i
 ## Steel Thread 4: An interactive session runs inside tmux and survives disconnect
 Spec 3.6, scenario 6, acceptance criteria 3 and 4. This is the capability's primary goal — an agent session that outlives the laptop — so it is proven by actually severing the connection to a real instance and reattaching, not by inspecting a command line.
 
-- [ ] **Task 4.1: `run -i` and `shell` wrap the command in `tmux new-session -A -s isolarium`**
+- [x] **Task 4.1: `run -i` and `shell` wrap the command in `tmux new-session -A -s isolarium`**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/backend/... -run TestEC2Tmux`
   - Observable: the `ExecInteractive` command line contains `-t` and ends with `tmux new-session -A -s isolarium -- <cmd>`; `OpenShell` ends with `tmux new-session -A -s isolarium -- bash -il` rooted at `/home/ubuntu/repo`; when `tmux has-session -t isolarium` succeeds beforehand, exactly the line `attaching to existing session 'isolarium'; use --new-session to start a fresh one` is written to stderr and execution proceeds without prompting; when it fails, nothing is written to stderr
   - Evidence: `TestEC2TmuxCommandWrapsInteractiveCommand` and `TestEC2TmuxNoticePrintedOnlyWhenSessionExists` in `internal/ec2/tmux_test.go` assert the argument slices and capture stderr through an injected writer`
   - Steps:
-    - [ ] Write `internal/ec2/tmux_test.go` first for `BuildTmuxCommand(sessionName string, args []string) []string` and `SessionExists(base, publicDNS, sessionName string, run execFunc) bool`
-    - [ ] Implement `internal/ec2/tmux.go` with `DefaultSessionName = "isolarium"`
-    - [ ] Add `internal/ec2/shell.go` with `OpenShell` building an interactive SSH command for `bash -il` inside tmux, rooted at `RemoteRepoDir`
-    - [ ] Add an `ErrWriter io.Writer` field to `EC2Backend` defaulting to `os.Stderr` so the notice is assertable
-    - [ ] Wire `ExecInteractive` and `OpenShell` on `EC2Backend` through the tmux wrapper; leave `Exec` outside tmux
-    - [ ] Add an `ec2` branch to `newShellCmdWithResolver` in `internal/cli/cmd_shell.go` that resolves the backend and calls `OpenShell` without the container credential copy
+    - [x] Write `internal/ec2/tmux_test.go` first for `BuildTmuxCommand(sessionName string, args []string) []string` and `SessionExists(base, publicDNS, sessionName string, run execFunc) bool`
+    - [x] Implement `internal/ec2/tmux.go` with `DefaultSessionName = "isolarium"`
+    - [x] Add `internal/ec2/shell.go` with `OpenShell` building an interactive SSH command for `bash -il` inside tmux, rooted at `RemoteRepoDir`
+    - [x] Add an `ErrWriter io.Writer` field to `EC2Backend` defaulting to `os.Stderr` so the notice is assertable
+    - [x] Wire `ExecInteractive` and `OpenShell` on `EC2Backend` through the tmux wrapper; leave `Exec` outside tmux
+    - [x] Add an `ec2` branch to `newShellCmdWithResolver` in `internal/cli/cmd_shell.go` that resolves the backend and calls `OpenShell` without the container credential copy
 - [ ] **Task 4.2: A long-running process on a real instance survives an abrupt disconnect and is still running on reattach**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

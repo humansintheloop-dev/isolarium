@@ -34,14 +34,8 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 				return err
 			}
 
-			if copySession && envType == "container" {
-				credentials, credErr := readKeychainCredentials()
-				if credErr != nil {
-					return fmt.Errorf("failed to read credentials: %w", credErr)
-				}
-				if err := b.CopyCredentials(name, credentials); err != nil {
-					return fmt.Errorf("failed to copy credentials: %w", err)
-				}
+			if err := copyCredentialsForContainerShell(b, envType, name, copySession); err != nil {
+				return err
 			}
 
 			envVars, err := buildShellEnvVars(envType)
@@ -64,6 +58,25 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 	cmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to container")
 
 	return cmd
+}
+
+// copyCredentialsForContainerShell carries the host's Claude credentials into a
+// container before its shell opens. Every other environment type opens straight
+// into its shell: vm and nono never copy, and ec2 leaves the decision to the
+// backend, which only overwrites a credential file the host's is fresher than.
+func copyCredentialsForContainerShell(b backend.Backend, envType, name string, copySession bool) error {
+	if !copySession || envType != "container" {
+		return nil
+	}
+
+	credentials, err := readKeychainCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to read credentials: %w", err)
+	}
+	if err := b.CopyCredentials(name, credentials); err != nil {
+		return fmt.Errorf("failed to copy credentials: %w", err)
+	}
+	return nil
 }
 
 func buildShellEnvVars(envType string) (map[string]string, error) {

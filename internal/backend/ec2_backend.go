@@ -32,6 +32,7 @@ type EC2Backend struct {
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
 	Out                    io.Writer
+	ErrWriter              io.Writer
 }
 
 // launchedInstance is where terraform says a newly applied instance can be
@@ -236,6 +237,15 @@ func (b *EC2Backend) out() io.Writer {
 	return os.Stdout
 }
 
+// errOut carries notices that are about the connection rather than about the
+// command, so they stay out of the command's own output.
+func (b *EC2Backend) errOut() io.Writer {
+	if b.ErrWriter != nil {
+		return b.ErrWriter
+	}
+	return os.Stderr
+}
+
 func (b *EC2Backend) Destroy(name string) error {
 	teardown := ec2Teardown{backend: b, name: name}
 	if !teardown.environmentExists() {
@@ -355,8 +365,18 @@ func (b *EC2Backend) Exec(req ExecRequest) (int, error) {
 	return b.runOnInstance(b.ExecFunc, req)
 }
 
+// ExecInteractive runs the command inside the instance's tmux session, so a
+// dropped connection leaves it running rather than killing it.
 func (b *EC2Backend) ExecInteractive(req ExecRequest) (int, error) {
-	return b.runOnInstance(b.ExecInteractiveFunc, req)
+	session, err := b.attachSession(req.ContainerName)
+	if err != nil {
+		return 1, err
+	}
+	return b.ExecInteractiveFunc(b.MetadataDir, session.publicDNS, ec2.RemoteCommand{
+		Workdir: ec2.RemoteRepoDir,
+		EnvVars: req.EnvVars,
+		Args:    ec2.BuildTmuxCommand(session.name, req.Args),
+	})
 }
 
 // runOnInstance resolves where the environment can be reached from the metadata
@@ -375,7 +395,36 @@ func (b *EC2Backend) runOnInstance(run ec2ExecFunc, req ExecRequest) (int, error
 }
 
 func (b *EC2Backend) OpenShell(req ExecRequest) (int, error) {
-	return 1, notYetImplemented()
+	session, err := b.attachSession(req.ContainerName)
+	if err != nil {
+		return 1, err
+	}
+	return ec2.OpenShell(b.instanceSession(session.publicDNS, b.ExecInteractiveFunc), session.name, req.EnvVars)
+}
+
+// persistentSession is the tmux session an interactive command joins on the
+// instance, and where that instance can be reached.
+type persistentSession struct {
+	publicDNS string
+	name      string
+}
+
+// attachSession resolves the session an interactive command is about to join,
+// announcing a reattach first because tmux discards the command it was handed
+// once the session already exists.
+func (b *EC2Backend) attachSession(name string) (persistentSession, error) {
+	meta, err := ec2.NewMetadataStore(b.MetadataDir, name).Read()
+	if err != nil {
+		return persistentSession{}, err
+	}
+
+	session := persistentSession{publicDNS: meta.PublicDNS, name: ec2.DefaultSessionName}
+	ec2.AnnounceReattach(b.errOut(), b.instanceSession(session.publicDNS, b.ExecFunc), session.name)
+	return session, nil
+}
+
+func (b *EC2Backend) instanceSession(publicDNS string, run ec2ExecFunc) ec2.InstanceSession {
+	return ec2.NewInstanceSession(b.MetadataDir, publicDNS, run)
 }
 
 func (b *EC2Backend) GetState(name string) string {

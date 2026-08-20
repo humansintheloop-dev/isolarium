@@ -784,9 +784,7 @@ func TestEC2ExecInteractive_BackendPropagatesExitCode(t *testing.T) {
 	if !f.interactive.called {
 		t.Fatal("ExecInteractive() did not reach the interactive SSH transport")
 	}
-	if f.exec.called {
-		t.Error("ExecInteractive() used the non-interactive transport")
-	}
+	assertSessionProbe(t, f.exec)
 	if f.interactive.publicDNS != ec2SpyPublicDNS {
 		t.Errorf("ExecInteractive() used public DNS %q, want %q", f.interactive.publicDNS, ec2SpyPublicDNS)
 	}
