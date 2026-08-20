@@ -102,6 +102,43 @@ your local one, which swallows the prefix key. Press `Ctrl-b Ctrl-b` to send the
 prefix through to the instance's tmux — `Ctrl-b Ctrl-b d` detaches from the
 instance's session rather than your local one.
 
+#### Claude credentials on the instance
+
+`isolarium run --type ec2` copies your host's Claude Code credentials to
+`~/.claude/.credentials.json` on the instance, as the `vm`, `container`, and
+`nono` backends do.
+
+**Security note.** That blob contains `refreshToken` and
+`refreshTokenExpiresAt` — a long-lived credential to your Claude subscription,
+not merely a short-lived access token. What is new with EC2 is where it lands: a
+host reachable from the public internet that may stay up for weeks. Four things
+limit the exposure:
+
+- The file is written mode `0600`, so only `ubuntu` can read it.
+- The instance's root volume is encrypted.
+- That volume carries `delete_on_termination`, so `destroy` takes the blob with
+  it.
+- SSH ingress is a single `/32` rule pinned to your host's current public
+  address. Isolarium never writes `0.0.0.0/0`.
+
+None of that helps once the file is off the instance: anyone holding it has your
+Claude subscription until you revoke it. Destroy environments you are finished
+with.
+
+Unlike the other backends, the EC2 copy is **conditional**. Isolarium reads the
+instance's own `~/.claude/.credentials.json` first and leaves it alone unless the
+host's blob expires strictly later, which protects a long-running tmux session
+that refreshed its own token mid-flight from having it revoked out from under it
+— while still repairing an instance whose refresh lineage the host has rotated
+past. Both `expiresAt` values compared are issued by the auth server and travel
+inside the blob, so no clock skew between laptop and instance enters into it.
+
+Isolarium does not refresh the token on the instance for you. It assumes Claude
+Code there renews its own access token and rewrites that file, as it does on any
+other machine; that assumption is not something isolarium verifies. If a session
+on the instance does lose authentication, run `isolarium run --type ec2
+--copy-session` again to carry a fresh blob over from your host.
+
 See [EC2 mode configuration](#ec2-mode-configuration) for the required
 credentials and IAM permissions, cold-start latency, running cost, and teardown.
 

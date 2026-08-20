@@ -467,14 +467,9 @@ This single thread exercises the state-backend bootstrap, Terraform scaffolding,
 
 **A1 — Claude Code on Linux refreshes its own access token.** Assumed: Claude Code reads `refreshToken` from `~/.claude/.credentials.json`, refreshes when the access token expires, and rewrites the file. The user explicitly directed that this be assumed (Q31).
 
-*This assumption is load-bearing and unverified.* If false, sessions die within hours, Q6's limitation is real, and an explicit refresh mechanism — a host-side push into the running session, or an on-instance agent — becomes a v1 requirement, materially changing the credential design.
+*This assumption is load-bearing and is accepted unverified for v1.* No task verifies it: nothing in this capability rewinds `claudeAiOauth.expiresAt` or asserts that a token refreshed. Verification is deliberately deferred — it is a property of Claude Code itself, not of this backend, and 3.11 is correct whether or not it holds.
 
-**Required verification, executable today against the `vm` backend in minutes, no EC2 needed:**
-1. In a Lima VM with working credentials, set `claudeAiOauth.expiresAt` to a past timestamp, leaving `refreshToken` intact.
-2. Run `claude` and issue one prompt.
-3. Confirm `accessToken` changed and `expiresAt` moved into the future.
-
-This should be executed before implementation of 3.11 begins.
+If it turns out to be false, sessions die within hours, Q6's limitation is real, and an explicit refresh mechanism — a host-side push into the running session, or an on-instance agent — becomes a requirement, materially changing the credential design. That is a follow-up, not a v1 gate.
 
 **A2 — Access tokens have a fixed TTL.** This is what makes the `expiresAt` ordering in 3.11 a valid proxy for "which side refreshed more recently." **Defined fallback if false:** write only when the instance's credentials are unusable — absent, unparseable, or `expiresAt` already in the past — dropping the host-versus-instance comparison.
 
@@ -551,7 +546,7 @@ The capability is complete when all of the following hold.
 17. Unit tests for the EC2 backend pass with no AWS access, no network, and no `terraform` binary installed.
 18. `test-scripts/test-ec2-integration.sh` passes against real AWS with `ISOLARIUM_EC2_INTEGRATION=1`, and **fails rather than skips** when the variable or credentials are absent.
 19. README documents: the `terraform` ≥ 1.10 prerequisite, required env vars, cold-start latency, that instances bill until destroyed, that a Claude refresh token is placed on the instance, `terraform force-unlock` recovery, manual state-bucket removal, and the nested-tmux prefix-key caveat.
-20. Assumption A1 has been empirically verified, or the A2 fallback and an A1 contingency have been implemented.
+20. Assumption A1 is recorded as accepted-unverified with its contingency stated; no work verifies it, and the 3.11 conditional write is implemented so that it is correct whether or not A1 holds.
 
 ---
 
@@ -571,7 +566,7 @@ Open questions carried into this document from the idea file were resolved as fo
 | Per-instance file and resource naming, and `--name` sanitisation | Validate `--name` against `^[a-z][a-z0-9-]{0,31}$` so it is simultaneously a valid Terraform identifier, filename component, and tag value. **No sanitisation needed.** File `instance-<name>.tf`, resource `aws_instance.<name>`. | 3.8 |
 | cloud-init `user_data` 16 KB limit | Validate rendered size host-side; fail before apply with an explicit error. | 3.7 |
 | Default `--name` for `ec2` | `isolarium-ec2`, as `defaultEC2Name`. | 3.8 |
-| Verify the token-refresh assumption | Recorded as assumption **A1** with an executable verification procedure and a stated contingency; verification required before implementing 3.11. | 7.2 |
+| Verify the token-refresh assumption | **Not verified in v1.** Recorded as assumption **A1** with a stated contingency; it does not gate 3.11. | 7.2 |
 | Fixed access-token TTL | Recorded as assumption **A2** with a defined fallback rule. | 7.2 |
 | Back-port conditional write to other backends | **Out of scope for v1**; named follow-up. | 8.1, 8.2 |
 

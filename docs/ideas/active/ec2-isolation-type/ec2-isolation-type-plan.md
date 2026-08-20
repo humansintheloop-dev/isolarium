@@ -107,7 +107,7 @@ toolchain, no repository.
 Threads 2–9 each thicken that working path with exactly one scenario, and each is accepted by
 observing behavior on a real instance: the toolchain is present and runnable, the repository is at
 the right branch, a process survives an abrupt disconnect, a second session leaves the first
-untouched, `claude` authenticates and refreshes its own token, `pid.yaml` scripts leave their marker
+untouched, `claude` authenticates on the instance, `pid.yaml` scripts leave their marker
 files, `status` reports a running instance and then its absence, and `ec2 wipe` removes the shared
 infrastructure from the account while retaining the state bucket.
 
@@ -125,9 +125,9 @@ Two consequences worth stating, because they are deliberate:
   crossed first, when the cost of being wrong is a redesign rather than a rewrite.
 
 Spec assumption **A1** (Claude Code on Linux refreshes its own access token from `refreshToken`) is
-load-bearing. Rather than the indirect Lima-based procedure in spec 7.2, it is verified directly on
-EC2 by Task 6.2, which rewinds `claudeAiOauth.expiresAt` on a real instance and asserts the token
-refreshed.
+left as an assumption. No task in this plan verifies it: Task 6.2 proves that `claude` authenticates
+on a real instance and stops there, without rewinding `claudeAiOauth.expiresAt` or asserting anything
+about refresh. If A1 turns out to be false, the contingency recorded in spec 7.2 applies.
 
 ## New Package Layout
 
@@ -381,7 +381,7 @@ Spec scenario 7. Thickens the tmux capability with a second concurrent session, 
     - [x] Extend `internal/ec2/tmux_ec2_test.go` with the two-session case, reusing the writer process from Steel Thread 4
     - [x] Assert the PID of the first session's process is unchanged after the second session is created and closed
 ## Steel Thread 6: Claude credentials reach the instance and `claude` runs authenticated there
-Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with fakes; the claim that matters — that an agent can actually authenticate and refresh its own token on the instance — is verified by running `claude` on a real one. That real test replaces the indirect Lima-based A1 verification the spec proposed.
+Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with fakes; the claim that matters — that an agent can actually authenticate on the instance — is verified by running `claude` on a real one. Token refresh is deliberately out of scope here: nothing rewinds `expiresAt`, and spec assumption A1 stays a recorded, unverified assumption rather than something this thread proves.
 
 - [x] **Task 6.1: `CopyCredentials` leaves a fresher instance credential file byte-for-byte unchanged**
   - TaskType: INFRA
@@ -394,16 +394,15 @@ Spec 3.11, acceptance criterion 15. The conditional-copy rule is verified with f
     - [x] Compare only the two server-issued `expiresAt` values; never call `time.Now()` in this comparison
     - [x] Wire `CopyCredentials` on `EC2Backend` to it via an injectable `CopyCredentialsFunc` field
     - [x] Have the `ec2` branch of `internal/cli/cmd_run.go` call `readKeychainCredentials()` and `b.CopyCredentials` when `--copy-session` is on, matching the container flow
-- [ ] **Task 6.2: `claude` runs authenticated on a real instance and refreshes its own token there**
+- [ ] **Task 6.2: `claude` runs authenticated on a real instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
-  - Observable: after `run --copy-session`, `~/.claude/.credentials.json` on the instance is mode `0600`, and `claude -p 'reply with the single word ok'` exits 0 and prints `ok`; with `claudeAiOauth.expiresAt` on the instance then rewound to a past timestamp leaving `refreshToken` intact, a second `claude -p` run still exits 0 and `accessToken` has changed with `expiresAt` moved into the future — confirming spec assumption A1 on the platform that actually matters
-  - Evidence: `TestEC2Instance_ClaudeAuthenticates` and `TestEC2Instance_RefreshesExpiredToken` in `internal/ec2/session_ec2_test.go` behind `//go:build ec2`, gated additionally on host Claude credentials being present and failing loudly when they are not`
+  - Observable: after `run --copy-session`, `~/.claude/.credentials.json` on the instance is mode `0600`, and `claude -p 'reply with the single word ok'` exits 0 and prints `ok`
+  - Evidence: `TestEC2Instance_ClaudeAuthenticates` in `internal/ec2/session_ec2_test.go` behind `//go:build ec2`, gated additionally on host Claude credentials being present and failing loudly when they are not`
   - Steps:
-    - [ ] Add `internal/ec2/session_ec2_test.go` behind `//go:build ec2` covering the copy, the authenticated run, and the expiry-rewind refresh
+    - [ ] Add `internal/ec2/session_ec2_test.go` behind `//go:build ec2` covering the credential copy and the authenticated `claude -p` run; it neither rewinds `expiresAt` nor asserts anything about token refresh
     - [ ] Have the test `t.Fatal` when host Claude credentials are unavailable rather than skipping, per the CLAUDE.md test-integrity rule
     - [ ] Assert the `0600` mode on the instance-side credential file
-    - [ ] Record the A1 verification outcome in `README.md`. This test supersedes the separate Lima-based A1 procedure in spec 7.2 — it verifies the assumption directly on EC2
     - [ ] Add the spec 3.11 security disclosure to `README.md`: the copied blob contains `refreshToken` and `refreshTokenExpiresAt`, a long-lived credential to the user's Claude subscription, placed on a public-internet-reachable host that may run for weeks; mitigated by `0600` file mode, root-volume encryption, `delete_on_termination`, and `/32` ingress
 ## Steel Thread 7: `pid.yaml` `ec2` scripts run at create time
 Spec 3.12, acceptance criterion 8. Thickens `create` with the project's own script hooks, proven by marker files left on a real instance and on the host.
@@ -737,3 +736,9 @@ Proved on a real EC2 instance: a writer started through ExecInteractive kept the
 
 ### 2026-08-20 11:52 - mark-task-complete
 TestEC2Session_NewSessionLeavesExistingUntouched passes on a real instance; ./test-scripts/test-ec2.sh green end to end
+
+### 2026-08-20 13:18 - replace-thread
+Task 6.2 no longer verifies token refresh; it stops at an authenticated claude run on a real instance and never rewinds expiresAt.
+
+### 2026-08-20 13:18 - mark-task-complete
+Restores the completion state of Task 6.1, which was unchanged by the thread 6 rewrite.
