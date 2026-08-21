@@ -282,7 +282,13 @@ func (b *EC2Backend) launchInstance(plan environmentPlan, repository RepositoryS
 // applies it. The cloud-init document rides along as user_data, so the instance
 // provisions its toolchain on first boot.
 func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, error) {
-	if err := ec2.WriteInstanceFile(b.MetadataDir, plan.name, ec2.RenderUserData()); err != nil {
+	userData := ec2.RenderUserData()
+	// The size gate runs here so an outgrown toolchain fails the create before any
+	// terraform invocation rather than partway through an apply.
+	if err := ec2.ValidateUserDataSize(userData); err != nil {
+		return launchedInstance{}, err
+	}
+	if err := ec2.WriteInstanceFile(b.MetadataDir, plan.name, userData); err != nil {
 		return launchedInstance{}, err
 	}
 

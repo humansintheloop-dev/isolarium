@@ -95,6 +95,33 @@ func TestRenderUserData_IsParseableCloudConfig(t *testing.T) {
 	}
 }
 
+// EC2 rejects an oversize user_data at RunInstances, which surfaces as a
+// terraform apply failure after the network and the key pair already exist. The
+// same limit checked on the host turns that into a create that changes nothing.
+func TestValidateUserDataSize_RejectsOversizeDocument(t *testing.T) {
+	err := ValidateUserDataSize(strings.Repeat("x", ec2UserDataLimit+1))
+
+	if err == nil {
+		t.Fatalf("ValidateUserDataSize accepted a %d-byte document, want an error", ec2UserDataLimit+1)
+	}
+	want := "rendered user_data is 16385 bytes, exceeding the EC2 limit of 16384 bytes"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("ValidateUserDataSize returned %q, want it to contain %q", err, want)
+	}
+}
+
+func TestValidateUserDataSize_AcceptsExactLimit(t *testing.T) {
+	if err := ValidateUserDataSize(strings.Repeat("x", ec2UserDataLimit)); err != nil {
+		t.Errorf("ValidateUserDataSize rejected a %d-byte document: %v", ec2UserDataLimit, err)
+	}
+}
+
+func TestValidateUserDataSize_AcceptsTheRenderedToolchain(t *testing.T) {
+	if err := ValidateUserDataSize(RenderUserData()); err != nil {
+		t.Errorf("ValidateUserDataSize rejected cloud-init.yaml: %v", err)
+	}
+}
+
 func TestRenderUserData_RecordsThatItDuplicatesTheLimaTemplate(t *testing.T) {
 	rendered := RenderUserData()
 

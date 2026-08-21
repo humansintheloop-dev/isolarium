@@ -547,15 +547,15 @@ Spec scenarios 13, 14, 15, and 17; acceptance criterion 11. Guards on a path tha
     - [x] Implement `CheckTerraformVersion` using a numeric major/minor/patch comparison, not string comparison
     - [x] Call it from `EC2Backend.Create` after `RequireRegion` and before the state-bucket bootstrap
     - [x] Add the `terraform` >= 1.10 row to the Prerequisites table in `README.md`
-- [ ] **Task 10.4: `create` fails before apply when rendered `user_data` exceeds 16 KB**
+- [x] **Task 10.4: `create` fails before apply when rendered `user_data` exceeds 16 KB**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/ec2/... -run TestValidateUserDataSize`
   - Observable: `ValidateUserDataSize` on a 16385-byte document returns an error containing `rendered user_data is 16385 bytes, exceeding the EC2 limit of 16384 bytes`, and returns nil at exactly 16384
   - Evidence: `TestValidateUserDataSize_RejectsOversizeDocument` and `TestValidateUserDataSize_AcceptsExactLimit` drive the boundary in `internal/ec2/userdata_test.go``
   - Steps:
-    - [ ] Add the boundary cases to `internal/ec2/userdata_test.go` first
-    - [ ] Add `ValidateUserDataSize(doc string) error` to `internal/ec2/userdata.go`
-    - [ ] Call it from `EC2Backend.Create` immediately after `RenderUserData`, so the failure precedes any Terraform invocation
+    - [x] Add the boundary cases to `internal/ec2/userdata_test.go` first
+    - [x] Add `ValidateUserDataSize(doc string) error` to `internal/ec2/userdata.go`
+    - [x] Call it from `EC2Backend.Create` immediately after `RenderUserData`, so the failure precedes any Terraform invocation
 ## Steel Thread 11: `run` and `destroy` recover from environment changes
 Spec 3.9 refresh-on-failure and the spec 3.4 destroy-time ingress fallback; scenario 5; acceptance criterion 14. Recovery behaviors layered onto paths that already work — the DNS refresh is proven by actually stopping and starting a real instance.
 
