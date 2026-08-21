@@ -70,7 +70,7 @@ func createWithoutRegion(t *testing.T, args ...string) error {
 func TestCreateCommand_EC2ResolvesToEC2Backend(t *testing.T) {
 	err := createWithoutRegion(t, "--type", "ec2", "--name", "my-work")
 
-	expectedMessage := `create "my-work": AWS_REGION is not set`
+	expectedMessage := `create "my-work": AWS_REGION is required for --type ec2; set it in .env.local`
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error containing %q, got %q", expectedMessage, err.Error())
 	}
@@ -79,7 +79,7 @@ func TestCreateCommand_EC2ResolvesToEC2Backend(t *testing.T) {
 func TestCreateCommand_EC2DefaultNameReachesEC2Backend(t *testing.T) {
 	err := createWithoutRegion(t, "--type", "ec2")
 
-	expectedMessage := `create "isolarium-ec2": AWS_REGION is not set`
+	expectedMessage := `create "isolarium-ec2": AWS_REGION is required for --type ec2; set it in .env.local`
 	if !strings.Contains(err.Error(), expectedMessage) {
 		t.Errorf("expected error containing %q, got %q", expectedMessage, err.Error())
 	}

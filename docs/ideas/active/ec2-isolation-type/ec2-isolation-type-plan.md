@@ -527,16 +527,16 @@ Spec scenarios 13, 14, 15, and 17; acceptance criterion 11. Guards on a path tha
     - [x] Add `internal/ec2/naming.go` with `ValidateName(name string) error` enforcing `^[a-z][a-z0-9-]{0,31}$`
     - [x] Call `ec2.ValidateName` as the first statement of `EC2Backend.Create`, before `RequireRegion`
     - [x] Add the assertion case to `test-scripts/test-ec2-preflight.sh`
-- [ ] **Task 10.2: `create --type ec2` fails fast when `AWS_REGION` is unset**
+- [x] **Task 10.2: `create --type ec2` fails fast when `AWS_REGION` is unset**
   - TaskType: OUTCOME
   - Entrypoint: `env -u AWS_REGION ./bin/isolarium create --type ec2 --name my-work`
   - Observable: exit code non-zero, stderr contains `AWS_REGION is required for --type ec2; set it in .env.local`, and no directory `~/.isolarium/ec2/` is created by the run
   - Evidence: `./test-scripts/test-ec2-preflight.sh` gains a case that runs the entrypoint with `HOME` pointed at a fresh temp directory, asserts the message and non-zero exit, and asserts `$HOME/.isolarium/ec2` does not exist afterwards`
   - Steps:
-    - [ ] Add cases to `internal/ec2/preflight_test.go` for `RequireRegion` returning an error naming `AWS_REGION` when the variable is unset or empty
-    - [ ] Extend `RequireRegion` in `internal/ec2/preflight.go` with those error paths
-    - [ ] Confirm with a spy `EnsureBucketFunc` that no AWS call precedes the check
-    - [ ] Add the assertion case to `test-scripts/test-ec2-preflight.sh`
+    - [x] Add cases to `internal/ec2/preflight_test.go` for `RequireRegion` returning an error naming `AWS_REGION` when the variable is unset or empty
+    - [x] Extend `RequireRegion` in `internal/ec2/preflight.go` with those error paths
+    - [x] Confirm with a spy `EnsureBucketFunc` that no AWS call precedes the check
+    - [x] Add the assertion case to `test-scripts/test-ec2-preflight.sh`
 - [ ] **Task 10.3: `create --type ec2` fails with an actionable message when `terraform` is below 1.10**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/... -run TestEC2Backend_Create`
