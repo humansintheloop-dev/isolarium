@@ -29,7 +29,6 @@ import (
 
 const (
 	sharedEnvironmentName = "isolarium-ec2-test"
-	integrationGateEnvVar = "ISOLARIUM_EC2_INTEGRATION"
 	sshReadinessTimeout   = 5 * time.Minute
 	sshReadinessInterval  = 10 * time.Second
 	propagatedExitCode    = 42
@@ -205,7 +204,6 @@ type ec2Environment struct {
 func newEC2Environment(t *testing.T, name string) *ec2Environment {
 	t.Helper()
 
-	requireIntegrationGate(t)
 	region := requireAWSCredentials(t)
 
 	instance := backend.NewEC2Backend()
@@ -309,14 +307,6 @@ func hostGitSetting(t *testing.T, checkout string, read func(string) (string, er
 		t.Fatalf("reading git %s: %v", key, err)
 	}
 	return value
-}
-
-func requireIntegrationGate(t *testing.T) {
-	t.Helper()
-
-	if os.Getenv(integrationGateEnvVar) != "1" {
-		t.Fatalf("%s=1 is required to run EC2 tests", integrationGateEnvVar)
-	}
 }
 
 func requireAWSCredentials(t *testing.T) string {

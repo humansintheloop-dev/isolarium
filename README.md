@@ -369,11 +369,11 @@ can never launch a billable instance. Nothing in `.github/workflows/ci.yml` need
 AWS credentials.
 
 ```bash
-ISOLARIUM_EC2_INTEGRATION=1 ./test-scripts/test-ec2.sh
+./test-scripts/test-ec2.sh
 ```
 
-The script refuses to run without `ISOLARIUM_EC2_INTEGRATION=1`, and fails when
-`go test` selected no test rather than reporting a green run over nothing. The
+The script fails when `go test` selected no test rather than reporting a green
+run over nothing. The
 tests themselves fail — they never skip — when `AWS_REGION`,
 `AWS_ACCESS_KEY_ID`, or `AWS_SECRET_ACCESS_KEY` is missing. The test that proves
 `claude` authenticates on the instance fails the same way when your host has no
@@ -390,7 +390,7 @@ Every test builds its own billable instance, so re-running one after a failure
 should not have to rebuild all of them. An optional argument narrows the run:
 
 ```bash
-ISOLARIUM_EC2_INTEGRATION=1 ./test-scripts/test-ec2.sh TestEC2Instance_ClaudeAuthenticates
+./test-scripts/test-ec2.sh TestEC2Instance_ClaudeAuthenticates
 ```
 
 A narrowed run that matches nothing still fails, because the script rejects a

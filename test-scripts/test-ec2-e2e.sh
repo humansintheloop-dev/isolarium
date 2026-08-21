@@ -14,13 +14,6 @@ perRunLogFile() {
     echo "$logDir/test-ec2-e2e-$(date +%Y%m%d-%H%M%S).log"
 }
 
-requireIntegrationGate() {
-    if [ "${ISOLARIUM_EC2_INTEGRATION:-}" != "1" ]; then
-        echo "FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 end-to-end tests"
-        exit 1
-    fi
-}
-
 # The instance is reached through the AWS SDK's own credential chain, which the
 # test does nothing to configure. Lifting the credentials from the profile the
 # AWS CLI already uses saves exporting them by hand, and leaves them empty — so
@@ -80,7 +73,6 @@ failWhenAnyInstanceIsStillRunning() {
     fi
 }
 
-requireIntegrationGate
 exportCredentialsFromTheConfiguredProfile
 
 echo "=== Running the EC2 end-to-end test against a real AWS account ==="

@@ -392,7 +392,7 @@ Progress messages to stdout mirror the Lima flow's style (`Creating EC2 instance
 ### 5.5 Testability
 
 - Unit tests must run with no AWS access, no network, and no `terraform` binary, via the injectable function fields in 4.1 and the existing `command.NewFakeRunner`.
-- Integration tests use the `//go:build integration` tag and are gated on `ISOLARIUM_EC2_INTEGRATION=1` plus AWS credentials.
+- Integration tests use the `//go:build ec2` tag and require AWS credentials in the environment. The tag is the gate: `go test ./...` and CI can never select them.
 - Per the CLAUDE.md test-integrity rule, a gated test that cannot run must **fail with a clear message**, not skip. `test-scripts/test-ec2-integration.sh` must exit non-zero if `go test` reports "no tests to run".
 
 ---
@@ -544,7 +544,7 @@ The capability is complete when all of the following hold.
 
 16. `make` succeeds — the canonical build command, per CLAUDE.md.
 17. Unit tests for the EC2 backend pass with no AWS access, no network, and no `terraform` binary installed.
-18. `test-scripts/test-ec2-integration.sh` passes against real AWS with `ISOLARIUM_EC2_INTEGRATION=1`, and **fails rather than skips** when the variable or credentials are absent.
+18. `test-scripts/test-ec2.sh` passes against real AWS with credentials in the environment, and **fails rather than skips** when they are absent.
 19. README documents: the `terraform` ≥ 1.10 prerequisite, required env vars, cold-start latency, that instances bill until destroyed, that a Claude refresh token is placed on the instance, `terraform force-unlock` recovery, manual state-bucket removal, and the nested-tmux prefix-key caveat.
 20. Assumption A1 is recorded as accepted-unverified with its contingency stated; no work verifies it, and the 3.11 conditional write is implemented so that it is correct whether or not A1 holds.
 

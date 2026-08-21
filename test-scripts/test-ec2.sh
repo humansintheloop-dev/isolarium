@@ -14,13 +14,6 @@ perRunLogFile() {
     echo "$logDir/test-ec2-$(date +%Y%m%d-%H%M%S).log"
 }
 
-requireIntegrationGate() {
-    if [ "${ISOLARIUM_EC2_INTEGRATION:-}" != "1" ]; then
-        echo "FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 tests"
-        exit 1
-    fi
-}
-
 # The Go tests require the credentials in the environment so that a missing
 # account fails the run rather than skipping it. Lifting them from the profile
 # the AWS CLI already uses saves exporting them by hand, and leaves them empty —
@@ -125,7 +118,6 @@ failWhenAnyInstanceIsStillRunning() {
 }
 
 parseArguments "$@"
-requireIntegrationGate
 exportCredentialsFromTheConfiguredProfile
 
 echo "=== Running EC2 tests against a real AWS account ==="

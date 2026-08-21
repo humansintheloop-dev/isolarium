@@ -20,7 +20,6 @@ import (
 )
 
 const (
-	integrationGateEnvVar = "ISOLARIUM_EC2_INTEGRATION"
 	ec2EnvironmentType    = "ec2"
 
 	// ec2EnvironmentName is the name `--type ec2` defaults to, spelled out rather
@@ -95,20 +94,8 @@ type ec2Environment struct {
 func newEC2Environment(t *testing.T) *ec2Environment {
 	t.Helper()
 
-	requireIntegrationGate(t)
 	built := newTestEnv(t, ec2EnvironmentType)
 	return &ec2Environment{t: t, binary: built.binary, root: built.root, name: ec2EnvironmentName}
-}
-
-// requireIntegrationGate fails the run rather than skipping it, because a
-// skipped end-to-end test would report green while proving nothing about the
-// capability.
-func requireIntegrationGate(t *testing.T) {
-	t.Helper()
-
-	if os.Getenv(integrationGateEnvVar) != "1" {
-		t.Fatalf("%s=1 is required to run EC2 end-to-end tests", integrationGateEnvVar)
-	}
 }
 
 // discardWhatAnEarlierRunLeft hands this run the working directory a first run
