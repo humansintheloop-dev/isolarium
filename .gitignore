@@ -11,6 +11,9 @@
 repomix-output.xml
 logs/
 
+# The EC2 suite's working directory: keypair, terraform providers, backend state
+terraform-dev/
+
 # Gradle (test project)
 testdata/spring-boot-app/.gradle/
 testdata/spring-boot-app/build/

@@ -92,29 +92,61 @@ func runSuiteAgainstOneInstance(m *testing.M) int {
 		fmt.Fprintln(os.Stderr, err)
 		status = 1
 	}
-	for _, temporary := range []string{dir, hostMarkerDir} {
-		if temporary == "" {
-			continue
-		}
-		if err := os.RemoveAll(temporary); err != nil {
-			fmt.Fprintf(os.Stderr, "removing %s: %v\n", temporary, err)
+	fmt.Fprintf(os.Stderr, "the suite's working directory was left at %s\n", dir)
+	if hostMarkerDir != "" {
+		if err := os.RemoveAll(hostMarkerDir); err != nil {
+			fmt.Fprintf(os.Stderr, "removing %s: %v\n", hostMarkerDir, err)
 			status = 1
 		}
 	}
 	return status
 }
 
+// devHomeDirName is the fixed directory the suite stands in for the host's home
+// directory with. A per-run temp directory put the working directory at an
+// unpredictable path under /var/folders and abandoned one there for every run
+// that was killed -- which is exactly when the working directory is worth
+// reading. Note that a run reaching the end still wipes most of what is here,
+// because the last test runs isolarium ec2 wipe and that removes the Terraform
+// directory and the keypair by design; what the fixed path buys is somewhere
+// known to look, and the remains of a run that did not get that far.
+// It is gitignored.
+const devHomeDirName = "terraform-dev"
+
 func makeSharedHomeDir() (string, error) {
-	home, err := os.MkdirTemp("", "isolarium-ec2-suite")
+	checkout, err := resolveRepositoryCheckout()
 	if err != nil {
 		return "", err
 	}
-	sharedHomeDir = home
-	sharedMetadataDir = filepath.Join(home, ".isolarium")
+
+	sharedHomeDir = filepath.Join(checkout, devHomeDirName)
+	sharedMetadataDir = filepath.Join(sharedHomeDir, ".isolarium")
 	if err := os.MkdirAll(sharedMetadataDir, 0o755); err != nil {
 		return "", err
 	}
-	return home, nil
+	return sharedHomeDir, discardEnvironmentsAnEarlierRunLeft()
+}
+
+// discardEnvironmentsAnEarlierRunLeft removes the instance declarations and
+// metadata that a killed run leaves in a directory which now survives it. They
+// would otherwise make create refuse to overwrite an existing instance, and wipe
+// refuse to run at all, on every later run. What makes the directory worth
+// keeping -- the provider downloads, the backend initialisation and the keypair
+// -- is deliberately left alone.
+func discardEnvironmentsAnEarlierRunLeft() error {
+	names, err := ec2.ListInstanceNames(sharedMetadataDir)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		if err := ec2.RemoveInstanceFile(sharedMetadataDir, name); err != nil {
+			return err
+		}
+		if err := ec2.NewMetadataStore(sharedMetadataDir, name).Cleanup(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // terminateSharedInstance runs once every test has returned, so a run narrowed
@@ -231,11 +263,21 @@ func integrationRepositorySpec(t *testing.T) ec2.RepositorySpec {
 func repositoryCheckout(t *testing.T) string {
 	t.Helper()
 
-	output, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	checkout, err := resolveRepositoryCheckout()
 	if err != nil {
 		t.Fatalf("resolving the repository checkout: %v", err)
 	}
-	return strings.TrimSpace(string(output))
+	return checkout
+}
+
+// resolveRepositoryCheckout is what repositoryCheckout reports through a
+// *testing.T, separated out because TestMain has no test to fail.
+func resolveRepositoryCheckout() (string, error) {
+	output, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolving the repository checkout: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 func mintIntegrationToken(t *testing.T, owner, repo string) string {
