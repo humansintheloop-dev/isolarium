@@ -574,9 +574,9 @@ Spec 3.9 refresh-on-failure and the spec 3.4 destroy-time ingress fallback; scen
   - Observable: after stopping and starting a real instance out of band through the AWS API, its public DNS differs from the one in `metadata.json`; the next `run -- echo hello` still prints `hello` and exits 0, and `metadata.json` afterwards holds the new DNS with the instance ID unchanged
   - Evidence: `TestEC2Instance_RecoversFromChangedDNS` in `internal/ec2/recovery_ec2_test.go` behind `//go:build ec2`, which stops and starts the instance through the SDK, asserts the DNS actually changed before running the command, and fails the test if it did not`
   - Steps:
-    - [ ] Add `internal/ec2/recovery_ec2_test.go` behind `//go:build ec2` implementing the stop/start/reconnect sequence
-    - [ ] Assert that the DNS genuinely changed before exercising the recovery, so the test cannot pass vacuously when AWS happens to reassign the same name
-    - [ ] Allow generous timeouts — a stop and start cycle takes minutes — and register cleanup that destroys the instance regardless of outcome
+    - [x] Add `internal/ec2/recovery_ec2_test.go` behind `//go:build ec2` implementing the stop/start/reconnect sequence
+    - [x] Assert that the DNS genuinely changed before exercising the recovery, so the test cannot pass vacuously when AWS happens to reassign the same name
+    - [x] Allow generous timeouts — a stop and start cycle takes minutes — and register cleanup that destroys the instance regardless of outcome
 - [ ] **Task 11.3: Public-IP detection failure aborts `create` but falls back to the persisted CIDR on `destroy` and `wipe`**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/backend/... -run TestResolveIngressCIDR`
@@ -815,3 +815,12 @@ Both tests pass against a real AWS account via ./test-scripts/test-ec2.sh. The r
 
 ### 2026-08-20 17:59 - mark-task-complete
 ValidateName rejects My_Env at the top of EC2Backend.Create; unit tests and test-ec2-preflight.sh assert the message
+
+### 2026-08-20 19:04 - mark-step-complete
+Added internal/ec2/recovery_ec2_test.go behind //go:build ec2 with TestEC2Instance_RecoversFromChangedDNS, which stops and starts the shared instance through the SDK and then runs echo hello through EC2Backend.Exec.
+
+### 2026-08-20 19:04 - mark-step-complete
+assertAddressMoved fails the test when the restarted instance comes back on the same public DNS, so the recovery can never pass vacuously.
+
+### 2026-08-20 19:04 - mark-step-complete
+The SDK stopped and running waiters each get a 10 minute budget and SSH readiness at the new address gets the suite's 5 minute budget; the suite's terminateSharedInstance already destroys the instance however the test ends, and adoptCurrentPublicDNS keeps a failure here from cascading into later tests.

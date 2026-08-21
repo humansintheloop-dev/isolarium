@@ -46,6 +46,9 @@ const (
 //     on purpose: its clone-cleanliness and token-grep assertions need an
 //     instance nothing has written to yet, and those two later files copy the
 //     Claude credentials in and place a script in the home directory.
+//   - recovery_ec2_test.go sorts between this file and repo_ec2_test.go, which
+//     is where its stop and start belong: the instance already exists, and no
+//     test has yet built up the tmux state a reboot would throw away.
 //
 // Renaming one of those files, or adding a test that writes to the instance
 // ahead of them, breaks assertions elsewhere without breaking this test.
@@ -322,20 +325,29 @@ func (e *ec2Environment) repositorySource() backend.RepositorySource {
 func (e *ec2Environment) waitForSSH() {
 	e.t.Helper()
 
-	deadline := time.Now().Add(sshReadinessTimeout)
-	for !e.sshLoginSucceeds() {
-		if time.Now().After(deadline) {
-			e.t.Fatalf("instance %s did not become reachable over SSH within %s", e.instanceID, sshReadinessTimeout)
-		}
-		time.Sleep(sshReadinessInterval)
-	}
+	e.waitForSSHAt(e.publicDNS)
 	e.t.Logf("TIMING: cold start from create to first SSH login took %s", time.Since(e.createdAt).Round(time.Second))
 }
 
-// sshLoginSucceeds probes reachability through the same command builder Exec
+// waitForSSHAt takes an address rather than reading the recorded one, because a
+// restarted instance is reachable at a name isolarium has not been told about
+// yet.
+func (e *ec2Environment) waitForSSHAt(publicDNS string) {
+	e.t.Helper()
+
+	deadline := time.Now().Add(sshReadinessTimeout)
+	for !e.sshLoginSucceedsAt(publicDNS) {
+		if time.Now().After(deadline) {
+			e.t.Fatalf("instance %s did not become reachable over SSH at %s within %s", e.instanceID, publicDNS, sshReadinessTimeout)
+		}
+		time.Sleep(sshReadinessInterval)
+	}
+}
+
+// sshLoginSucceedsAt probes reachability through the same command builder Exec
 // uses, but discards its output so the retry loop stays quiet.
-func (e *ec2Environment) sshLoginSucceeds() bool {
-	args := ec2.BuildExecCommand(e.base, e.publicDNS, ec2.RemoteCommand{Args: []string{"true"}})
+func (e *ec2Environment) sshLoginSucceedsAt(publicDNS string) bool {
+	args := ec2.BuildExecCommand(e.base, publicDNS, ec2.RemoteCommand{Args: []string{"true"}})
 	return exec.Command(args[0], args[1:]...).Run() == nil
 }
 
