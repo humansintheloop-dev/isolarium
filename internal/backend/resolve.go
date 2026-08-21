@@ -57,7 +57,7 @@ func NewEC2Backend() *EC2Backend {
 		EnsureBucketFunc:       ec2.BootstrapStateBucket,
 		ExtractScaffoldingFunc: ec2.ExtractScaffolding,
 		EnsureKeypairFunc:      ec2.EnsureKeypair,
-		DetectPublicIPFunc:     func() (string, error) { return ec2.DetectPublicIP(ec2.DefaultHTTPGet) },
+		CheckIPFunc:            ec2.DefaultHTTPGet,
 		SleepFunc:              time.Sleep,
 		ExecFunc:               ec2.ExecCommand,
 		ExecInteractiveFunc:    ec2.ExecInteractiveCommand,

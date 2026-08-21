@@ -29,14 +29,14 @@ func (s *ensureBucketSpy) ensureBucket(ctx context.Context, region string) (stri
 
 // hostProvisioningSpy records the order in which Create provisions host state.
 type hostProvisioningSpy struct {
-	calls        []string
-	scaffoldBase string
-	keypairBase  string
-	publicKey    string
-	detectedCIDR string
-	scaffoldErr  error
-	keypairErr   error
-	detectErr    error
+	calls           []string
+	scaffoldBase    string
+	keypairBase     string
+	publicKey       string
+	detectedAddress string
+	scaffoldErr     error
+	keypairErr      error
+	detectErr       error
 }
 
 func (s *hostProvisioningSpy) extractScaffolding(base string) error {
@@ -51,15 +51,19 @@ func (s *hostProvisioningSpy) ensureKeypair(base string) (string, error) {
 	return s.publicKey, s.keypairErr
 }
 
-func (s *hostProvisioningSpy) detectPublicIP() (string, error) {
+// checkIP stands in for the public-IP lookup service, so the spy drives the same
+// detection code the real backend runs rather than short-circuiting it.
+func (s *hostProvisioningSpy) checkIP(string) (string, error) {
 	s.calls = append(s.calls, "detect")
-	return s.detectedCIDR, s.detectErr
+	return s.detectedAddress + "\n", s.detectErr
 }
+
+const ec2SpyDetectedCIDR = "203.0.113.7/32"
 
 func newHostProvisioningSpy() *hostProvisioningSpy {
 	return &hostProvisioningSpy{
-		publicKey:    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIspy isolarium",
-		detectedCIDR: "203.0.113.7/32",
+		publicKey:       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIspy isolarium",
+		detectedAddress: "203.0.113.7",
 	}
 }
 
@@ -204,7 +208,7 @@ func (f ec2BackendFixture) backend() *EC2Backend {
 		EnsureBucketFunc:       f.bucket.ensureBucket,
 		ExtractScaffoldingFunc: f.host.extractScaffolding,
 		EnsureKeypairFunc:      f.host.ensureKeypair,
-		DetectPublicIPFunc:     f.host.detectPublicIP,
+		CheckIPFunc:            f.host.checkIP,
 		ExecFunc:               f.remote.exec,
 		CaptureFunc:            f.remote.capture,
 		SleepFunc:              func(time.Duration) {},
@@ -323,7 +327,7 @@ func TestEC2Backend_Create_ProvisionsHostStateAfterBucketBootstrap(t *testing.T)
 		t.Errorf("host provisioning order = %q, want %q", got, "scaffold,keypair,detect")
 	}
 	assertHostProvisionedUnder(t, host, fixture.metadataDir)
-	assertPersistedIngressCIDR(t, fixture.metadataDir, "203.0.113.7/32")
+	assertPersistedIngressCIDR(t, fixture.metadataDir, ec2SpyDetectedCIDR)
 }
 
 func assertHostProvisionedUnder(t *testing.T, host *hostProvisioningSpy, metadataDir string) {
@@ -846,6 +850,7 @@ type ec2DestroyFixture struct {
 	host    *hostProvisioningSpy
 	runner  *command.FakeRunner
 	out     *bytes.Buffer
+	errOut  *bytes.Buffer
 	base    string
 }
 
@@ -861,9 +866,11 @@ func ec2BackendWithCreatedEnvironment(t *testing.T) ec2DestroyFixture {
 	seedCreatedEnvironment(t, fixture.metadataDir)
 
 	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
 	b := fixture.backend()
 	b.Out = out
-	return ec2DestroyFixture{backend: b, host: host, runner: runner, out: out, base: fixture.metadataDir}
+	b.ErrWriter = errOut
+	return ec2DestroyFixture{backend: b, host: host, runner: runner, out: out, errOut: errOut, base: fixture.metadataDir}
 }
 
 func seedCreatedEnvironment(t *testing.T, base string) {
@@ -908,7 +915,7 @@ func TestEC2Destroy_BackendRemovesInstanceAndHostState(t *testing.T) {
 	assertAbsent(t, "instance file", ec2.InstanceFilePath(f.base, "my-work"))
 	assertAbsent(t, "metadata directory", filepath.Join(f.base, "my-work", "ec2"))
 	assertDestroyInvocations(t, f)
-	assertPersistedIngressCIDR(t, f.base, "203.0.113.7/32")
+	assertPersistedIngressCIDR(t, f.base, ec2SpyDetectedCIDR)
 }
 
 func assertAbsent(t *testing.T, label, path string) {
@@ -966,7 +973,7 @@ func TestEC2Destroy_BackendIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestEC2Destroy_BackendFallsBackToThePersistedIngressCIDR(t *testing.T) {
+func TestEC2Backend_Destroy_FallsBackToPersistedCIDR(t *testing.T) {
 	f := ec2BackendWithCreatedEnvironment(t)
 	f.host.detectErr = errors.New("dial tcp: no route to host")
 
@@ -975,8 +982,21 @@ func TestEC2Destroy_BackendFallsBackToThePersistedIngressCIDR(t *testing.T) {
 	}
 
 	assertAppliedIngressCIDR(t, f.runner, ec2SpyPersistedCIDR)
-	if got := f.out.String(); !strings.Contains(got, ec2SpyPersistedCIDR) {
-		t.Errorf("Destroy() printed %q, want a warning naming the persisted CIDR %q", got, ec2SpyPersistedCIDR)
+	assertContainsAll(t, "the warning on stderr", f.errOut.String(),
+		"warning: public IP detection failed",
+		"dial tcp: no route to host",
+		ec2SpyPersistedCIDR,
+	)
+	assertAbsent(t, "instance file", ec2.InstanceFilePath(f.base, "my-work"))
+}
+
+func assertContainsAll(t *testing.T, name, content string, wanted ...string) {
+	t.Helper()
+
+	for _, want := range wanted {
+		if !strings.Contains(content, want) {
+			t.Errorf("%s = %q, want it to contain %q", name, content, want)
+		}
 	}
 }
 

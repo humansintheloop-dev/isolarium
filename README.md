@@ -260,9 +260,21 @@ SSH ingress is restricted to your host's current public address, detected via
 `https://checkip.amazonaws.com` and applied as a single `/32`. There is one
 shared ingress rule for all instances, so **switching networks and then running
 any `create` or `destroy` re-points ingress and restores access to every
-instance**. Isolarium never writes `0.0.0.0/0`: on `create`, failed detection is
-fatal. Each successful detection is persisted to
+instance**. Each successful detection is persisted to
 `~/.isolarium/ec2/terraform/isolarium.auto.tfvars`.
+
+What happens when that detection fails depends on which operation you are
+running, so that teardown is never blocked by a network you cannot reach the
+detection service from:
+
+| Operation | Detection fails |
+|---|---|
+| `create` | **Fatal.** The detection error is reported as-is and no instance is launched. |
+| `destroy`, `ec2 wipe` | **Warns on stderr and continues**, using the CIDR persisted in `isolarium.auto.tfvars`. With no persisted value, fatal. |
+
+**Isolarium never writes `0.0.0.0/0`.** No failure path on either operation
+widens ingress, and a persisted value that is not a single-host CIDR is refused
+rather than used.
 
 These credentials must carry the following IAM permissions:
 
@@ -305,10 +317,9 @@ for, evicts the host's entry from `~/.isolarium/ec2/known_hosts`, and deletes
   delete it in the console once you have confirmed nothing is using it, and
   re-run.
 
-Teardown also tolerates a failure to detect your public IP: it warns and falls
-back to the CIDR persisted in `isolarium.auto.tfvars`, so being off the network
-you created from never strands a billing instance. With no persisted value it
-fails rather than widening ingress.
+Teardown also tolerates a failure to detect your public IP, falling back to the
+persisted CIDR under the policy tabled above, so being off the network you
+created from never strands a billing instance.
 
 Project setup steps run at the end of `create --type ec2`, declared under an
 `ec2` key in the repository's `pid.yaml`:

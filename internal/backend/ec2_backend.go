@@ -48,7 +48,7 @@ type EC2Backend struct {
 	EnsureBucketFunc       EnsureBucketFunc
 	ExtractScaffoldingFunc func(base string) error
 	EnsureKeypairFunc      func(base string) (string, error)
-	DetectPublicIPFunc     func() (string, error)
+	CheckIPFunc            ec2.HTTPGetFunc
 	SleepFunc              func(time.Duration)
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
@@ -247,14 +247,25 @@ func (b *EC2Backend) provisionHostState() (hostState, error) {
 		return hostState{}, err
 	}
 
-	cidr, err := b.DetectPublicIPFunc()
+	cidr, err := b.resolveIngressCIDR(ec2.OpCreate)
 	if err != nil {
 		return hostState{}, err
 	}
-	if err := ec2.PersistIngressCIDR(b.MetadataDir, cidr); err != nil {
-		return hostState{}, err
-	}
 	return hostState{publicKey: publicKey, ingressCIDR: cidr}, nil
+}
+
+// resolveIngressCIDR applies the per-operation detection-failure policy and
+// reports any fallback on stderr, where a warning belongs rather than in the
+// command's own output.
+func (b *EC2Backend) resolveIngressCIDR(op ec2.Operation) (string, error) {
+	cidr, warning, err := ec2.ResolveIngressCIDR(b.MetadataDir, op, b.CheckIPFunc)
+	if err != nil {
+		return "", err
+	}
+	if warning != "" {
+		b.printErr(warning)
+	}
+	return cidr, nil
 }
 
 // launchInstance takes an environment from a Terraform description to an
@@ -453,7 +464,7 @@ func (t ec2Teardown) plan() (environmentPlan, error) {
 		return environmentPlan{}, err
 	}
 
-	cidr, err := t.ingressCIDR()
+	cidr, err := t.backend.resolveIngressCIDR(ec2.OpDestroy)
 	if err != nil {
 		return environmentPlan{}, err
 	}
@@ -464,25 +475,6 @@ func (t ec2Teardown) plan() (environmentPlan, error) {
 		bucket: bucket,
 		host:   hostState{publicKey: publicKey, ingressCIDR: cidr},
 	}, nil
-}
-
-// ingressCIDR warns and falls back to the last successfully detected address
-// when detection fails, so that being off the network isolarium was created
-// from never blocks tearing an instance down.
-func (t ec2Teardown) ingressCIDR() (string, error) {
-	base := t.backend.MetadataDir
-
-	cidr, err := t.backend.DetectPublicIPFunc()
-	if err == nil {
-		return cidr, ec2.PersistIngressCIDR(base, cidr)
-	}
-
-	persisted, persistErr := ec2.ReadPersistedIngressCIDR(base)
-	if persistErr != nil {
-		return "", fmt.Errorf("%w; and no ingress CIDR was persisted: %v", err, persistErr)
-	}
-	t.backend.print(fmt.Sprintf("warning: public IP detection failed (%v); falling back to the last known ingress CIDR %s", err, persisted))
-	return persisted, nil
 }
 
 // recordedPublicDNS is empty when create was interrupted before it recorded any

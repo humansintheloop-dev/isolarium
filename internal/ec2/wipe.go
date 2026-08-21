@@ -16,7 +16,7 @@ type WipeDeps struct {
 	Runner             command.Runner
 	ResolveAccountFunc func() (region, bucket string, err error)
 	EnsureKeypairFunc  func(base string) (string, error)
-	DetectPublicIPFunc func() (string, error)
+	CheckIPFunc        HTTPGetFunc
 	Out                io.Writer
 	// ErrWriter carries terraform's own progress, which is diagnostic rather
 	// than part of the wipe's report.
@@ -104,21 +104,19 @@ func (s sharedInfrastructure) destroy() (bucket string, err error) {
 	})
 }
 
-// ingressCIDR warns and falls back to the last successfully detected address
-// when detection fails, so that being off the network isolarium was created
-// from never blocks tearing the infrastructure down.
+// ingressCIDR resolves under the teardown policy, so that being off the network
+// isolarium was created from never blocks tearing the infrastructure down. The
+// warning is diagnostic rather than part of the wipe's report, so it goes to
+// ErrWriter.
 func (s sharedInfrastructure) ingressCIDR() (string, error) {
-	cidr, err := s.deps.DetectPublicIPFunc()
-	if err == nil {
-		return cidr, PersistIngressCIDR(s.base, cidr)
+	cidr, warning, err := ResolveIngressCIDR(s.base, OpDestroy, s.deps.CheckIPFunc)
+	if err != nil {
+		return "", err
 	}
-
-	persisted, persistErr := ReadPersistedIngressCIDR(s.base)
-	if persistErr != nil {
-		return "", fmt.Errorf("%w; and no ingress CIDR was persisted: %v", err, persistErr)
+	if warning != "" {
+		_, _ = fmt.Fprintln(s.errOut(), warning)
 	}
-	s.print(fmt.Sprintf("warning: public IP detection failed (%v); falling back to the last known ingress CIDR %s", err, persisted))
-	return persisted, nil
+	return cidr, nil
 }
 
 func (s sharedInfrastructure) removeHostFiles() error {

@@ -577,16 +577,16 @@ Spec 3.9 refresh-on-failure and the spec 3.4 destroy-time ingress fallback; scen
     - [x] Add `internal/ec2/recovery_ec2_test.go` behind `//go:build ec2` implementing the stop/start/reconnect sequence
     - [x] Assert that the DNS genuinely changed before exercising the recovery, so the test cannot pass vacuously when AWS happens to reassign the same name
     - [x] Allow generous timeouts — a stop and start cycle takes minutes — and register cleanup that destroys the instance regardless of outcome
-- [ ] **Task 11.3: Public-IP detection failure aborts `create` but falls back to the persisted CIDR on `destroy` and `wipe`**
+- [x] **Task 11.3: Public-IP detection failure aborts `create` but falls back to the persisted CIDR on `destroy` and `wipe`**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/backend/... -run TestResolveIngressCIDR`
   - Observable: `ResolveIngressCIDR(base, opCreate)` returns the detection error unchanged and no instance is launched; `ResolveIngressCIDR(base, opDestroy)` falls back to the value persisted in `isolarium.auto.tfvars` and returns it with a warning string, and errors when no persisted value exists; with detection failing and the file holding `ingress_cidr = "198.51.100.4/32"`, `destroy` writes the warning to stderr, still runs the apply with that CIDR, and completes; no failure path returns `0.0.0.0/0`
   - Evidence: `TestResolveIngressCIDR_FailureIsFatalOnCreate`, `TestResolveIngressCIDR_FallsBackOnDestroy`, and `TestEC2Backend_Destroy_FallsBackToPersistedCIDR` in `internal/ec2/publicip_test.go` and `internal/backend/ec2_backend_test.go``
   - Steps:
-    - [ ] Add the failure-policy cases to `internal/ec2/publicip_test.go` first
-    - [ ] Add an `operation` enum with `opCreate` and `opDestroy`, and `ResolveIngressCIDR(base string, op operation, get httpGetFunc) (cidr string, warning string, err error)` implementing the per-operation policy from spec 3.4
-    - [ ] Route `EC2Backend.Create` through `opCreate`, and both `EC2Backend.Destroy` and `ec2.Wipe` through `opDestroy`, writing any warning to `ErrWriter`
-    - [ ] Document the per-operation policy in the EC2 section of `README.md`
+    - [x] Add the failure-policy cases to `internal/ec2/publicip_test.go` first
+    - [x] Add an `operation` enum with `opCreate` and `opDestroy`, and `ResolveIngressCIDR(base string, op operation, get httpGetFunc) (cidr string, warning string, err error)` implementing the per-operation policy from spec 3.4
+    - [x] Route `EC2Backend.Create` through `opCreate`, and both `EC2Backend.Destroy` and `ec2.Wipe` through `opDestroy`, writing any warning to `ErrWriter`
+    - [x] Document the per-operation policy in the EC2 section of `README.md`
 ## Steel Thread 12: An agent workload runs end to end and the full suite is green
 Spec 5.5 and acceptance criteria 16–19; CLAUDE.md test-integrity rule. The capstone: a real Claude workload driven through the CLI in an EC2 environment under `//go:build e2e_ec2`, mirroring the existing `e2e_claude` tests, plus the final green-suite gate.
 
@@ -827,3 +827,6 @@ The SDK stopped and running waiters each get a 10 minute budget and SSH readines
 
 ### 2026-08-21 09:52 - mark-task-complete
 The full ./test-scripts/test-ec2.sh suite passed against a real AWS account: TestEC2Instance_RecoversFromChangedDNS stopped and started the instance, its public DNS moved from ec2-54-176-69-144 to ec2-54-176-246-196, the stale address timed out, the refresh rewrote metadata.json and the retried echo printed hello.
+
+### 2026-08-21 10:27 - mark-task-complete
+ResolveIngressCIDR now owns the per-operation detection-failure policy; create is fatal, destroy and ec2 wipe fall back to the persisted CIDR with a warning on stderr.

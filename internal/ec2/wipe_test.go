@@ -10,14 +10,16 @@ import (
 )
 
 const (
-	wipeTestPublicKey   = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIfake isolarium"
-	wipeTestIngressCIDR = "203.0.113.7/32"
+	wipeTestPublicKey     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIfake isolarium"
+	wipeTestPublicAddress = "203.0.113.7"
+	wipeTestIngressCIDR   = wipeTestPublicAddress + "/32"
 )
 
 type wipeFixture struct {
 	base   string
 	runner *command.FakeRunner
 	out    *bytes.Buffer
+	errOut *bytes.Buffer
 }
 
 func newWipeFixture(t *testing.T) wipeFixture {
@@ -26,7 +28,7 @@ func newWipeFixture(t *testing.T) wipeFixture {
 	base := t.TempDir()
 	runner := command.NewFakeRunner(t)
 	runner.OnCommand("terraform").Returns("")
-	return wipeFixture{base: base, runner: runner, out: &bytes.Buffer{}}
+	return wipeFixture{base: base, runner: runner, out: &bytes.Buffer{}, errOut: &bytes.Buffer{}}
 }
 
 func (f wipeFixture) deps() WipeDeps {
@@ -35,9 +37,10 @@ func (f wipeFixture) deps() WipeDeps {
 		ResolveAccountFunc: func() (string, string, error) {
 			return testRegion, testBucketName, nil
 		},
-		EnsureKeypairFunc:  func(string) (string, error) { return wipeTestPublicKey, nil },
-		DetectPublicIPFunc: func() (string, error) { return wipeTestIngressCIDR, nil },
-		Out:                f.out,
+		EnsureKeypairFunc: func(string) (string, error) { return wipeTestPublicKey, nil },
+		CheckIPFunc:       fakeCheckIPReturning(wipeTestPublicAddress + "\n"),
+		Out:               f.out,
+		ErrWriter:         f.errOut,
 	}
 }
 
@@ -124,7 +127,7 @@ func TestEC2Wipe_FallsBackToThePersistedIngressCIDRWhenDetectionFails(t *testing
 	}
 
 	deps := fixture.deps()
-	deps.DetectPublicIPFunc = func() (string, error) { return "", os.ErrDeadlineExceeded }
+	deps.CheckIPFunc = failingCheckIP(os.ErrDeadlineExceeded.Error())
 
 	if err := Wipe(fixture.base, deps); err != nil {
 		t.Fatalf("Wipe() error = %v", err)
@@ -133,7 +136,28 @@ func TestEC2Wipe_FallsBackToThePersistedIngressCIDRWhenDetectionFails(t *testing
 	if got := strings.Join(fixture.runner.Calls()[0], " "); !strings.Contains(got, "-var=ingress_cidr=198.51.100.4/32") {
 		t.Errorf("invocation = %q, want it to carry the persisted ingress CIDR", got)
 	}
-	assertContainsAll(t, "the wipe report", fixture.out.String(), "warning: public IP detection failed")
+	assertContainsAll(t, "the wipe diagnostics", fixture.errOut.String(),
+		"warning: public IP detection failed",
+		"198.51.100.4/32",
+	)
+}
+
+func TestEC2Wipe_FailsWhenNeitherDetectionNorPersistenceYieldsACIDR(t *testing.T) {
+	fixture := newWipeFixture(t)
+	fixture.writeSharedInfrastructureFiles(t)
+
+	deps := fixture.deps()
+	deps.CheckIPFunc = failingCheckIP(os.ErrDeadlineExceeded.Error())
+
+	err := Wipe(fixture.base, deps)
+
+	if err == nil {
+		t.Fatal("Wipe() returned nil error with no detected and no persisted ingress CIDR")
+	}
+	if calls := fixture.runner.Calls(); len(calls) != 0 {
+		t.Errorf("Wipe() ran %v, want no terraform invocation", calls)
+	}
+	assertPathExists(t, PrivateKeyPath(fixture.base))
 }
 
 func assertPathExists(t *testing.T, path string) {

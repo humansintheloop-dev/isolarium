@@ -37,7 +37,7 @@ func wipeDeps(out, errWriter io.Writer) ec2.WipeDeps {
 		Runner:             command.ExecRunner{},
 		ResolveAccountFunc: resolveAWSAccountForWipe,
 		EnsureKeypairFunc:  ec2.EnsureKeypair,
-		DetectPublicIPFunc: func() (string, error) { return ec2.DetectPublicIP(ec2.DefaultHTTPGet) },
+		CheckIPFunc:        ec2.DefaultHTTPGet,
 		Out:                out,
 		ErrWriter:          errWriter,
 	}
