@@ -6,6 +6,14 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+# The log outlives the run so that a suite that failed, or one that had to be
+# interrupted, can still be read afterwards. logs/ is gitignored.
+perRunLogFile() {
+    local logDir="$PROJECT_ROOT/logs"
+    mkdir -p "$logDir"
+    echo "$logDir/test-ec2-$(date +%Y%m%d-%H%M%S).log"
+}
+
 requireIntegrationGate() {
     if [ "${ISOLARIUM_EC2_INTEGRATION:-}" != "1" ]; then
         echo "FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 tests"
@@ -100,8 +108,8 @@ exportCredentialsFromTheConfiguredProfile
 
 echo "=== Running EC2 tests against a real AWS account ==="
 
-LOG_FILE="$(mktemp)"
-trap 'rm -f "$LOG_FILE"' EXIT
+LOG_FILE="$(perRunLogFile)"
+echo "=== Logging to $LOG_FILE ==="
 
 WHOLE_SUITE=true
 if [ $# -gt 0 ]; then
