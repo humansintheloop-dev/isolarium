@@ -19,6 +19,7 @@ IMPORTANT: Always invoke the relevant skill before performing these actions:
 - **When creating Dockerfiles**: Use the `idea-to-code:dockerfile-guidelines` skill
 - **When moving/renaming files**: Use the `idea-to-code:file-organization` skill
 - **When writing multiple similar files**: Use the `idea-to-code:incremental-development` skill
+- **When running test scripts or long-running commands**: Use the `idea-to-code:test-output-to-logfile` skill
 
 ## Code Health
 
