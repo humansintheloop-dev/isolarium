@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
@@ -88,6 +87,7 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	rootCmd.AddCommand(newCloneRepoCmd(rootCmd, &typeFlag))
 	rootCmd.AddCommand(newInstallToolsCmd(rootCmd, &typeFlag))
 	rootCmd.AddCommand(newInstallWorkflowToolsFromSourceCmd(rootCmd, &typeFlag))
+	rootCmd.AddCommand(newEC2Cmd())
 
 	return rootCmd
 }
@@ -129,11 +129,7 @@ func applyEnvVarDefaults(cmd *cobra.Command, nameFlag *string, typeFlag *environ
 }
 
 func defaultEnvironmentTypeResolver() EnvironmentTypeResolver {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.Getenv("HOME")
-	}
-	baseDir := filepath.Join(home, ".isolarium")
+	baseDir := isolariumBaseDir()
 	return func(name string) (string, error) {
 		return backend.ResolveEnvironmentType(baseDir, name)
 	}

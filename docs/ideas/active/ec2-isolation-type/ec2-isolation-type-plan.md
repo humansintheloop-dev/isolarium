@@ -494,16 +494,16 @@ Spec 3.9 state mapping, scenario 16, acceptance criterion 5. The exhaustive stat
 ## Steel Thread 9: `isolarium ec2 wipe` tears down shared infrastructure
 Spec 3.13 `ec2 wipe`, scenarios 11 and 12, acceptance criterion 7. Teardown of the shared VPC, security group, and key pair, proven against the AWS API rather than against local files, with the state bucket deliberately retained.
 
-- [ ] **Task 9.1: `ec2 wipe` refuses while instances exist and otherwise tears down shared infrastructure**
+- [x] **Task 9.1: `ec2 wipe` refuses while instances exist and otherwise tears down shared infrastructure**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/cli/... ./internal/ec2/... -run TestEC2Wipe`
   - Observable: with `instance-my-work.tf` and `instance-other.tf` present, `wipe` exits non-zero, no terraform command is invoked, and stderr lists both names plus `run isolarium destroy --type ec2 --name my-work` and `... --name other`; with no instance files present, the recorded command is `terraform destroy -auto-approve -input=false -lock-timeout=120s` with the three `-var` flags, then `<base>/ec2/terraform/`, `<base>/ec2/id_ed25519`, `<base>/ec2/id_ed25519.pub`, and `<base>/ec2/known_hosts` no longer exist, and stdout contains `S3 state bucket isolarium-tfstate-<account>-<region> was intentionally retained; see the README for manual removal`
   - Evidence: `TestEC2Wipe_RefusesWhenInstancesExist` and `TestEC2Wipe_TearsDownAndReportsRetainedBucket` in `internal/ec2/wipe_test.go` assert the command log and the file-system state before and after, driven through the cobra `ec2 wipe` command in `internal/cli/cmd_ec2_test.go``
   - Steps:
-    - [ ] Write `internal/ec2/wipe_test.go` first
-    - [ ] Implement `internal/ec2/wipe.go` with `Wipe(base string, deps WipeDeps) error` enumerating instance files via `ListInstanceNames` and refusing when any exist
-    - [ ] Create `internal/cli/cmd_ec2.go` adding an `ec2` command group with a `wipe` subcommand, registered in `newRootCmdWithResolvers` in `internal/cli/root.go`
-    - [ ] Add an `ec2 wipe` row to the Commands table of `README.md`, plus manual state-bucket removal instructions (delete every object version, then delete the bucket)
+    - [x] Write `internal/ec2/wipe_test.go` first
+    - [x] Implement `internal/ec2/wipe.go` with `Wipe(base string, deps WipeDeps) error` enumerating instance files via `ListInstanceNames` and refusing when any exist
+    - [x] Create `internal/cli/cmd_ec2.go` adding an `ec2` command group with a `wipe` subcommand, registered in `newRootCmdWithResolvers` in `internal/cli/root.go`
+    - [x] Add an `ec2 wipe` row to the Commands table of `README.md`, plus manual state-bucket removal instructions (delete every object version, then delete the bucket)
 - [ ] **Task 9.2: `ec2 wipe` removes the shared AWS infrastructure from a real account and retains the bucket**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

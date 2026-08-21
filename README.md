@@ -487,6 +487,7 @@ isolarium run --type nono -i -- claude
 | `isolarium destroy` | Delete the environment and all its contents |
 | `isolarium clone-repo` | Retry repository cloning after a failed create |
 | `isolarium install-tools` | Retry tool installation after a failed create |
+| `isolarium ec2 wipe` | Tear down the shared EC2 infrastructure, retaining the state bucket |
 
 `isolarium status` lists every environment it finds under `~/.isolarium`, one row
 per environment, with the repository and branch for `vm` and `ec2` rows and the
@@ -504,11 +505,53 @@ credentials from [EC2 mode configuration](#ec2-mode-configuration) to report it.
 Without them the row still appears, with a state of `unknown` rather than the
 command failing.
 
+### Tearing down the shared EC2 infrastructure
+
+`isolarium destroy --type ec2 --name <name>` removes one environment. The VPC,
+subnet, security group, and key pair that every environment shares outlive it,
+and `isolarium ec2 wipe` is what removes those:
+
+```bash
+isolarium ec2 wipe
+```
+
+`wipe` refuses while any EC2 environment still exists, listing them and the
+`isolarium destroy` command to run for each. It never cascades: `destroy` is the
+per-environment verb, and a wipe that silently terminated a running agent session
+would be the wrong default. Once none remain, `wipe` runs `terraform destroy`,
+removes `~/.isolarium/ec2/terraform/`, `id_ed25519`, `id_ed25519.pub`, and
+`known_hosts`, and reports the state bucket it deliberately left behind.
+
+#### Removing the state bucket by hand
+
+`wipe` retains `isolarium-tfstate-<account-id>-<region>`: it costs approximately
+nothing, is harmless to reuse, and the bootstrap on the next `create` is
+idempotent. It is versioned, so emptying it means deleting every object version
+and every delete marker before the bucket itself:
+
+```bash
+BUCKET=isolarium-tfstate-<account-id>-<region>
+
+aws s3api delete-objects --bucket "$BUCKET" --delete "$(aws s3api list-object-versions \
+  --bucket "$BUCKET" --output json \
+  --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}')"
+
+aws s3api delete-objects --bucket "$BUCKET" --delete "$(aws s3api list-object-versions \
+  --bucket "$BUCKET" --output json \
+  --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}')"
+
+aws s3api delete-bucket --bucket "$BUCKET"
+```
+
+Each `delete-objects` call handles up to 1000 versions, so repeat both until
+`list-object-versions` returns nothing. Do this only after `wipe` has succeeded —
+deleting the state while infrastructure still exists strands it.
+
 ## Global flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--type` | `vm` | Environment type: `vm`, `container`, or `nono` |
+| `--type` | `vm` | Environment type: `vm`, `container`, `nono`, or `ec2` |
 | `--name` | `isolarium` | Environment name |
 | `--env-file` | `.env.local` | Path to environment file |
 
