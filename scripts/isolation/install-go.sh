@@ -4,7 +4,11 @@ set -euo pipefail
 GO_VERSION=1.22.12
 GO_ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 
-curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tar.gz
+downloadWithRetry() {
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors "$1" -o "$2"
+}
+
+downloadWithRetry "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" /tmp/go.tar.gz
 sudo tar -C /usr/local -xzf /tmp/go.tar.gz
 rm /tmp/go.tar.gz
 

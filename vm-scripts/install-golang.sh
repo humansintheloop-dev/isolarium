@@ -46,7 +46,11 @@ else
   ARCH=$(dpkg --print-architecture)
   echo "Installing Go ${GO_VERSION} for ${ARCH}..."
 
-  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" -o /tmp/go.tar.gz
+  downloadWithRetry() {
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors "$1" -o "$2"
+  }
+
+  downloadWithRetry "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" /tmp/go.tar.gz
   sudo rm -rf /usr/local/go
   sudo tar -C /usr/local -xzf /tmp/go.tar.gz
   rm /tmp/go.tar.gz
