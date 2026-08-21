@@ -607,13 +607,13 @@ Spec 5.5 and acceptance criteria 16–19; CLAUDE.md test-integrity rule. The cap
   - Observable: the build produces `bin/isolarium`, every unit test package reports `ok`, `test-ec2-preflight.sh` passes, and the suite prints `=== All tests passed ===` with exit code 0; `go build -tags=ec2 ./...` and `go build -tags=e2e_ec2 ./...` both succeed, so the tagged tests cannot rot unnoticed
   - Evidence: `make build && ./test-scripts/test-end-to-end.sh --skip-docker-integration` exits 0; this is the same command `.github/workflows/ci.yml` runs, so a green local run predicts a green CI run`
   - Steps:
-    - [ ] Run `go vet ./...` and fix any findings
-    - [ ] Run `golangci-lint run` and fix any findings, since CI gates on it
-    - [ ] Add a compile-only check of both new tags to CI — `go build -tags=ec2 ./...` and `go build -tags=e2e_ec2 ./...` — so tagged tests stay compiling without CI ever needing AWS credentials
-    - [ ] Run `shellcheck test-scripts/*.sh` and fix any findings
+    - [x] Run `go vet ./...` and fix any findings
+    - [x] Run `golangci-lint run` and fix any findings, since CI gates on it
+    - [x] Add a compile-only check of both new tags to CI — `go build -tags=ec2 ./...` and `go build -tags=e2e_ec2 ./...` — so tagged tests stay compiling without CI ever needing AWS credentials
+    - [x] Run `shellcheck test-scripts/*.sh` and fix any findings
     - [ ] Run the entrypoint and confirm exit code 0
-    - [ ] Run `./test-scripts/test-ec2.sh` and `./test-scripts/test-ec2-e2e.sh` against a real account one final time and record both results
-    - [ ] Verify every item of spec section 9 acceptance criteria 16–19 is satisfied, and that `README.md` documents the `terraform` >= 1.10 prerequisite, required environment variables, cold-start latency, billing until destroyed, the refresh token on the instance, `terraform force-unlock` recovery, manual state-bucket removal, and the nested-tmux prefix-key caveat
+    - [x] Run `./test-scripts/test-ec2.sh` and `./test-scripts/test-ec2-e2e.sh` against a real account one final time and record both results
+    - [x] Verify every item of spec section 9 acceptance criteria 16–19 is satisfied, and that `README.md` documents the `terraform` >= 1.10 prerequisite, required environment variables, cold-start latency, billing until destroyed, the refresh token on the instance, `terraform force-unlock` recovery, manual state-bucket removal, and the nested-tmux prefix-key caveat
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).
@@ -833,3 +833,21 @@ ResolveIngressCIDR now owns the per-operation detection-failure policy; create i
 
 ### 2026-08-21 10:51 - mark-task-complete
 The e2e_ec2 test drove the built binary through create, an interactive Claude workload that committed to the repository, a git log read-back of that commit, and destroy against a real AWS account; instance i-0507b7a6c84d06088 was terminated and ./test-scripts/test-ec2-e2e.sh exited 0.
+
+### 2026-08-21 11:15 - mark-step-complete
+go vet ./... reports no findings.
+
+### 2026-08-21 11:15 - mark-step-complete
+golangci-lint run reports 0 issues.
+
+### 2026-08-21 11:15 - mark-step-complete
+CI lint job now compiles both tags. The step named go build, but every ec2 and e2e_ec2 file is a _test.go file that go build never reads, so the step also runs go vet with each tag - that is what actually type-checks the tagged tests and keeps them from rotting.
+
+### 2026-08-21 11:15 - mark-step-complete
+shellcheck test-scripts/*.sh exits 0 with no findings.
+
+### 2026-08-21 11:22 - mark-step-complete
+Final real-account runs on 2026-08-21 against account 500788673561 in us-west-1. test-ec2.sh: exit 0, ok internal/ec2 295.043s, one shared instance, cold start create-to-first-SSH 2m2s, cloud-init done 3m50s, user_data 3860 of 16384 bytes, no instance left running. test-ec2-e2e.sh: exit 0, TestClaudeInEC2_EndToEnd PASS in 242.37s with the agent commit message e2e-ec2-1787336506469 read back off the instance, ok cmd/isolarium 245.943s, no instance left running.
+
+### 2026-08-21 11:30 - mark-step-complete
+AC16: make exits 0 and writes bin/isolarium. AC17: every untagged internal/ec2 test completes in 0.00s, exec.Command appears only in production exec.go and in ec2-tagged files, and the only net/http user publicip.go is driven through an injected client - so the unit tests need neither AWS, network, nor a terraform binary. AC18: the script is named test-ec2.sh rather than the spec's test-ec2-integration.sh; it passed against a real account and exits 1 with 'FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 tests' when the gate is unset, and go test fails rather than skips when credentials are absent. AC19: README documents terraform 1.10+ (line 206), the required AWS env vars (236-239), cold-start latency (407-417), billing until destroyed (354-362), the Claude refresh token on the instance (125-157), terraform force-unlock recovery (308-310), manual state-bucket removal (555-578), and the nested-tmux prefix-key caveat (100-102).
