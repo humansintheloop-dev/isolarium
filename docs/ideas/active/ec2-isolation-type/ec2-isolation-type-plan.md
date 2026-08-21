@@ -559,15 +559,15 @@ Spec scenarios 13, 14, 15, and 17; acceptance criterion 11. Guards on a path tha
 ## Steel Thread 11: `run` and `destroy` recover from environment changes
 Spec 3.9 refresh-on-failure and the spec 3.4 destroy-time ingress fallback; scenario 5; acceptance criterion 14. Recovery behaviors layered onto paths that already work — the DNS refresh is proven by actually stopping and starting a real instance.
 
-- [ ] **Task 11.1: An SSH connect failure triggers exactly one `DescribeInstances` refresh and one retry**
+- [x] **Task 11.1: An SSH connect failure triggers exactly one `DescribeInstances` refresh and one retry**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/backend/... -run TestEC2Backend_Exec_RefreshesMetadata`
   - Observable: when the first SSH attempt fails with a connect error, `DescribeInstances` is called exactly once with the cached instance ID, `metadata.json` is rewritten with the new `public_dns` (instance ID unchanged), and SSH is attempted exactly once more against the new DNS; when the remote command merely exits non-zero, no refresh occurs and the exit code is returned as-is; when the retry also fails to connect, the error is returned after exactly two SSH attempts and one refresh — never more
   - Evidence: `TestEC2Backend_Exec_RefreshesMetadataOnConnectFailure`, `TestEC2Backend_Exec_DoesNotRefreshOnNonZeroExit`, and `TestEC2Backend_Exec_RetriesAtMostOnce` in `internal/backend/ec2_backend_test.go` count calls on injected SSH and describe fakes and assert the rewritten metadata file`
   - Steps:
-    - [ ] Add a sentinel `ErrSSHConnect` in `internal/ec2/exec.go`, returned when `ssh` exits with code 255 or fails to start, distinguishing connect failure from remote non-zero exit
-    - [ ] Add the single-retry wrapper shared by `Exec`, `ExecInteractive`, and `OpenShell`, using the `DescribeInstanceFunc` added in Steel Thread 8
-    - [ ] Document the refresh-on-failure behavior in the EC2 section of `README.md`
+    - [x] Add a sentinel `ErrSSHConnect` in `internal/ec2/exec.go`, returned when `ssh` exits with code 255 or fails to start, distinguishing connect failure from remote non-zero exit
+    - [x] Add the single-retry wrapper shared by `Exec`, `ExecInteractive`, and `OpenShell`, using the `DescribeInstanceFunc` added in Steel Thread 8
+    - [x] Document the refresh-on-failure behavior in the EC2 section of `README.md`
 - [ ] **Task 11.2: `run` recovers on a real instance whose public DNS changed after a stop and start**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

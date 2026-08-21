@@ -8,6 +8,11 @@ import (
 	"os/exec"
 )
 
+// ErrSSHConnect marks a failure to reach the instance at all — ssh's own error
+// exit or a transport that never started — as distinct from a remote command the
+// instance ran and rejected. Only the former is worth refreshing an address for.
+var ErrSSHConnect = errors.New("ssh could not connect to the instance")
+
 // ExecCommand runs cmd on the instance over SSH, streaming stdout and stderr to
 // the host terminal, and returns the remote command's exit code.
 func ExecCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
@@ -45,7 +50,20 @@ func runRemoteCommand(cmdArgs []string, interactive bool) (int, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	return remoteExitCode(cmd.Run(), cmdArgs[0])
+	return connectAwareExitCode(cmd.Run(), cmdArgs[0])
+}
+
+// connectAwareExitCode reports a run whose command never reached the instance as
+// ErrSSHConnect, leaving a remote exit code to travel back on its own as before.
+func connectAwareExitCode(err error, binary string) (int, error) {
+	exitCode, runErr := remoteExitCode(err, binary)
+	if runErr != nil {
+		return exitCode, fmt.Errorf("%w: %v", ErrSSHConnect, runErr)
+	}
+	if exitCode == sshTransportFailureExit {
+		return exitCode, fmt.Errorf("%w: %s exited %d", ErrSSHConnect, binary, sshTransportFailureExit)
+	}
+	return exitCode, nil
 }
 
 // remoteExitCode separates a command the instance ran and rejected, which has an

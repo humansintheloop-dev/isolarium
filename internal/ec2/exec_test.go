@@ -1,6 +1,7 @@
 package ec2
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -38,5 +39,24 @@ func TestEC2ExecReportsAFailureToLaunchSSH(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "isolarium-no-such-binary") {
 		t.Errorf("error = %q, want it to name the command", err.Error())
+	}
+	if !errors.Is(err, ErrSSHConnect) {
+		t.Errorf("error = %v, want a transport that never started to be reported as a connect failure", err)
+	}
+}
+
+func TestEC2ExecReportsSSHsOwnErrorExitAsAConnectFailure(t *testing.T) {
+	_, err := runRemoteCommand([]string{"sh", "-c", "exit 255"}, false)
+
+	if !errors.Is(err, ErrSSHConnect) {
+		t.Fatalf("error = %v, want exit code %d to be reported as a connect failure", err, sshTransportFailureExit)
+	}
+}
+
+func TestEC2ExecDoesNotMistakeARejectedRemoteCommandForAConnectFailure(t *testing.T) {
+	_, err := runRemoteCommand([]string{"sh", "-c", "exit 1"}, false)
+
+	if errors.Is(err, ErrSSHConnect) {
+		t.Errorf("error = %v, want a remote command the instance ran and rejected to be no connect failure", err)
 	}
 }

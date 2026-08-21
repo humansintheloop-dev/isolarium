@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -495,71 +496,98 @@ func (b *EC2Backend) print(message string) {
 	_, _ = fmt.Fprintln(b.out(), message)
 }
 
+func (b *EC2Backend) printErr(message string) {
+	_, _ = fmt.Fprintln(b.errOut(), message)
+}
+
 func (b *EC2Backend) Exec(req ExecRequest) (int, error) {
-	return b.runOnInstance(b.ExecFunc, req)
+	return b.onInstance(req.ContainerName, func(publicDNS string) (int, error) {
+		return b.ExecFunc(b.MetadataDir, publicDNS, ec2.RemoteCommand{
+			Workdir: ec2.RemoteRepoDir,
+			EnvVars: req.EnvVars,
+			Args:    req.Args,
+		})
+	})
 }
 
 // ExecInteractive runs the command inside the instance's tmux session, so a
 // dropped connection leaves it running rather than killing it.
 func (b *EC2Backend) ExecInteractive(req ExecRequest) (int, error) {
-	session, err := b.attachSession(req.ContainerName)
-	if err != nil {
-		return 1, err
-	}
-	return b.ExecInteractiveFunc(b.MetadataDir, session.publicDNS, ec2.RemoteCommand{
-		Workdir: ec2.RemoteRepoDir,
-		EnvVars: req.EnvVars,
-		Args:    ec2.BuildTmuxCommand(session.name, req.Args),
-	})
-}
-
-// runOnInstance resolves where the environment can be reached from the metadata
-// recorded at create time, so running a command costs no AWS or terraform call.
-// Commands run from the repository create placed on the instance.
-func (b *EC2Backend) runOnInstance(run ec2ExecFunc, req ExecRequest) (int, error) {
-	meta, err := ec2.NewMetadataStore(b.MetadataDir, req.ContainerName).Read()
-	if err != nil {
-		return 1, err
-	}
-	return run(b.MetadataDir, meta.PublicDNS, ec2.RemoteCommand{
-		Workdir: ec2.RemoteRepoDir,
-		EnvVars: req.EnvVars,
-		Args:    req.Args,
+	return b.inSession(req.ContainerName, func(publicDNS, session string) (int, error) {
+		return b.ExecInteractiveFunc(b.MetadataDir, publicDNS, ec2.RemoteCommand{
+			Workdir: ec2.RemoteRepoDir,
+			EnvVars: req.EnvVars,
+			Args:    ec2.BuildTmuxCommand(session, req.Args),
+		})
 	})
 }
 
 func (b *EC2Backend) OpenShell(req ExecRequest) (int, error) {
-	session, err := b.attachSession(req.ContainerName)
+	return b.inSession(req.ContainerName, func(publicDNS, session string) (int, error) {
+		return ec2.OpenShell(b.instanceSession(publicDNS, b.ExecInteractiveFunc), session, req.EnvVars)
+	})
+}
+
+// onInstance resolves where the environment can be reached from the metadata
+// recorded at create time, so running a command costs no AWS or terraform call.
+// Commands run from the repository create placed on the instance.
+//
+// The instance ID is immutable but the public DNS is not, so a connection that
+// never reached the instance — as opposed to a command it ran and rejected —
+// buys one lookup of the current address, one rewrite of metadata.json, and one
+// further attempt. A stop and start recovers; a genuinely unreachable instance
+// costs two attempts rather than a loop.
+func (b *EC2Backend) onInstance(name string, run func(publicDNS string) (int, error)) (int, error) {
+	store := ec2.NewMetadataStore(b.MetadataDir, name)
+	meta, err := store.Read()
 	if err != nil {
 		return 1, err
 	}
-	return ec2.OpenShell(b.instanceSession(session.publicDNS, b.ExecInteractiveFunc), session.name, req.EnvVars)
-}
 
-// persistentSession is the tmux session an interactive command joins on the
-// instance, and where that instance can be reached.
-type persistentSession struct {
-	publicDNS string
-	name      string
-}
-
-// attachSession resolves the session an interactive command is about to join,
-// announcing a reattach first because tmux discards the command it was handed
-// once the session already exists.
-func (b *EC2Backend) attachSession(name string) (persistentSession, error) {
-	meta, err := ec2.NewMetadataStore(b.MetadataDir, name).Read()
-	if err != nil {
-		return persistentSession{}, err
+	exitCode, err := run(meta.PublicDNS)
+	if !errors.Is(err, ec2.ErrSSHConnect) {
+		return exitCode, err
 	}
 
-	sessionName, err := b.sessionName(meta.PublicDNS)
+	publicDNS, refreshErr := b.refreshPublicDNS(store, *meta)
+	if refreshErr != nil {
+		return exitCode, fmt.Errorf("%w; and its current address could not be looked up: %v", err, refreshErr)
+	}
+	b.printErr(fmt.Sprintf("instance moved to %s; retrying", publicDNS))
+	return run(publicDNS)
+}
+
+// refreshPublicDNS asks AWS where the recorded instance can be reached now and
+// leaves metadata.json holding the answer, so the next command connects straight
+// away without a lookup of its own.
+func (b *EC2Backend) refreshPublicDNS(store *ec2.MetadataStore, meta ec2.Metadata) (string, error) {
+	publicDNS, _, err := b.describeInstance()(context.Background(), meta.Region, meta.InstanceID)
 	if err != nil {
-		return persistentSession{}, err
+		return "", err
 	}
 
-	session := persistentSession{publicDNS: meta.PublicDNS, name: sessionName}
-	ec2.AnnounceReattach(b.errOut(), b.instanceSession(session.publicDNS, b.ExecFunc), session.name)
-	return session, nil
+	meta.PublicDNS = publicDNS
+	if err := store.Write(meta); err != nil {
+		return "", err
+	}
+	return publicDNS, nil
+}
+
+// inSession resolves the tmux session an interactive command is about to join
+// on the instance and hands it to run, announcing a reattach first because tmux
+// discards the command it was handed once the session already exists. Both the
+// session and the announcement are resolved inside the retried attempt, so a
+// refreshed address is the one they speak to.
+func (b *EC2Backend) inSession(name string, run func(publicDNS, session string) (int, error)) (int, error) {
+	return b.onInstance(name, func(publicDNS string) (int, error) {
+		session, err := b.sessionName(publicDNS)
+		if err != nil {
+			return 1, err
+		}
+
+		ec2.AnnounceReattach(b.errOut(), b.instanceSession(publicDNS, b.ExecFunc), session)
+		return run(publicDNS, session)
+	})
 }
 
 func (b *EC2Backend) instanceSession(publicDNS string, run ec2ExecFunc) ec2.InstanceSession {

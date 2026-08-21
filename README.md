@@ -102,6 +102,24 @@ your local one, which swallows the prefix key. Press `Ctrl-b Ctrl-b` to send the
 prefix through to the instance's tmux — `Ctrl-b Ctrl-b d` detaches from the
 instance's session rather than your local one.
 
+#### Recovering when the instance's address changes
+
+`run` and `shell` connect straight to the public DNS name recorded in
+`~/.isolarium/<name>/ec2/metadata.json`, so an ordinary command costs neither AWS
+credentials nor the `terraform` binary. That name is not permanent: stopping and
+starting an instance, or an out-of-band apply, gives it a new one.
+
+The instance ID is permanent, so isolarium recovers without paying a lookup on
+every command. When SSH fails to *connect* — as distinct from the remote command
+running and exiting non-zero — isolarium calls `DescribeInstances` once with the
+recorded instance ID, rewrites `metadata.json` with the address it gets back,
+prints `instance moved to <dns>; retrying` to stderr, and retries the operation
+exactly once. A second connect failure is reported rather than retried again, so
+an instance that is genuinely unreachable costs two attempts rather than a loop.
+
+A remote command that merely exits non-zero triggers no lookup at all; its exit
+code is returned verbatim.
+
 #### Claude credentials on the instance
 
 `isolarium run --type ec2` copies your host's Claude Code credentials to
