@@ -590,17 +590,17 @@ Spec 3.9 refresh-on-failure and the spec 3.4 destroy-time ingress fallback; scen
 ## Steel Thread 12: An agent workload runs end to end and the full suite is green
 Spec 5.5 and acceptance criteria 16–19; CLAUDE.md test-integrity rule. The capstone: a real Claude workload driven through the CLI in an EC2 environment under `//go:build e2e_ec2`, mirroring the existing `e2e_claude` tests, plus the final green-suite gate.
 
-- [ ] **Task 12.1: An agent workload runs to completion in an EC2 environment through the CLI**
+- [x] **Task 12.1: An agent workload runs to completion in an EC2 environment through the CLI**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2-e2e.sh`
   - Observable: driving the built `bin/isolarium` binary end to end — `create --type ec2`, `run -i --type ec2` with a Claude prompt that edits a file in the repository and commits it, `run --type ec2 -- git log -1 --format=%s` confirming the commit message, then `destroy --type ec2` — exits 0 with the instance terminated; without `ISOLARIUM_EC2_INTEGRATION=1` the script exits non-zero with `FAIL: ISOLARIUM_EC2_INTEGRATION=1 is required to run EC2 end-to-end tests`
   - Evidence: `./test-scripts/test-ec2-e2e.sh` exits 0 against a real account with the gate set, and exits non-zero with that exact message without it`
   - Steps:
-    - [ ] Add `cmd/isolarium/e2e_claude_ec2_test.go` behind `//go:build e2e_ec2`, following the shape of the existing `e2e_claude_vm_test.go`
-    - [ ] Reuse the helpers in `cmd/isolarium/e2e_claude_helpers_test.go`; add `e2e_ec2` to the shared build constraint on that file so the helpers compile under the new tag
-    - [ ] Create `test-scripts/test-ec2-e2e.sh` running `go test -v -tags=e2e_ec2 -timeout 45m ./cmd/isolarium/...`, failing when the gate variable is unset and when the output contains `no tests to run`
-    - [ ] Add a `test-e2e-ec2` target to `Makefile`
-    - [ ] Run `shellcheck test-scripts/test-ec2-e2e.sh` and fix any findings
+    - [x] Add `cmd/isolarium/e2e_claude_ec2_test.go` behind `//go:build e2e_ec2`, following the shape of the existing `e2e_claude_vm_test.go`
+    - [x] Reuse the helpers in `cmd/isolarium/e2e_claude_helpers_test.go`; add `e2e_ec2` to the shared build constraint on that file so the helpers compile under the new tag
+    - [x] Create `test-scripts/test-ec2-e2e.sh` running `go test -v -tags=e2e_ec2 -timeout 45m ./cmd/isolarium/...`, failing when the gate variable is unset and when the output contains `no tests to run`
+    - [x] Add a `test-e2e-ec2` target to `Makefile`
+    - [x] Run `shellcheck test-scripts/test-ec2-e2e.sh` and fix any findings
 - [ ] **Task 12.2: The full test suite and build pass with the EC2 backend present**
   - TaskType: INFRA
   - Entrypoint: `make build && ./test-scripts/test-end-to-end.sh --skip-docker-integration`
@@ -830,3 +830,6 @@ The full ./test-scripts/test-ec2.sh suite passed against a real AWS account: Tes
 
 ### 2026-08-21 10:27 - mark-task-complete
 ResolveIngressCIDR now owns the per-operation detection-failure policy; create is fatal, destroy and ec2 wipe fall back to the persisted CIDR with a warning on stderr.
+
+### 2026-08-21 10:51 - mark-task-complete
+The e2e_ec2 test drove the built binary through create, an interactive Claude workload that committed to the repository, a git log read-back of that commit, and destroy against a real AWS account; instance i-0507b7a6c84d06088 was terminated and ./test-scripts/test-ec2-e2e.sh exited 0.
