@@ -482,15 +482,15 @@ Spec 3.9 state mapping, scenario 16, acceptance criterion 5. The exhaustive stat
     - [x] Add `"ec2"` to `knownTypes` in `internal/status/environment.go:41`
     - [x] Add an `ec2` case to `populateTypeSpecificFields` populating `Repository` and `Branch` from the same `owner`/`repo`/`branch` fields the `vm` case uses
     - [x] Add `"ec2"` to the `vm` case of `formatDetails` in `internal/cli/cmd_status.go:49` so the repository-and-branch format is shared
-- [ ] **Task 8.2: `isolarium status` reports a real instance as running, then as gone after destroy**
+- [x] **Task 8.2: `isolarium status` reports a real instance as running, then as gone after destroy**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: with a real instance up, `isolarium status` emits a row `my-work  ec2  running  humansintheloop-dev/isolarium (<branch>)`; after `isolarium destroy --type ec2 --name my-work`, no `ec2` row for that name appears; with `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` unset while the instance still exists, the row shows `unknown` rather than failing the command
   - Evidence: `TestEC2Instance_StatusReportsRunningThenGone` and `TestEC2Instance_StatusDegradesWithoutCredentials` in `internal/ec2/status_ec2_test.go` behind `//go:build ec2`, driving the built binary and parsing its stdout`
   - Steps:
-    - [ ] Add `internal/ec2/status_ec2_test.go` behind `//go:build ec2` covering the running row, the post-destroy absence, and the credential-less degradation
-    - [ ] Run the credential-less case by clearing the AWS variables for that invocation only, so the surrounding test keeps its credentials
-    - [ ] Add an `isolarium status` example row for `ec2` to `README.md`
+    - [x] Add `internal/ec2/status_ec2_test.go` behind `//go:build ec2` covering the running row, the post-destroy absence, and the credential-less degradation
+    - [x] Run the credential-less case by clearing the AWS variables for that invocation only, so the surrounding test keeps its credentials
+    - [x] Add an `isolarium status` example row for `ec2` to `README.md`
 ## Steel Thread 9: `isolarium ec2 wipe` tears down shared infrastructure
 Spec 3.13 `ec2 wipe`, scenarios 11 and 12, acceptance criterion 7. Teardown of the shared VPC, security group, and key pair, proven against the AWS API rather than against local files, with the state bucket deliberately retained.
 

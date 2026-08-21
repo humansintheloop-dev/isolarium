@@ -488,6 +488,22 @@ isolarium run --type nono -i -- claude
 | `isolarium clone-repo` | Retry repository cloning after a failed create |
 | `isolarium install-tools` | Retry tool installation after a failed create |
 
+`isolarium status` lists every environment it finds under `~/.isolarium`, one row
+per environment, with the repository and branch for `vm` and `ec2` rows and the
+working directory for `container` and `nono` rows:
+
+```
+NAME       TYPE       STATE     DETAILS
+my-work    ec2        running   humansintheloop-dev/isolarium (main)
+isolarium  vm         stopped   humansintheloop-dev/isolarium (main)
+scratch    container  running   ~/src/scratch
+```
+
+The state of an `ec2` row comes from AWS itself, so `isolarium status` needs the
+credentials from [EC2 mode configuration](#ec2-mode-configuration) to report it.
+Without them the row still appears, with a state of `unknown` rather than the
+command failing.
+
 ## Global flags
 
 | Flag | Default | Description |

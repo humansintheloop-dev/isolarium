@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -56,10 +57,16 @@ func TestEC2Lifecycle_Creates(t *testing.T) {
 	environment.assertExitCodeIsPropagated(propagatedExitCode)
 }
 
+// sharedHomeDir stands in for the host's home directory whenever the suite
+// drives the built binary, which resolves its own metadata directory from HOME
+// rather than being told where to look.
+var sharedHomeDir string
+
 // sharedMetadataDir holds the keypair, the known_hosts entry, the Terraform
 // state and the instance metadata of the one instance the suite runs against.
 // All of it has to outlive the test that created the instance, so it cannot be
-// a t.TempDir().
+// a t.TempDir(). It sits at the path the CLI derives from sharedHomeDir, so the
+// binary and the backend the tests construct directly agree on where it is.
 var sharedMetadataDir string
 
 // sharedEnvironment is the instance every ec2 test works against, created by
@@ -71,12 +78,11 @@ func TestMain(m *testing.M) {
 }
 
 func runSuiteAgainstOneInstance(m *testing.M) int {
-	dir, err := os.MkdirTemp("", "isolarium-ec2-suite")
+	dir, err := makeSharedHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "creating the shared metadata directory: %v\n", err)
 		return 1
 	}
-	sharedMetadataDir = dir
 
 	status := m.Run()
 	if err := terminateSharedInstance(); err != nil {
@@ -93,6 +99,19 @@ func runSuiteAgainstOneInstance(m *testing.M) int {
 		}
 	}
 	return status
+}
+
+func makeSharedHomeDir() (string, error) {
+	home, err := os.MkdirTemp("", "isolarium-ec2-suite")
+	if err != nil {
+		return "", err
+	}
+	sharedHomeDir = home
+	sharedMetadataDir = filepath.Join(home, ".isolarium")
+	if err := os.MkdirAll(sharedMetadataDir, 0o755); err != nil {
+		return "", err
+	}
+	return home, nil
 }
 
 // terminateSharedInstance runs once every test has returned, so a run narrowed
