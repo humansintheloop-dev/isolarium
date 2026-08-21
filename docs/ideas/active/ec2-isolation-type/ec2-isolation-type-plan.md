@@ -504,16 +504,16 @@ Spec 3.13 `ec2 wipe`, scenarios 11 and 12, acceptance criterion 7. Teardown of t
     - [x] Implement `internal/ec2/wipe.go` with `Wipe(base string, deps WipeDeps) error` enumerating instance files via `ListInstanceNames` and refusing when any exist
     - [x] Create `internal/cli/cmd_ec2.go` adding an `ec2` command group with a `wipe` subcommand, registered in `newRootCmdWithResolvers` in `internal/cli/root.go`
     - [x] Add an `ec2 wipe` row to the Commands table of `README.md`, plus manual state-bucket removal instructions (delete every object version, then delete the bucket)
-- [ ] **Task 9.2: `ec2 wipe` removes the shared AWS infrastructure from a real account and retains the bucket**
+- [x] **Task 9.2: `ec2 wipe` removes the shared AWS infrastructure from a real account and retains the bucket**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: with one instance up, `isolarium ec2 wipe` exits non-zero and the VPC still exists; after destroying that instance, `wipe` exits 0 and `DescribeVpcs`, `DescribeSecurityGroups`, and `DescribeKeyPairs` filtered on the `ManagedBy = isolarium` tag return nothing, while `HeadBucket` on the state bucket still succeeds
   - Evidence: `TestEC2Wipe_RefusesWithLiveInstance` and `TestEC2Wipe_RemovesInfraAndRetainsBucket` in `internal/ec2/wipe_ec2_test.go` behind `//go:build ec2`, asserting against the AWS API rather than against the local file system`
   - Steps:
-    - [ ] Add `internal/ec2/wipe_ec2_test.go` behind `//go:build ec2` covering the refusal case and the successful teardown
-    - [ ] Assert the absence of the VPC, security group, and key pair through the AWS API, since local file removal proves nothing about the account
-    - [ ] Assert `HeadBucket` still succeeds, since retaining the state bucket is the specified behavior
-    - [ ] Run this test last in the `ec2` suite, as it removes the shared infrastructure every other `ec2` test depends on
+    - [x] Add `internal/ec2/wipe_ec2_test.go` behind `//go:build ec2` covering the refusal case and the successful teardown
+    - [x] Assert the absence of the VPC, security group, and key pair through the AWS API, since local file removal proves nothing about the account
+    - [x] Assert `HeadBucket` still succeeds, since retaining the state bucket is the specified behavior
+    - [x] Run this test last in the `ec2` suite, as it removes the shared infrastructure every other `ec2` test depends on
 ## Steel Thread 10: `create` rejects invalid input and misconfigured hosts before any AWS call
 Spec scenarios 13, 14, 15, and 17; acceptance criterion 11. Guards on a path that already works. Every check here runs before the S3 bootstrap or before Terraform is invoked, so no AWS resource can be created by a doomed run — and none of these tests needs an AWS account.
 
@@ -809,3 +809,6 @@ Verified by a real run of ./test-scripts/test-ec2.sh: TestEC2Instance_RunsPidYam
 
 ### 2026-08-20 16:44 - mark-task-complete
 GetState reads metadata.json and maps every AWS instance state; status and cmd_status share the vm repository-and-branch handling for ec2. Tests named TestEC2State_* so the plan's -run TestEC2State entrypoint actually selects them.
+
+### 2026-08-20 17:47 - mark-task-complete
+Both tests pass against a real AWS account via ./test-scripts/test-ec2.sh. The refusal case is in wipe_ec2_test.go; the teardown case had to move to zzz_wipe_ec2_test.go so it sorts last, because go test runs a package's test files in sorted-filename order and the two cases need opposite instance states.

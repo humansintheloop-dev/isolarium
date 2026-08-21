@@ -407,13 +407,19 @@ func sharedInfrastructure() []sharedResource {
 func (e *ec2Environment) assertResourceExists(resource sharedResource) {
 	e.t.Helper()
 
+	if e.countSharedResource(resource) == 0 {
+		e.t.Errorf("no isolarium %s exists in the account after create", resource.label)
+	}
+}
+
+func (e *ec2Environment) countSharedResource(resource sharedResource) int {
+	e.t.Helper()
+
 	count, err := resource.count(context.Background(), e.ec2API())
 	if err != nil {
 		e.t.Fatalf("describing the isolarium %s: %v", resource.label, err)
 	}
-	if count == 0 {
-		e.t.Errorf("no isolarium %s exists in the account after create", resource.label)
-	}
+	return count
 }
 
 func (e *ec2Environment) assertStateBucketExists() {
@@ -428,7 +434,7 @@ func (e *ec2Environment) assertStateBucketExists() {
 	bucket := ec2.StateBucketName(aws.ToString(identity.Account), e.region)
 	_, err = s3.NewFromConfig(e.awsConfig()).HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucket)})
 	if err != nil {
-		e.t.Errorf("state bucket %s does not exist after create: %v", bucket, err)
+		e.t.Errorf("HeadBucket on the state bucket %s failed: %v", bucket, err)
 	}
 }
 
