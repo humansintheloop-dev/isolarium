@@ -1,4 +1,4 @@
-//go:build ec2
+//go:build ec2 && ec2_claude
 
 package ec2_test
 

@@ -43,9 +43,30 @@ exportCredentialsFromTheConfiguredProfile() {
 # one test can be re-run after a failure; the default matches them all.
 runEC2Tests() {
     local logFile="$1"
-    local namePattern="${2:-.}"
-    go test -v -tags=ec2 -timeout 60m -run "$namePattern" ./internal/ec2/... 2>&1 | tee "$logFile"
+    local namePattern="${NAME_PATTERN:-.}"
+    go test -v -tags="$BUILD_TAGS" -timeout 60m -run "$namePattern" ./internal/ec2/... 2>&1 | tee "$logFile"
     return "${PIPESTATUS[0]}"
+}
+
+# TestEC2Instance_ClaudeAuthenticates needs the host's interactive Claude Code
+# login, which CI does not have, so it carries `ec2 && ec2_claude` and is
+# selected only when both tags are set. The whole suite is the default and the
+# reduced set has to be asked for by name, so coverage is never dropped by
+# forgetting a flag.
+BUILD_TAGS="ec2,ec2_claude"
+NAME_PATTERN=""
+
+parseArguments() {
+    for arg in "$@"; do
+        case "$arg" in
+            --without-claude) BUILD_TAGS="ec2" ;;
+            -*)
+                echo "Usage: $0 [--without-claude] [test-name-pattern]"
+                exit 1
+                ;;
+            *) NAME_PATTERN="$arg" ;;
+        esac
+    done
 }
 
 failWhenGoTestSelectedNothing() {
@@ -103,6 +124,7 @@ failWhenAnyInstanceIsStillRunning() {
     fi
 }
 
+parseArguments "$@"
 requireIntegrationGate
 exportCredentialsFromTheConfiguredProfile
 
@@ -112,12 +134,12 @@ LOG_FILE="$(perRunLogFile)"
 echo "=== Logging to $LOG_FILE ==="
 
 WHOLE_SUITE=true
-if [ $# -gt 0 ]; then
+if [ -n "$NAME_PATTERN" ]; then
     WHOLE_SUITE=false
 fi
 
 TEST_STATUS=0
-runEC2Tests "$LOG_FILE" "${1:-}" || TEST_STATUS=$?
+runEC2Tests "$LOG_FILE" || TEST_STATUS=$?
 
 failWhenGoTestSelectedNothing "$LOG_FILE"
 failWhenNoTestExecuted "$LOG_FILE"
