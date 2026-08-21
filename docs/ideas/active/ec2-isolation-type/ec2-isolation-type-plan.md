@@ -568,7 +568,7 @@ Spec 3.9 refresh-on-failure and the spec 3.4 destroy-time ingress fallback; scen
     - [x] Add a sentinel `ErrSSHConnect` in `internal/ec2/exec.go`, returned when `ssh` exits with code 255 or fails to start, distinguishing connect failure from remote non-zero exit
     - [x] Add the single-retry wrapper shared by `Exec`, `ExecInteractive`, and `OpenShell`, using the `DescribeInstanceFunc` added in Steel Thread 8
     - [x] Document the refresh-on-failure behavior in the EC2 section of `README.md`
-- [ ] **Task 11.2: `run` recovers on a real instance whose public DNS changed after a stop and start**
+- [x] **Task 11.2: `run` recovers on a real instance whose public DNS changed after a stop and start**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: after stopping and starting a real instance out of band through the AWS API, its public DNS differs from the one in `metadata.json`; the next `run -- echo hello` still prints `hello` and exits 0, and `metadata.json` afterwards holds the new DNS with the instance ID unchanged
@@ -824,3 +824,6 @@ assertAddressMoved fails the test when the restarted instance comes back on the 
 
 ### 2026-08-20 19:04 - mark-step-complete
 The SDK stopped and running waiters each get a 10 minute budget and SSH readiness at the new address gets the suite's 5 minute budget; the suite's terminateSharedInstance already destroys the instance however the test ends, and adoptCurrentPublicDNS keeps a failure here from cascading into later tests.
+
+### 2026-08-21 09:52 - mark-task-complete
+The full ./test-scripts/test-ec2.sh suite passed against a real AWS account: TestEC2Instance_RecoversFromChangedDNS stopped and started the instance, its public DNS moved from ec2-54-176-69-144 to ec2-54-176-246-196, the stale address timed out, the refresh rewrote metadata.json and the retried echo printed hello.
