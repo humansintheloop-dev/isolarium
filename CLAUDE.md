@@ -29,6 +29,15 @@ Before committing code changes, read and follow [CODE_SCENE.md](CODE_SCENE.md) f
 
 IMPORTANT: Prefer intention-revealing method names over comments. If you find yourself writing a comment to explain what code does, extract it into a method whose name conveys the intent. This applies to ALL code — production, tests, scripts. Never write comments like `// Verify X is installed` — instead extract a function like `verifyXInstalled()`. Follow this rule even when surrounding code uses inline comments.
 
+## Writing style
+
+Write plainly. No jargon or figurative filler where a plain verb works:
+- "lands", "in flight", "earns its place", "on the critical path", "close the
+  gap", "sits on", "ships", "unpacks", "surfaces"
+
+Say "is committed", "is running", "is worth keeping", "is required", "is
+missing". If a phrase would sound odd said aloud to a colleague, cut it.
+
 ## Tool Selection
 
 IMPORTANT: Before running any Bash command, ask: "Is there a specialized tool for this?"
