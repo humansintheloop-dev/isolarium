@@ -235,8 +235,29 @@ func ec2BackendWithEnv(t *testing.T, env map[string]string, spy *ensureBucketSpy
 func ec2FakeTerraform(t *testing.T) *command.FakeRunner {
 	t.Helper()
 
-	runner := command.NewFakeRunner(t)
+	return ec2FakeTerraformAtVersion(t, supportedTerraformVersion)
+}
+
+// supportedTerraformVersion is what the fake terraform reports unless a test is
+// about the version gate itself.
+const supportedTerraformVersion = "1.10.5"
+
+func ec2FakeTerraformAtVersion(t *testing.T, version string) *command.FakeRunner {
+	t.Helper()
+
+	runner := ec2TerraformAnsweringOnlyVersion(t, version)
 	runner.OnCommand("terraform").Returns(ec2TerraformOutputJSON("my-work"))
+	return runner
+}
+
+// ec2TerraformAnsweringOnlyVersion clears the version gate and nothing else, so
+// a test that expects Create to give up before applying fails loudly if it
+// reaches terraform at all.
+func ec2TerraformAnsweringOnlyVersion(t *testing.T, version string) *command.FakeRunner {
+	t.Helper()
+
+	runner := command.NewFakeRunner(t)
+	runner.OnCommand("terraform", "version", "-json").Returns(`{"terraform_version":"` + version + `"}`)
 	return runner
 }
 
@@ -320,7 +341,7 @@ func TestEC2Backend_Create_FailsWhenPublicIPDetectionFails(t *testing.T) {
 	offline := errors.New("dial tcp: no route to host")
 	host := newHostProvisioningSpy()
 	host.detectErr = offline
-	fixture := ec2RegionalFixture(t, host, command.NewFakeRunner(t))
+	fixture := ec2RegionalFixture(t, host, ec2TerraformAnsweringOnlyVersion(t, supportedTerraformVersion))
 
 	err := fixture.backend().Create(fixture.createOptions())
 
@@ -336,7 +357,7 @@ func TestEC2Backend_Create_ReturnsScaffoldingError(t *testing.T) {
 	readOnly := errors.New("permission denied")
 	host := newHostProvisioningSpy()
 	host.scaffoldErr = readOnly
-	fixture := ec2RegionalFixture(t, host, command.NewFakeRunner(t))
+	fixture := ec2RegionalFixture(t, host, ec2TerraformAnsweringOnlyVersion(t, supportedTerraformVersion))
 
 	err := fixture.backend().Create(fixture.createOptions())
 
@@ -538,7 +559,7 @@ func readInstanceFile(t *testing.T, metadataDir string) string {
 }
 
 func TestEC2Backend_Create_RefusesExistingInstanceFile(t *testing.T) {
-	runner := command.NewFakeRunner(t)
+	runner := ec2TerraformAnsweringOnlyVersion(t, supportedTerraformVersion)
 	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), runner)
 	if err := ec2.WriteInstanceFile(fixture.metadataDir, "my-work", ""); err != nil {
 		t.Fatalf("seeding the instance file: %v", err)
@@ -553,8 +574,17 @@ func TestEC2Backend_Create_RefusesExistingInstanceFile(t *testing.T) {
 	if !strings.Contains(err.Error(), want) {
 		t.Errorf("Create() error = %q, want it to contain %q", err.Error(), want)
 	}
-	if len(runner.Calls()) != 0 {
-		t.Errorf("Create() ran %v, want no terraform invocation", runner.Calls())
+	assertOnlyProbedTerraformVersion(t, runner)
+}
+
+// assertOnlyProbedTerraformVersion allows the version gate, which runs before
+// Create can know the environment already exists, and nothing beyond it.
+func assertOnlyProbedTerraformVersion(t *testing.T, runner *command.FakeRunner) {
+	t.Helper()
+
+	calls := runner.Calls()
+	if len(calls) != 1 || strings.Join(calls[0], " ") != "terraform version -json" {
+		t.Errorf("Create() ran %v, want only the terraform version probe", calls)
 	}
 }
 
@@ -597,6 +627,7 @@ func assertTerraformInvocations(t *testing.T, runner *command.FakeRunner, metada
 
 	terraformDir := ec2.TerraformDir(metadataDir)
 	want := []string{
+		"terraform version -json",
 		strings.Join([]string{
 			"terraform", "-chdir=" + terraformDir, "init",
 			"-backend-config=bucket=" + ec2SpyBucket,
@@ -1194,5 +1225,42 @@ func TestEC2Backend_Create_ReturnsBucketBootstrapError(t *testing.T) {
 
 	if !errors.Is(err, accessDenied) {
 		t.Fatalf("Create() error = %v, want it to wrap %v", err, accessDenied)
+	}
+}
+
+func TestEC2Backend_Create_RejectsOldTerraform(t *testing.T) {
+	spy := &ensureBucketSpy{name: ec2SpyBucket}
+	f := ec2BackendWithEnv(t, map[string]string{"AWS_REGION": "us-west-2"}, spy)
+	f.runner = ec2FakeTerraformAtVersion(t, "1.9.8")
+
+	err := f.backend().Create(f.createOptions())
+
+	if err == nil {
+		t.Fatal("Create() returned nil error when terraform is older than 1.10")
+	}
+	want := "terraform 1.10.0 or later is required for --type ec2 (found 1.9.8)"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("Create() error = %q, want it to contain %q", err.Error(), want)
+	}
+	if spy.called {
+		t.Error("Create() bootstrapped the state bucket despite the unsupported terraform")
+	}
+	if f.repository.calls != 0 {
+		t.Error("Create() pushed the branch and minted a clone token for an environment it never launched")
+	}
+}
+
+func TestEC2Backend_Create_AcceptsTerraform110(t *testing.T) {
+	spy := &ensureBucketSpy{name: ec2SpyBucket}
+	f := ec2BackendWithEnv(t, map[string]string{"AWS_REGION": "us-west-2"}, spy)
+	f.runner = ec2FakeTerraformAtVersion(t, "1.10.5")
+
+	err := f.backend().Create(f.createOptions())
+
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if !spy.called {
+		t.Error("Create() did not get past the version gate to bootstrap the state bucket")
 	}
 }

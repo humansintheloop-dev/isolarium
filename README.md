@@ -185,6 +185,7 @@ The `--no-gh-token` flag disables all token injection for commands that should r
 | Lima | `brew install lima` | VM mode (macOS only) |
 | Docker | `brew install docker` | Container mode |
 | nono | [nono](https://nono.sh/) | Nono sandbox mode |
+| Terraform 1.10+ | `brew install terraform` | EC2 mode (earlier releases lack S3 backend state locking) |
 | GitHub App | [Creating a GitHub App](https://docs.github.com/en/apps/creating-github-apps) | Credential scoping |
 
 ## Install

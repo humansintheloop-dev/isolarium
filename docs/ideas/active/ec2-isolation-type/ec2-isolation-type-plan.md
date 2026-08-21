@@ -537,16 +537,16 @@ Spec scenarios 13, 14, 15, and 17; acceptance criterion 11. Guards on a path tha
     - [x] Extend `RequireRegion` in `internal/ec2/preflight.go` with those error paths
     - [x] Confirm with a spy `EnsureBucketFunc` that no AWS call precedes the check
     - [x] Add the assertion case to `test-scripts/test-ec2-preflight.sh`
-- [ ] **Task 10.3: `create --type ec2` fails with an actionable message when `terraform` is below 1.10**
+- [x] **Task 10.3: `create --type ec2` fails with an actionable message when `terraform` is below 1.10**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/... -run TestEC2Backend_Create`
   - Observable: `EC2Backend.Create` returns an error containing `terraform 1.10.0 or later is required for --type ec2 (found 1.9.8)` when the injected terraform runner reports `1.9.8`, and gets past the version gate when it reports `1.10.5`; the state-bucket function is never invoked in the failing case
   - Evidence: `TestEC2Backend_Create_RejectsOldTerraform` and `TestEC2Backend_Create_AcceptsTerraform110` in `internal/backend/ec2_backend_test.go` invoke `Create` with a `command.FakeRunner` returning canned `terraform version -json` output and a spy bucket function`
   - Steps:
-    - [ ] Add `internal/ec2/preflight_test.go` cases for `CheckTerraformVersion(runner command.Runner) error` — parses `.terraform_version` from `terraform version -json`, accepts `1.10.0`, `1.10.5`, `1.12.1`, rejects `1.9.8` and `0.15.0`, and errors clearly when the JSON is unparseable or the binary is missing
-    - [ ] Implement `CheckTerraformVersion` using a numeric major/minor/patch comparison, not string comparison
-    - [ ] Call it from `EC2Backend.Create` after `RequireRegion` and before the state-bucket bootstrap
-    - [ ] Add the `terraform` >= 1.10 row to the Prerequisites table in `README.md`
+    - [x] Add `internal/ec2/preflight_test.go` cases for `CheckTerraformVersion(runner command.Runner) error` — parses `.terraform_version` from `terraform version -json`, accepts `1.10.0`, `1.10.5`, `1.12.1`, rejects `1.9.8` and `0.15.0`, and errors clearly when the JSON is unparseable or the binary is missing
+    - [x] Implement `CheckTerraformVersion` using a numeric major/minor/patch comparison, not string comparison
+    - [x] Call it from `EC2Backend.Create` after `RequireRegion` and before the state-bucket bootstrap
+    - [x] Add the `terraform` >= 1.10 row to the Prerequisites table in `README.md`
 - [ ] **Task 10.4: `create` fails before apply when rendered `user_data` exceeds 16 KB**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/ec2/... -run TestValidateUserDataSize`

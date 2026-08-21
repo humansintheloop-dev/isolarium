@@ -134,7 +134,7 @@ func (b *EC2Backend) create(opts CreateOptions) error {
 		return fmt.Errorf("loading pid.yaml: %w", err)
 	}
 
-	region, bucket, err := b.resolveAWSAccount()
+	region, bucket, err := b.resolveAWSAccountForCreate()
 	if err != nil {
 		return err
 	}
@@ -197,6 +197,29 @@ func (b *EC2Backend) instanceScriptRunner(instance launchedInstance) envscript.E
 func (b *EC2Backend) resolveAWSAccount() (region, bucket string, err error) {
 	region, err = ec2.RequireRegion(b.lookupEnv())
 	if err != nil {
+		return "", "", err
+	}
+
+	bucket, err = b.EnsureBucketFunc(context.Background(), region)
+	if err != nil {
+		return "", "", err
+	}
+	return region, bucket, nil
+}
+
+// resolveAWSAccountForCreate additionally rejects a host terraform too old for
+// the S3 backend's native state locking. Teardown skips the check because an
+// existing environment was launched by a terraform that already passed it, and
+// refusing to destroy it would strand a running instance.
+func (b *EC2Backend) resolveAWSAccountForCreate() (region, bucket string, err error) {
+	region, err = ec2.RequireRegion(b.lookupEnv())
+	if err != nil {
+		return "", "", err
+	}
+
+	// The gate comes before the bucket so an unsupported host creates nothing in
+	// the account.
+	if err = ec2.CheckTerraformVersion(b.Runner); err != nil {
 		return "", "", err
 	}
 
