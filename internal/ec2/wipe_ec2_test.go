@@ -50,6 +50,5 @@ func (e *ec2Environment) runIsolariumEC2Wipe() (string, error) {
 
 	wipe := exec.Command(isolariumBinary(e.t), "ec2", "wipe")
 	wipe.Env = binaryEnvironment()
-	output, err := wipe.CombinedOutput()
-	return string(output), err
+	return runBinaryStreaming(wipe)
 }

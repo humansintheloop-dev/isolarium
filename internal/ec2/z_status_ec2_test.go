@@ -9,7 +9,9 @@
 package ec2_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,7 +86,7 @@ func (e *ec2Environment) assertStatusReportsNoEC2Environment() {
 	}
 }
 
-func (e *ec2Environment) requireEC2StatusRow(environment []string) statusRow {
+func (e *ec2Environment) requireEC2StatusRow(environment processEnvironment) statusRow {
 	e.t.Helper()
 
 	rows := e.runIsolariumStatus(environment)
@@ -103,7 +105,7 @@ func (e *ec2Environment) destroyThroughTheCLI() {
 
 	destroy := exec.Command(isolariumBinary(e.t), "destroy", "--type", "ec2", "--name", e.name)
 	destroy.Env = binaryEnvironment()
-	output, err := destroy.CombinedOutput()
+	output, err := runBinaryStreaming(destroy)
 	if err != nil {
 		e.t.Fatalf("isolarium destroy --type ec2 --name %s: %v\n%s", e.name, err, output)
 	}
@@ -113,7 +115,7 @@ func (e *ec2Environment) destroyThroughTheCLI() {
 // runIsolariumStatus drives the built binary and hands back what it printed,
 // broken back into columns. A non-zero exit is a failure of the command itself,
 // which is precisely what the credential-less case exists to rule out.
-func (e *ec2Environment) runIsolariumStatus(environment []string) []statusRow {
+func (e *ec2Environment) runIsolariumStatus(environment processEnvironment) []statusRow {
 	e.t.Helper()
 
 	status := exec.Command(isolariumBinary(e.t), "status")
@@ -174,16 +176,34 @@ func findEC2Row(rows []statusRow, name string) (statusRow, bool) {
 	return statusRow{}, false
 }
 
+// runBinaryStreaming runs one isolarium invocation, copying its output to the
+// suite's own stderr as it arrives, and returns what it printed. A command that
+// spends minutes inside terraform would otherwise say nothing until it exited,
+// which is indistinguishable from a hang.
+func runBinaryStreaming(binary *exec.Cmd) (string, error) {
+	var captured bytes.Buffer
+	binary.Stdout = io.MultiWriter(&captured, os.Stderr)
+	binary.Stderr = binary.Stdout
+
+	err := binary.Run()
+	return captured.String(), err
+}
+
+// processEnvironment is the environment one invocation of the built binary runs
+// with. It is its own type so that the helpers which strip credentials out of it
+// cannot be handed any slice of strings that happens to be at hand.
+type processEnvironment []string
+
 // binaryEnvironment points the built binary at the home directory the suite's
 // metadata lives under, since the CLI derives ~/.isolarium for itself.
-func binaryEnvironment() []string {
+func binaryEnvironment() processEnvironment {
 	return append(os.Environ(), "HOME="+sharedHomeDir)
 }
 
 // withoutAWSCredentials clears the credentials for one invocation only, leaving
 // the surrounding suite — which still has an account to talk to — untouched.
-func withoutAWSCredentials(environment []string) []string {
-	var cleared []string
+func withoutAWSCredentials(environment processEnvironment) processEnvironment {
+	var cleared processEnvironment
 	for _, variable := range environment {
 		if namesAWSCredentials(variable) {
 			continue
