@@ -517,16 +517,16 @@ Spec 3.13 `ec2 wipe`, scenarios 11 and 12, acceptance criterion 7. Teardown of t
 ## Steel Thread 10: `create` rejects invalid input and misconfigured hosts before any AWS call
 Spec scenarios 13, 14, 15, and 17; acceptance criterion 11. Guards on a path that already works. Every check here runs before the S3 bootstrap or before Terraform is invoked, so no AWS resource can be created by a doomed run — and none of these tests needs an AWS account.
 
-- [ ] **Task 10.1: `isolarium create --type ec2 --name My_Env` is rejected with the naming rule**
+- [x] **Task 10.1: `isolarium create --type ec2 --name My_Env` is rejected with the naming rule**
   - TaskType: OUTCOME
   - Entrypoint: `./bin/isolarium create --type ec2 --name My_Env`
   - Observable: exit code is non-zero and stderr contains `invalid --name "My_Env" for --type ec2: must match ^[a-z][a-z0-9-]{0,31}$`; `./bin/isolarium create --type ec2 --name my-work` still gets past name validation
   - Evidence: `./test-scripts/test-ec2-preflight.sh` gains a case that runs the entrypoint, asserts non-zero exit and the message text, then runs the same command with `--name my-work` and asserts the failure message is *not* the naming message`
   - Steps:
-    - [ ] Add `internal/ec2/naming_test.go` covering: accepts `a`, `my-work`, a 32-char name; rejects `My_Env`, `1abc`, `-abc`, empty, a 33-char name
-    - [ ] Add `internal/ec2/naming.go` with `ValidateName(name string) error` enforcing `^[a-z][a-z0-9-]{0,31}$`
-    - [ ] Call `ec2.ValidateName` as the first statement of `EC2Backend.Create`, before `RequireRegion`
-    - [ ] Add the assertion case to `test-scripts/test-ec2-preflight.sh`
+    - [x] Add `internal/ec2/naming_test.go` covering: accepts `a`, `my-work`, a 32-char name; rejects `My_Env`, `1abc`, `-abc`, empty, a 33-char name
+    - [x] Add `internal/ec2/naming.go` with `ValidateName(name string) error` enforcing `^[a-z][a-z0-9-]{0,31}$`
+    - [x] Call `ec2.ValidateName` as the first statement of `EC2Backend.Create`, before `RequireRegion`
+    - [x] Add the assertion case to `test-scripts/test-ec2-preflight.sh`
 - [ ] **Task 10.2: `create --type ec2` fails fast when `AWS_REGION` is unset**
   - TaskType: OUTCOME
   - Entrypoint: `env -u AWS_REGION ./bin/isolarium create --type ec2 --name my-work`
@@ -812,3 +812,6 @@ GetState reads metadata.json and maps every AWS instance state; status and cmd_s
 
 ### 2026-08-20 17:47 - mark-task-complete
 Both tests pass against a real AWS account via ./test-scripts/test-ec2.sh. The refusal case is in wipe_ec2_test.go; the teardown case had to move to zzz_wipe_ec2_test.go so it sorts last, because go test runs a package's test files in sorted-filename order and the two cases need opposite instance states.
+
+### 2026-08-20 17:59 - mark-task-complete
+ValidateName rejects My_Env at the top of EC2Backend.Create; unit tests and test-ec2-preflight.sh assert the message

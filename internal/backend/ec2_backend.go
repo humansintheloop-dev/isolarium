@@ -115,6 +115,11 @@ func (p environmentPlan) applyVariables() map[string]string {
 }
 
 func (b *EC2Backend) Create(opts CreateOptions) error {
+	// The name is reported unwrapped because it names the flag the caller typed,
+	// and it is checked before anything else so a bad name never reaches AWS.
+	if err := ec2.ValidateName(opts.Name); err != nil {
+		return err
+	}
 	if err := b.create(opts); err != nil {
 		return fmt.Errorf("create %q: %w", opts.Name, err)
 	}

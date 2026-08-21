@@ -15,6 +15,7 @@ go build -o bin/isolarium ./cmd/isolarium
 # EC2-specific failure that proves the command reached the backend. Clearing it
 # also guarantees this script never issues an AWS call.
 BACKEND_REACHED_MESSAGE="AWS_REGION is not set"
+NAMING_RULE_MESSAGE='for --type ec2: must match ^[a-z][a-z0-9-]{0,31}$'
 EMPTY_ENV_FILE="$(mktemp)"
 trap 'rm -f "$EMPTY_ENV_FILE"' EXIT
 
@@ -45,6 +46,11 @@ assertReachesEC2BackendWithName() {
         exit 1
     fi
 
+    if echo "$OUTPUT" | grep -qF "$NAMING_RULE_MESSAGE"; then
+        echo "FAIL: name '$expectedName' was rejected by the naming rule: $OUTPUT"
+        exit 1
+    fi
+
     if ! echo "$OUTPUT" | grep -q "create \"$expectedName\": $BACKEND_REACHED_MESSAGE"; then
         echo "FAIL: expected output to contain 'create \"$expectedName\": $BACKEND_REACHED_MESSAGE' but got: $OUTPUT"
         exit 1
@@ -54,8 +60,29 @@ assertReachesEC2BackendWithName() {
     TESTS_RUN=$((TESTS_RUN + 1))
 }
 
+assertRejectedByTheNamingRule() {
+    local invalidName="$1"
+
+    echo "--- Creating with 'isolarium create --type ec2 --name $invalidName' ---"
+    OUTPUT="$(captureCreateFailure --name "$invalidName")"
+
+    if ! echo "$OUTPUT" | grep -qF "invalid --name \"$invalidName\" $NAMING_RULE_MESSAGE"; then
+        echo "FAIL: expected output to contain 'invalid --name \"$invalidName\" $NAMING_RULE_MESSAGE' but got: $OUTPUT"
+        exit 1
+    fi
+
+    if echo "$OUTPUT" | grep -qF "$BACKEND_REACHED_MESSAGE"; then
+        echo "FAIL: name '$invalidName' was validated after the region was resolved: $OUTPUT"
+        exit 1
+    fi
+
+    echo "PASS: rejected name '$invalidName' with the naming rule"
+    TESTS_RUN=$((TESTS_RUN + 1))
+}
+
 assertReachesEC2BackendWithName "my-work" --name my-work
 assertReachesEC2BackendWithName "isolarium-ec2"
+assertRejectedByTheNamingRule "My_Env"
 
 if [ "$TESTS_RUN" -eq 0 ]; then
     echo "FAIL: no ec2 preflight assertions ran"
