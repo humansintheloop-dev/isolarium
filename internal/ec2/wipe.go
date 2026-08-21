@@ -18,6 +18,9 @@ type WipeDeps struct {
 	EnsureKeypairFunc  func(base string) (string, error)
 	DetectPublicIPFunc func() (string, error)
 	Out                io.Writer
+	// ErrWriter carries terraform's own progress, which is diagnostic rather
+	// than part of the wipe's report.
+	ErrWriter io.Writer
 }
 
 // Wipe destroys the VPC, security group, and key pair every EC2 environment
@@ -90,7 +93,7 @@ func (s sharedInfrastructure) destroy() (bucket string, err error) {
 		return "", err
 	}
 
-	terraform := NewTerraformRunner(s.deps.Runner, s.base, bucket, region)
+	terraform := NewTerraformRunner(s.deps.Runner, TerraformConfig{Base: s.base, Bucket: bucket, Region: region}, s.errOut())
 	if err := terraform.Init(); err != nil {
 		return "", err
 	}
@@ -138,9 +141,19 @@ func (s sharedInfrastructure) reportRetainedBucket(bucket string) {
 }
 
 func (s sharedInfrastructure) print(message string) {
-	out := s.deps.Out
-	if out == nil {
-		out = os.Stdout
+	_, _ = fmt.Fprintln(s.out(), message)
+}
+
+func (s sharedInfrastructure) out() io.Writer {
+	if s.deps.Out == nil {
+		return os.Stdout
 	}
-	_, _ = fmt.Fprintln(out, message)
+	return s.deps.Out
+}
+
+func (s sharedInfrastructure) errOut() io.Writer {
+	if s.deps.ErrWriter == nil {
+		return os.Stderr
+	}
+	return s.deps.ErrWriter
 }

@@ -27,18 +27,19 @@ func newEC2WipeCmd() *cobra.Command {
 		Use:   "wipe",
 		Short: "Tear down the shared EC2 infrastructure, retaining the state bucket",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ec2.Wipe(isolariumBaseDir(), wipeDeps(cmd.OutOrStdout()))
+			return ec2.Wipe(isolariumBaseDir(), wipeDeps(cmd.OutOrStdout(), cmd.ErrOrStderr()))
 		},
 	}
 }
 
-func wipeDeps(out io.Writer) ec2.WipeDeps {
+func wipeDeps(out, errWriter io.Writer) ec2.WipeDeps {
 	return ec2.WipeDeps{
 		Runner:             command.ExecRunner{},
 		ResolveAccountFunc: resolveAWSAccountForWipe,
 		EnsureKeypairFunc:  ec2.EnsureKeypair,
 		DetectPublicIPFunc: func() (string, error) { return ec2.DetectPublicIP(ec2.DefaultHTTPGet) },
 		Out:                out,
+		ErrWriter:          errWriter,
 	}
 }
 

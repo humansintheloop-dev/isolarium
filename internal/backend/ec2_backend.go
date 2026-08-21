@@ -107,6 +107,10 @@ type environmentPlan struct {
 	host   hostState
 }
 
+func (p environmentPlan) terraformConfig(base string) ec2.TerraformConfig {
+	return ec2.TerraformConfig{Base: base, Bucket: p.bucket, Region: p.region}
+}
+
 func (p environmentPlan) applyVariables() map[string]string {
 	return map[string]string{
 		"ingress_cidr": p.host.ingressCIDR,
@@ -293,7 +297,7 @@ func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, erro
 		return launchedInstance{}, err
 	}
 
-	terraform := ec2.NewTerraformRunner(b.Runner, b.MetadataDir, plan.bucket, plan.region)
+	terraform := ec2.NewTerraformRunner(b.Runner, plan.terraformConfig(b.MetadataDir), b.errOut())
 	if err := terraform.Init(); err != nil {
 		return launchedInstance{}, err
 	}
@@ -420,7 +424,7 @@ func (t ec2Teardown) run() error {
 		return err
 	}
 
-	terraform := ec2.NewTerraformRunner(t.backend.Runner, base, plan.bucket, plan.region)
+	terraform := ec2.NewTerraformRunner(t.backend.Runner, plan.terraformConfig(base), t.backend.errOut())
 	if err := terraform.Init(); err != nil {
 		return err
 	}

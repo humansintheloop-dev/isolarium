@@ -1,6 +1,7 @@
 package ec2
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"strings"
@@ -17,12 +18,24 @@ func applyVars() map[string]string {
 	}
 }
 
+func testTerraformConfig(base string) TerraformConfig {
+	return TerraformConfig{Base: base, Bucket: testBucketName, Region: testRegion}
+}
+
 func newTestTerraformRunner(t *testing.T, base string) (*TerraformRunner, *command.FakeRunner) {
 	t.Helper()
 
+	runner, fake, _ := newNarratingTerraformRunner(t, base, "")
+	return runner, fake
+}
+
+func newNarratingTerraformRunner(t *testing.T, base, output string) (*TerraformRunner, *command.FakeRunner, *bytes.Buffer) {
+	t.Helper()
+
 	fake := command.NewFakeRunner(t)
-	fake.OnCommand("terraform").Returns("")
-	return NewTerraformRunner(fake, base, testBucketName, testRegion), fake
+	fake.OnCommand("terraform").Returns(output)
+	narration := &bytes.Buffer{}
+	return NewTerraformRunner(fake, testTerraformConfig(base), narration), fake, narration
 }
 
 func TestTerraformRunner_Init_PassesTheThreeBackendConfigFlags(t *testing.T) {
@@ -91,7 +104,7 @@ func TestTerraformRunner_OutputJSON_ReturnsTheRawDocument(t *testing.T) {
 	base := t.TempDir()
 	fake := command.NewFakeRunner(t)
 	fake.OnCommand("terraform").Returns(`{"instance_id_my-work":{"value":"i-05"}}`)
-	runner := NewTerraformRunner(fake, base, testBucketName, testRegion)
+	runner := NewTerraformRunner(fake, testTerraformConfig(base), nil)
 
 	data, err := runner.OutputJSON()
 
@@ -110,7 +123,7 @@ func TestTerraformRunner_Apply_ReportsTheCommandOutputOnFailure(t *testing.T) {
 	base := t.TempDir()
 	fake := command.NewFakeRunner(t)
 	fake.OnCommand("terraform").Fails(errors.New("exit status 1"))
-	runner := NewTerraformRunner(fake, base, testBucketName, testRegion)
+	runner := NewTerraformRunner(fake, testTerraformConfig(base), nil)
 
 	err := runner.Apply(applyVars())
 
@@ -139,5 +152,51 @@ func assertSingleCall(t *testing.T, fake *command.FakeRunner, want string) {
 	}
 	if got := strings.Join(calls[0], " "); got != want {
 		t.Errorf("invocation =\n  %s\nwant\n  %s", got, want)
+	}
+}
+
+func TestTerraformRunner_LongRunningCommands_NarrateThemselvesWhileTheyRun(t *testing.T) {
+	commands := map[string]func(*TerraformRunner) error{
+		"init":    func(r *TerraformRunner) error { return r.Init() },
+		"apply":   func(r *TerraformRunner) error { return r.Apply(applyVars()) },
+		"destroy": func(r *TerraformRunner) error { return r.Destroy(applyVars()) },
+	}
+
+	for subcommand, invoke := range commands {
+		t.Run(subcommand, func(t *testing.T) {
+			progress := "aws_vpc.isolarium: Still destroying... [30s elapsed]"
+			runner, _, narration := newNarratingTerraformRunner(t, t.TempDir(), progress)
+
+			if err := invoke(runner); err != nil {
+				t.Fatalf("%s() error = %v", subcommand, err)
+			}
+
+			if narration.String() != progress {
+				t.Errorf("%s() narrated %q, want %q", subcommand, narration.String(), progress)
+			}
+		})
+	}
+}
+
+// OutputJSON is parsed rather than read, so echoing it would bury the narration
+// that matters under a document nobody is meant to read.
+func TestTerraformRunner_OutputJSON_StaysSilent(t *testing.T) {
+	runner, _, narration := newNarratingTerraformRunner(t, t.TempDir(), `{"instance_id_my-work":{"value":"i-05"}}`)
+
+	if _, err := runner.OutputJSON(); err != nil {
+		t.Fatalf("OutputJSON() error = %v", err)
+	}
+
+	if narration.Len() != 0 {
+		t.Errorf("OutputJSON() narrated %q, want nothing", narration.String())
+	}
+}
+
+func TestTerraformRunner_ToleratesNoNarrationWriter(t *testing.T) {
+	fake := command.NewFakeRunner(t)
+	fake.OnCommand("terraform").Returns("")
+
+	if err := NewTerraformRunner(fake, testTerraformConfig(t.TempDir()), nil).Apply(applyVars()); err != nil {
+		t.Fatalf("Apply() error = %v", err)
 	}
 }

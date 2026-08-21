@@ -1,6 +1,7 @@
 package command
 
 import (
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -8,8 +9,8 @@ import (
 
 type FakeRunner struct {
 	t        *testing.T
-	commands map[string]*commandResponse
-	executed map[string]bool
+	commands map[commandKey]*commandResponse
+	executed map[commandKey]bool
 	calls    [][]string
 }
 
@@ -19,7 +20,7 @@ type commandResponse struct {
 }
 
 func NewFakeRunner(t *testing.T) *FakeRunner {
-	return &FakeRunner{t: t, commands: make(map[string]*commandResponse), executed: make(map[string]bool)}
+	return &FakeRunner{t: t, commands: make(map[commandKey]*commandResponse), executed: make(map[commandKey]bool)}
 }
 
 // commandLine is one invocation, whether registered or actually run. It carries
@@ -29,12 +30,16 @@ type commandLine []string
 
 const commandLineSeparator = "\x00"
 
-func (c commandLine) key() string {
-	return strings.Join(c, commandLineSeparator)
+// commandKey is a commandLine flattened into something a map can hold. It is its
+// own type so that only key() can produce one, rather than any string at hand.
+type commandKey string
+
+func (c commandLine) key() commandKey {
+	return commandKey(strings.Join(c, commandLineSeparator))
 }
 
-func commandLineFromKey(key string) commandLine {
-	return strings.Split(key, commandLineSeparator)
+func commandLineFromKey(key commandKey) commandLine {
+	return strings.Split(string(key), commandLineSeparator)
 }
 
 func (c commandLine) String() string {
@@ -50,7 +55,7 @@ func (c commandLine) sharedPrefixWith(other commandLine) int {
 }
 
 type commandExpectation struct {
-	key    string
+	key    commandKey
 	runner *FakeRunner
 }
 
@@ -81,7 +86,7 @@ func (f *FakeRunner) Run(name string, args ...string) ([]byte, error) {
 // bestMatch resolves which registration answers a call. Registrations range from
 // a whole tool stubbed by name to one exact invocation, so the most specific one
 // that the call is consistent with wins.
-func (f *FakeRunner) bestMatch(actual commandLine) (string, bool) {
+func (f *FakeRunner) bestMatch(actual commandLine) (commandKey, bool) {
 	candidates := f.matchesFor(actual)
 	if len(candidates) == 0 {
 		return "", false
@@ -110,7 +115,7 @@ func (c commandLine) matching(actual commandLine) match {
 // extends outranks one that merely shares a leading run of arguments, and among
 // equals the longer shared run wins.
 type match struct {
-	key             string
+	key             commandKey
 	extendedByCall  bool
 	sharedArguments int
 }
@@ -124,7 +129,7 @@ func (m match) compare(other match) int {
 	if m.sharedArguments != other.sharedArguments {
 		return m.sharedArguments - other.sharedArguments
 	}
-	return strings.Compare(other.key, m.key)
+	return strings.Compare(string(other.key), string(m.key))
 }
 
 func rankOfExtension(extendedByCall bool) int {
@@ -147,4 +152,14 @@ func (f *FakeRunner) VerifyExecuted() {
 			f.t.Errorf("expected command was never called: %s", commandLineFromKey(key))
 		}
 	}
+}
+
+// RunStreaming answers exactly as Run does, and additionally writes the recorded
+// output to out, so that a test can assert a command narrated itself.
+func (f *FakeRunner) RunStreaming(out io.Writer, name string, args ...string) ([]byte, error) {
+	output, err := f.Run(name, args...)
+	if out != nil {
+		_, _ = out.Write(output)
+	}
+	return output, err
 }
