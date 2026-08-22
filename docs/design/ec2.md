@@ -15,6 +15,7 @@ talks to the instance over SSH and manages it with Terraform. The backend is
 | `isolarium create --type ec2 --name <name>` | `Create` |
 | `isolarium destroy --type ec2 --name <name>` | `Destroy` |
 | `isolarium run --type ec2 --name <name> -- <cmd>` | `Exec` |
+| `isolarium run --type ec2 --name <name> --create -- <cmd>` | `GetState`, then `Create` when it answers `none`, then `Exec` |
 | `isolarium run -i --type ec2 --name <name> -- <cmd>` | `ExecInteractive` |
 | `isolarium shell --type ec2 --name <name>` | `OpenShell` |
 | `isolarium status` | `GetState` |

@@ -300,7 +300,7 @@ Per the pattern in `newDockerBackend` and `newNonoBackend`, `EC2Backend` takes i
 | `--type` flag | `environmentType.Set` (`internal/cli/environment_type.go:13`) accepts `"ec2"`; the error message and the two `--type` flag descriptions in `internal/cli/root.go:79,105` are updated. |
 | `create` | Routes `ec2` to a `createAndSetupEC2` path analogous to the existing `vm` special case (`internal/cli/cmd_create.go:34`). `--work-directory` is rejected for `ec2`, as it is for `vm` and `nono`. |
 | `destroy` | Routes `ec2` alongside the existing `vm` special case. |
-| `run`, `shell` | Gain `--new-session`, valid only for `ec2`. Neither auto-creates an EC2 environment; both fail with a clear message directing the user to `create`. |
+| `run`, `shell` | Gain `--new-session`, valid only for `ec2`. `run --create` creates the EC2 environment when none exists, through the same path as `create` (Thread 13); `shell` does not auto-create and fails with a clear message directing the user to `create`. `--work-directory` is rejected for `ec2`. |
 | `status` | No command change; `"ec2"` added to `knownTypes`. |
 | `ec2 wipe` | New subcommand under a new `ec2` command group. |
 

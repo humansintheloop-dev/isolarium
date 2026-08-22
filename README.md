@@ -56,6 +56,9 @@ inside it at `/home/ubuntu/repo`.
 As with the VM backend, the instance has no host filesystem mounts — the repo is
 a fully independent copy.
 Commands run over SSH as the `ubuntu` user, rooted at `/home/ubuntu/repo`.
+`isolarium run --type ec2 --create -- <cmd>` performs the same create when no
+environment of that name exists, then runs the command; this is how i2code
+launches an EC2 environment.
 
 `create --type ec2` places the repository by performing the following steps:
 
@@ -593,7 +596,7 @@ deleting the state while infrastructure still exists strands it.
 | `--copy-session` | `true` | Copy Claude credentials from host |
 | `--fresh-login` | `false` | Authenticate via device code flow instead |
 | `--read` | | Grant nono sandbox read-only access to additional paths |
-| `--create` | `false` | Create the environment if it does not exist |
+| `--create` | `false` | Create the environment if it does not exist; for `ec2` this launches the instance and clones the repository, which takes minutes |
 | `--new-session` | `false` | Start an additional tmux session (`isolarium-<n>`) on the instance instead of joining the running one; `ec2` only, and never kills a session |
 | `--work-directory` | cwd | Work directory to mount (container mode, requires `--create`) |
 

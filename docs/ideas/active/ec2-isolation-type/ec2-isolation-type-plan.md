@@ -617,17 +617,17 @@ Spec 5.5 and acceptance criteria 16–19; CLAUDE.md test-integrity rule. The cap
 ## Steel Thread 13: i2code can drive an EC2 environment: `run --create` launches it and the command runs inside tmux
 Reviewing how i2code invokes isolarium (`isolarium --name i2code-<idea> --type <t> run --create [--interactive] -- i2code --with-sdkman implement --isolated <idea dir> ...`, non-interactive by default) found two gaps for `--type ec2`: `run` rejects `--create`, so i2code cannot launch an EC2 environment at all, and a non-interactive run goes over plain SSH rather than the tmux session, so the long-running `i2code implement` dies with the connection and cannot be rejoined. This thread makes `run --create` launch the environment when none exists and runs every `run --type ec2` command inside the tmux session — forcing a pseudo-terminal so tmux starts even when isolarium has no terminal of its own — while preserving the command's exit status, which the tmux client otherwise discards.
 
-- [ ] **Task 13.1: `run --create --type ec2` creates the environment when none exists**
+- [x] **Task 13.1: `run --create --type ec2` creates the environment when none exists**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/cli/ -run 'TestRunCommand_EC2'`
   - Observable: `isolarium run --type ec2 --create -- <cmd>` against a backend whose `GetState` answers `none` calls `Create` with the resolved name, the current directory as `WorkDirectory`, and a non-nil repository source, then calls `Exec`; when `GetState` answers `running` it skips `Create` and calls `Exec`; `--work-directory` is rejected with `--work-directory is not supported with --type ec2`, as `create` already rejects it
   - Evidence: `go test ./internal/cli/ -run 'TestRunCommand_EC2' exits 0 with the new tests present and `TestRunCommand_EC2RejectsCreateFlag` removed`
   - Steps:
-    - [ ] Replace `TestRunCommand_EC2RejectsCreateFlag` in `internal/cli/cmd_run_ec2_test.go` with tests that `--create` calls `Create` when the state is `none`, passes the current directory and a repository source, skips `Create` when the environment exists, and rejects `--work-directory`
-    - [ ] In `internal/cli/cmd_run.go` replace the `--create` rejection in `runInEC2` with a `createEC2IfNeeded` that calls `createAndSetupEC2` when `GetState` is `none`, so the create keeps the same repository source and push-then-mint ordering as `isolarium create`
-    - [ ] Reject `--work-directory` for `--type ec2` in `run`, mirroring `rejectWorkDirectoryForUnsupportedType` in `cmd_create.go`
-    - [ ] Rewrite the `runInEC2` comment: the cold start is now paid only when `--create` is given and nothing exists, which is what i2code asks for
-    - [ ] Update the `--create` flag description and the README so they no longer say ec2 requires a separate `create`
+    - [x] Replace `TestRunCommand_EC2RejectsCreateFlag` in `internal/cli/cmd_run_ec2_test.go` with tests that `--create` calls `Create` when the state is `none`, passes the current directory and a repository source, skips `Create` when the environment exists, and rejects `--work-directory`
+    - [x] In `internal/cli/cmd_run.go` replace the `--create` rejection in `runInEC2` with a `createEC2IfNeeded` that calls `createAndSetupEC2` when `GetState` is `none`, so the create keeps the same repository source and push-then-mint ordering as `isolarium create`
+    - [x] Reject `--work-directory` for `--type ec2` in `run`, mirroring `rejectWorkDirectoryForUnsupportedType` in `cmd_create.go`
+    - [x] Rewrite the `runInEC2` comment: the cold start is now paid only when `--create` is given and nothing exists, which is what i2code asks for
+    - [x] Update the `--create` flag description and the README so they no longer say ec2 requires a separate `create`
 - [ ] **Task 13.2: A non-interactive `run --type ec2` command runs inside the tmux session, survives a dropped connection, and a re-run of the same command reattaches to it**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/ec2/ ./internal/backend/ -run 'Session|Tmux|Exec'`

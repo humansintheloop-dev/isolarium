@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -83,20 +84,74 @@ func TestRunCommand_EC2RewritesTheHTTPSOriginWithTheMintedToken(t *testing.T) {
 	}
 }
 
-func TestRunCommand_EC2RejectsCreateFlag(t *testing.T) {
+func ec2RunWithState(t *testing.T, state string, args ...string) *backendSpy {
+	t.Helper()
+	stubMintGitHubToken(t)
+	stubKeychainCredentials(t, ec2HostCredentials, nil)
+	spy := &backendSpy{state: state}
+	runWithSpy(t, spy, append([]string{"run", "--type", "ec2"}, args...))
+	return spy
+}
+
+// i2code launches every environment with `run --create`, so ec2 has to create on
+// demand like the other types rather than insisting on a separate create.
+func TestRunCommand_EC2CreateFlagCreatesWhenStateIsNone(t *testing.T) {
+	spy := ec2RunWithState(t, "none", "--create", "--", "echo", "hello")
+
+	if !spy.createCalled {
+		t.Fatal("expected backend.Create to be called when the environment does not exist")
+	}
+	if spy.createName != "isolarium-ec2" {
+		t.Errorf("expected create name 'isolarium-ec2', got '%s'", spy.createName)
+	}
+	if !spy.execCalled {
+		t.Fatal("expected backend.Exec to be called after creating")
+	}
+}
+
+// The create has to be the same one `isolarium create --type ec2` performs: the
+// backend reads pid.yaml from the work directory and clones from the repository
+// source, so a run that left either out would produce a half-built environment.
+func TestRunCommand_EC2CreateFlagPassesCurrentDirectoryAndRepositorySource(t *testing.T) {
+	spy := ec2RunWithState(t, "none", "--create", "--", "echo", "hello")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("resolving the current directory: %v", err)
+	}
+	if spy.createOpts.WorkDirectory != cwd {
+		t.Errorf("run --create --type ec2 passed work directory %q, want %q", spy.createOpts.WorkDirectory, cwd)
+	}
+	if spy.createOpts.Repository == nil {
+		t.Fatal("run --create --type ec2 gave the backend no repository source, so it has nothing to clone")
+	}
+}
+
+func TestRunCommand_EC2CreateFlagSkipsCreateWhenEnvironmentExists(t *testing.T) {
+	spy := ec2RunWithState(t, "running", "--create", "--", "echo", "hello")
+
+	if spy.createCalled {
+		t.Fatal("expected backend.Create NOT to be called when the environment already exists")
+	}
+	if !spy.execCalled {
+		t.Fatal("expected backend.Exec to be called")
+	}
+}
+
+func TestRunCommand_EC2RejectsWorkDirectory(t *testing.T) {
 	stubMintGitHubToken(t)
 	spy := &backendSpy{state: "none"}
 	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
 		return spy, nil
 	})
-	rootCmd.SetArgs([]string{"run", "--type", "ec2", "--create", "--", "echo", "hello"})
+	rootCmd.SetArgs([]string{"run", "--type", "ec2", "--create", "--work-directory", "/some/path", "--", "echo", "hello"})
 
 	err := rootCmd.Execute()
 
 	if err == nil {
-		t.Fatal("expected error when --create is used with --type ec2")
+		t.Fatal("expected error when --work-directory is used with --type ec2")
 	}
-	expected := "--create is not supported with --type ec2; run isolarium create --type ec2 first"
+	expected := "--work-directory is not supported with --type ec2"
 	if !strings.Contains(err.Error(), expected) {
 		t.Errorf("expected error %q, got: %v", expected, err)
 	}
