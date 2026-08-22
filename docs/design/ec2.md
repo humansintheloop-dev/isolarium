@@ -76,8 +76,8 @@ infrastructure, in place.
 ## Exec
 
 `Exec(req)` runs a non-interactive command in the repository directory on the
-instance, inside the instance's tmux session, and returns the exit code of the
-SSH transport. The address comes from `metadata.json`, so no AWS or Terraform
+instance, inside the instance's tmux session, and returns the command's own
+exit status. The address comes from `metadata.json`, so no AWS or Terraform
 call is made.
 
 The command travels over `ssh -tt`, which forces a pseudo-terminal on the
@@ -85,9 +85,14 @@ instance even when isolarium itself has no terminal, with the host's stdin left
 disconnected (`ec2.ExecInSessionCommand`). That is what lets tmux start under
 i2code, and what keeps the command running if the connection drops.
 
-- If no session is running, `Exec` starts one: `tmux new-session -s <session>
-  -- <cmd> \; set-option -t <session> @isolarium-command '<cmd>'`. The second
-  tmux command records the command's arguments on the session as a tmux user
+- If no session is running, `Exec` first clears the session's status file
+  (`mkdir -p ~/.isolarium && rm -f ~/.isolarium/status-<session>`, over the
+  capture transport) and then starts one: `tmux new-session -s <session> -- sh
+  -c '<cmd>; echo $? > ~/.isolarium/status-<session>' \; set-option -t
+  <session> @isolarium-command '<cmd>'`. The `sh -c` wrapper
+  (`ec2.WrapWithExitStatus`) records the command's exit status when it ends,
+  because the tmux client exits 0 whatever the command did. The second tmux
+  command records the unwrapped arguments on the session as a tmux user
   option, rendered by `ec2.CommandRecord` (arguments quoted only where the
   shell would split them; environment excluded, since the per-run token always
   differs).
@@ -95,11 +100,23 @@ i2code, and what keeps the command running if the connection drops.
   with `tmux show-option -qv`. When it equals the arguments about to run,
   `Exec` prints `reattaching to session '<session>', which is already running:
   <cmd>` on stderr and runs `tmux attach-session -t <session>`, streaming the
-  session until it ends. When it differs — or the session recorded nothing,
-  because `run -i` or `shell` started it — `Exec` runs nothing and fails with
-  `cannot run '<cmd>': session '<session>' on the instance is already running
-  '<recorded>'; reattach to it with isolarium shell --type ec2, or start
-  another session with --new-session`.
+  session until it ends. The status file is not cleared on this path. When it
+  differs — or the session recorded nothing, because `run -i` or `shell`
+  started it — `Exec` runs nothing and fails with `cannot run '<cmd>': session
+  '<session>' on the instance is already running '<recorded>'; reattach to it
+  with isolarium shell --type ec2, or start another session with
+  --new-session`.
+- Once the tmux client returns, on either path, `Exec` reads the status file
+  with `cat` over the capture transport (`ec2.InstanceQuery.ReadExitStatus`)
+  and returns the number it holds, leaving the file in place so a run and a
+  reattached run of the same command both report the real status. A missing or
+  unparsable file — the command was killed, or the instance rebooted — is an
+  error naming the path, never success. So `isolarium run --type ec2 -- sh -c
+  'exit 3'` exits 3, as it does for the other isolation types.
+- The clear reports ssh's connect failure (exit 255) as `ErrSSHConnect`, so a
+  moved instance still gets the one address refresh and retry in `onInstance`;
+  the status read deliberately does not, because a retry after the client
+  returned would run the command again.
 - `--new-session` (`UseNewSession`) resolves a free session name first, as it
   does for `ExecInteractive`, so the new command never meets a running one.
 

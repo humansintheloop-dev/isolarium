@@ -22,12 +22,14 @@ func BuildTmuxCommand(sessionName string, args []string) []string {
 	return append([]string{"tmux", "new-session", "-A", "-s", sessionName, "--"}, args...)
 }
 
-// BuildDetachableTmuxCommand starts a named tmux session running args and, in
-// the same invocation, records the command on the session. Without `-A` it
-// never silently attaches to a session that is already running something else;
-// the caller decides what to do about one.
+// BuildDetachableTmuxCommand starts a named tmux session running args, wrapped
+// so its exit status is recorded, and in the same invocation records the
+// command itself on the session. The record holds the unwrapped arguments,
+// which is what a later run compares its own against. Without `-A` it never
+// silently attaches to a session that is already running something else; the
+// caller decides what to do about one.
 func BuildDetachableTmuxCommand(sessionName string, args []string) []string {
-	start := append([]string{"tmux", "new-session", "-s", sessionName, "--"}, args...)
+	start := append([]string{"tmux", "new-session", "-s", sessionName, "--"}, WrapWithExitStatus(args, StatusFilePath(sessionName))...)
 	record := []string{tmuxCommandSeparator, "set-option", "-t", sessionName, commandOption, shellQuote(CommandRecord(args))}
 	return append(start, record...)
 }

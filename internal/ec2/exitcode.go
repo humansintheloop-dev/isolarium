@@ -15,13 +15,20 @@ var ErrSSHConnect = errors.New("ssh could not connect to the instance")
 // ErrSSHConnect, leaving a remote exit code to travel back on its own as before.
 func connectAwareExitCode(err error, binary string) (int, error) {
 	exitCode, runErr := remoteExitCode(err, binary)
+	return exitCode, connectFailure(exitCode, runErr, binary)
+}
+
+// connectFailure reports an outcome that means the instance was never reached —
+// a transport that did not run, or ssh's own failure exit — as ErrSSHConnect,
+// and anything else as no failure at all.
+func connectFailure(exitCode int, runErr error, binary string) error {
 	if runErr != nil {
-		return exitCode, fmt.Errorf("%w: %v", ErrSSHConnect, runErr)
+		return fmt.Errorf("%w: %v", ErrSSHConnect, runErr)
 	}
 	if exitCode == sshTransportFailureExit {
-		return exitCode, fmt.Errorf("%w: %s exited %d", ErrSSHConnect, binary, sshTransportFailureExit)
+		return fmt.Errorf("%w: %s exited %d", ErrSSHConnect, binary, sshTransportFailureExit)
 	}
-	return exitCode, nil
+	return nil
 }
 
 // remoteExitCode separates a command the instance ran and rejected, which has an

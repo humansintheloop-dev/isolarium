@@ -66,6 +66,7 @@ type ec2RefreshFixture struct {
 	backend  *EC2Backend
 	ssh      *ec2RetrySpy
 	describe *ec2RefreshStub
+	instance *ec2InstanceFake
 }
 
 func ec2BackendAnswering(t *testing.T, script ...ec2RemoteOutcome) ec2RefreshFixture {
@@ -76,7 +77,7 @@ func ec2BackendAnswering(t *testing.T, script ...ec2RemoteOutcome) ec2RefreshFix
 	describe := &ec2RefreshStub{publicDNS: ec2MovedPublicDNS}
 	f.backend.ExecInSessionFunc = ssh.exec
 	f.backend.DescribeInstanceFunc = describe.describe
-	return ec2RefreshFixture{backend: f.backend, ssh: ssh, describe: describe}
+	return ec2RefreshFixture{backend: f.backend, ssh: ssh, describe: describe, instance: f.instance}
 }
 
 func (f ec2RefreshFixture) exec() (int, error) {
@@ -103,7 +104,8 @@ func TestEC2Backend_Exec_RefreshesMetadataOnConnectFailure(t *testing.T) {
 }
 
 func TestEC2Backend_Exec_DoesNotRefreshOnNonZeroExit(t *testing.T) {
-	f := ec2BackendAnswering(t, ec2RemoteOutcome{exitCode: 42})
+	f := ec2BackendAnswering(t, ec2RemoteOutcome{exitCode: 0})
+	f.instance.status = "42"
 
 	exitCode, err := f.exec()
 
@@ -118,6 +120,32 @@ func TestEC2Backend_Exec_DoesNotRefreshOnNonZeroExit(t *testing.T) {
 	}
 	assertSSHAttempts(t, f.ssh, ec2SpyPublicDNS)
 	assertRecordedPublicDNS(t, f.backend.MetadataDir, ec2SpyPublicDNS)
+}
+
+// TestEC2ExitStatus_ExecReadsTheStatusFromTheRefreshedAddress pins that the
+// address refresh happens before the status is read: the clear of the status
+// file is the first step that fails to connect to a moved instance, and once the
+// address is refreshed the session starts and the status is read at the new one.
+func TestEC2ExitStatus_ExecReadsTheStatusFromTheRefreshedAddress(t *testing.T) {
+	f := ec2BackendAnswering(t, ec2RemoteOutcome{exitCode: 0})
+	f.instance.unreachable = ec2SpyPublicDNS
+	f.instance.status = "5"
+
+	exitCode, err := f.exec()
+
+	if err != nil {
+		t.Fatalf("Exec() error = %v, want the retry at the refreshed address to have succeeded", err)
+	}
+	if exitCode != 5 {
+		t.Errorf("Exec() exit code = %d, want the 5 the command recorded", exitCode)
+	}
+	assertRefreshedOnce(t, f.describe)
+	assertSSHAttempts(t, f.ssh, ec2MovedPublicDNS)
+	readAt := f.instance.addressesAsked("cat ~/.isolarium/status-isolarium")
+	if strings.Join(readAt, " ") != ec2MovedPublicDNS {
+		t.Errorf("Exec() read the status at %v, want only the refreshed address %s", readAt, ec2MovedPublicDNS)
+	}
+	assertRecordedPublicDNS(t, f.backend.MetadataDir, ec2MovedPublicDNS)
 }
 
 func TestEC2Backend_Exec_RetriesAtMostOnce(t *testing.T) {

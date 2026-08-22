@@ -354,7 +354,7 @@ func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInsta
 func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySpec) error {
 	// The readiness probes are queries rather than plain commands: cloud-init's
 	// own report of a degraded run is what names the modules that failed.
-	query := ec2.NewInstanceQuery(b.MetadataDir, publicDNS, b.capture())
+	query := b.instanceQuery(publicDNS)
 
 	if err := ec2.WaitForSSH(query, b.sleep()); err != nil {
 		return err
@@ -510,25 +510,37 @@ func (b *EC2Backend) printErr(message string) {
 // non-interactive, so the long-running command i2code starts keeps running when
 // the connection drops and a re-run of the same command finds it again. A
 // session already running a different command is left alone: nothing is run,
-// and the error names both commands.
+// and the error names both commands. Either way the exit code reported is the
+// command's own, read from the session's status file, not the tmux client's.
 func (b *EC2Backend) Exec(req ExecRequest) (int, error) {
 	return b.withSession(req.ContainerName, func(target sessionTarget) (int, error) {
 		if ec2.SessionExists(b.instanceSession(target.publicDNS, b.ExecFunc), target.session) {
 			return b.rejoinSession(target, req.Args)
 		}
-		return b.execInSession()(b.MetadataDir, target.publicDNS, ec2.RemoteCommand{
-			Workdir: ec2.RemoteRepoDir,
-			EnvVars: req.EnvVars,
-			Args:    ec2.BuildDetachableTmuxCommand(target.session, req.Args),
-		})
+		return b.startSession(target, req)
+	})
+}
+
+// startSession runs the command in a fresh session. The session's status file
+// is cleared first, so a status left by an earlier command can never be read as
+// this one's.
+func (b *EC2Backend) startSession(target sessionTarget, req ExecRequest) (int, error) {
+	if err := b.instanceQuery(target.publicDNS).ClearExitStatus(target.session); err != nil {
+		return 1, err
+	}
+	return b.runInSession(target, ec2.RemoteCommand{
+		Workdir: ec2.RemoteRepoDir,
+		EnvVars: req.EnvVars,
+		Args:    ec2.BuildDetachableTmuxCommand(target.session, req.Args),
 	})
 }
 
 // rejoinSession attaches to a session that is running the very command Exec
 // was asked to run, streaming it until it ends, and refuses any other session
-// rather than starting a second command beside it.
+// rather than starting a second command beside it. The status file is left as
+// the original command wrote it, so the reattached run reports the same status.
 func (b *EC2Backend) rejoinSession(target sessionTarget, args []string) (int, error) {
-	recorded, err := ec2.NewInstanceQuery(b.MetadataDir, target.publicDNS, b.capture()).RecordedCommand(target.session)
+	recorded, err := b.instanceQuery(target.publicDNS).RecordedCommand(target.session)
 	if err != nil {
 		return 1, err
 	}
@@ -537,7 +549,23 @@ func (b *EC2Backend) rejoinSession(target sessionTarget, args []string) (int, er
 	}
 
 	b.printErr(fmt.Sprintf("reattaching to session '%s', which is already running: %s", target.session, recorded))
-	return b.execInSession()(b.MetadataDir, target.publicDNS, ec2.RemoteCommand{Args: ec2.BuildAttachCommand(target.session)})
+	return b.runInSession(target, ec2.RemoteCommand{Args: ec2.BuildAttachCommand(target.session)})
+}
+
+// runInSession carries cmd over the session transport and, once the tmux client
+// has returned, reports the status the session's command recorded rather than
+// the client's own. A transport error is returned as it is, so a connection
+// that never reached the instance still buys the caller its address refresh.
+func (b *EC2Backend) runInSession(target sessionTarget, cmd ec2.RemoteCommand) (int, error) {
+	exitCode, err := b.execInSession()(b.MetadataDir, target.publicDNS, cmd)
+	if err != nil {
+		return exitCode, err
+	}
+	return b.instanceQuery(target.publicDNS).ReadExitStatus(target.session)
+}
+
+func (b *EC2Backend) instanceQuery(publicDNS string) ec2.InstanceQuery {
+	return ec2.NewInstanceQuery(b.MetadataDir, publicDNS, b.capture())
 }
 
 // ExecInteractive runs the command inside the instance's tmux session, so a

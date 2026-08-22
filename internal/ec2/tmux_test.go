@@ -48,11 +48,65 @@ func TestEC2TmuxCommandTravelsOverTheInteractiveTransport(t *testing.T) {
 	assertCommandEquals(t, got, want)
 }
 
+func TestEC2ExitStatusFilePathIsPerSession(t *testing.T) {
+	tests := []struct {
+		session string
+		want    string
+	}{
+		{session: "isolarium", want: "~/.isolarium/status-isolarium"},
+		{session: "isolarium-2", want: "~/.isolarium/status-isolarium-2"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.session, func(t *testing.T) {
+			if got := StatusFilePath(tc.session); got != tc.want {
+				t.Errorf("StatusFilePath(%q) = %q, want %q", tc.session, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestEC2ExitStatusWrapQuotesTheCommandForTheRemoteShell pins the two layers of
+// quoting: the script is one single-quoted word for the remote login shell, and
+// inside it the command's own arguments are quoted for the sh that runs them.
+func TestEC2ExitStatusWrapQuotesTheCommandForTheRemoteShell(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "plain words",
+			args: []string{"claude", "-p", "hello"},
+			want: `'claude -p hello; echo $? > ~/.isolarium/status-isolarium'`,
+		},
+		{
+			name: "an argument with a space",
+			args: []string{"sh", "-c", "exit 3"},
+			want: `'sh -c '\''exit 3'\''; echo $? > ~/.isolarium/status-isolarium'`,
+		},
+		{
+			name: "an argument with a quote",
+			args: []string{"echo", "it's"},
+			want: `'echo '\''it'\''\'\'''\''s'\''; echo $? > ~/.isolarium/status-isolarium'`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := WrapWithExitStatus(tc.args, StatusFilePath(DefaultSessionName))
+
+			assertCommandEquals(t, got, []string{"sh", "-c", tc.want})
+		})
+	}
+}
+
 func TestEC2TmuxDetachableCommandStartsANamedSessionAndRecordsTheCommand(t *testing.T) {
 	got := BuildDetachableTmuxCommand(DefaultSessionName, []string{"claude", "-p", "hello"})
 
 	assertCommandEquals(t, got, []string{
-		"tmux", "new-session", "-s", "isolarium", "--", "claude", "-p", "hello",
+		"tmux", "new-session", "-s", "isolarium", "--",
+		"sh", "-c", `'claude -p hello; echo $? > ~/.isolarium/status-isolarium'`,
 		`\;`, "set-option", "-t", "isolarium", "@isolarium-command", "'claude -p hello'",
 	})
 }
@@ -73,7 +127,7 @@ func TestEC2TmuxDetachableCommandTravelsOverTheSessionTransport(t *testing.T) {
 
 	assertContainsAll(t, "the session command line", got,
 		"-tt ubuntu@"+testPublicDNS,
-		"tmux new-session -s isolarium -- claude",
+		"tmux new-session -s isolarium -- sh -c 'claude; echo $? > ~/.isolarium/status-isolarium'",
 		"@isolarium-command 'claude'",
 	)
 }

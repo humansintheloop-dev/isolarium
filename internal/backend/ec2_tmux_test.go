@@ -144,31 +144,16 @@ func assertSessionProbe(t *testing.T, spy *ec2ExecSpy) {
 	}
 }
 
-// sessionListSpy answers the backend's `tmux list-sessions` probe with the
-// sessions an instance is running.
-type sessionListSpy struct {
-	output  string
-	called  bool
-	command ec2.RemoteCommand
-}
-
-func (s *sessionListSpy) capture(base, publicDNS string, cmd ec2.RemoteCommand) (string, int, error) {
-	s.called = true
-	s.command = cmd
-	return s.output, 0, nil
-}
-
 func TestEC2NewSessionBackendStartsAnAdditionalSession(t *testing.T) {
 	f := ec2BackendWithRecordedInstance(t, 0)
-	lister := &sessionListSpy{output: "isolarium\n"}
-	f.backend.CaptureFunc = lister.capture
+	f.instance.sessions = "isolarium\n"
 	f.backend.UseNewSession()
 
 	if _, err := f.backend.ExecInteractive(ExecRequest{ContainerName: "my-work", Args: []string{"bash"}}); err != nil {
 		t.Fatalf("ExecInteractive() error = %v, want nil", err)
 	}
 
-	if !lister.called {
+	if !f.instance.asked("tmux list-sessions") {
 		t.Fatal("--new-session never asked the instance which sessions are running")
 	}
 	want := []string{"tmux", "new-session", "-A", "-s", "isolarium-2", "--", "bash"}
@@ -182,7 +167,7 @@ func TestEC2NewSessionBackendStartsAnAdditionalSession(t *testing.T) {
 func TestEC2NewSessionBackendOpensAShellInTheAdditionalSession(t *testing.T) {
 	f := ec2BackendWithRecordedInstance(t, 0)
 	f.backend.ExecFunc = onlyDefaultSessionIsRunning
-	f.backend.CaptureFunc = (&sessionListSpy{output: "isolarium\n"}).capture
+	f.instance.sessions = "isolarium\n"
 	f.backend.UseNewSession()
 	var notice bytes.Buffer
 	f.backend.ErrWriter = &notice
