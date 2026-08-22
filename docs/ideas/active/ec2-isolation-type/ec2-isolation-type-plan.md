@@ -614,6 +614,94 @@ Spec 5.5 and acceptance criteria 16–19; CLAUDE.md test-integrity rule. The cap
     - [x] Run the entrypoint and confirm exit code 0
     - [x] Run `./test-scripts/test-ec2.sh` and `./test-scripts/test-ec2-e2e.sh` against a real account one final time and record both results
     - [x] Verify every item of spec section 9 acceptance criteria 16–19 is satisfied, and that `README.md` documents the `terraform` >= 1.10 prerequisite, required environment variables, cold-start latency, billing until destroyed, the refresh token on the instance, `terraform force-unlock` recovery, manual state-bucket removal, and the nested-tmux prefix-key caveat
+## Steel Thread 13: i2code can drive an EC2 environment: `run --create` launches it and the command runs inside tmux
+Reviewing how i2code invokes isolarium (`isolarium --name i2code-<idea> --type <t> run --create [--interactive] -- i2code --with-sdkman implement --isolated <idea dir> ...`, non-interactive by default) found two gaps for `--type ec2`: `run` rejects `--create`, so i2code cannot launch an EC2 environment at all, and a non-interactive run goes over plain SSH rather than the tmux session, so the long-running `i2code implement` dies with the connection and cannot be rejoined. This thread makes `run --create` launch the environment when none exists and runs every `run --type ec2` command inside the tmux session — forcing a pseudo-terminal so tmux starts even when isolarium has no terminal of its own — while preserving the command's exit status, which the tmux client otherwise discards.
+
+- [ ] **Task 13.1: `run --create --type ec2` creates the environment when none exists**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/cli/ -run 'TestRunCommand_EC2'`
+  - Observable: `isolarium run --type ec2 --create -- <cmd>` against a backend whose `GetState` answers `none` calls `Create` with the resolved name, the current directory as `WorkDirectory`, and a non-nil repository source, then calls `Exec`; when `GetState` answers `running` it skips `Create` and calls `Exec`; `--work-directory` is rejected with `--work-directory is not supported with --type ec2`, as `create` already rejects it
+  - Evidence: `go test ./internal/cli/ -run 'TestRunCommand_EC2' exits 0 with the new tests present and `TestRunCommand_EC2RejectsCreateFlag` removed`
+  - Steps:
+    - [ ] Replace `TestRunCommand_EC2RejectsCreateFlag` in `internal/cli/cmd_run_ec2_test.go` with tests that `--create` calls `Create` when the state is `none`, passes the current directory and a repository source, skips `Create` when the environment exists, and rejects `--work-directory`
+    - [ ] In `internal/cli/cmd_run.go` replace the `--create` rejection in `runInEC2` with a `createEC2IfNeeded` that calls `createAndSetupEC2` when `GetState` is `none`, so the create keeps the same repository source and push-then-mint ordering as `isolarium create`
+    - [ ] Reject `--work-directory` for `--type ec2` in `run`, mirroring `rejectWorkDirectoryForUnsupportedType` in `cmd_create.go`
+    - [ ] Rewrite the `runInEC2` comment: the cold start is now paid only when `--create` is given and nothing exists, which is what i2code asks for
+    - [ ] Update the `--create` flag description and the README so they no longer say ec2 requires a separate `create`
+- [ ] **Task 13.2: A non-interactive `run --type ec2` command runs inside the tmux session, survives a dropped connection, and a re-run of the same command reattaches to it**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/ec2/ ./internal/backend/ -run 'Session|Tmux|Exec'`
+  - Observable: `EC2Backend.Exec` runs the command on the instance inside the resolved tmux session over an SSH transport that forces a pseudo-terminal (`-tt`) without connecting the host's stdin, so tmux starts when isolarium itself has no terminal (as under i2code's `Popen(start_new_session=True)`) and the command keeps running if the SSH connection drops. When it starts the session it records the command's args on the session as the tmux user option `@isolarium-command`. When the session already exists it reads that option: if it equals the args about to run (environment excluded, since the per-run token always differs) it attaches to the running session and streams its output until it ends; otherwise it fails without running anything, naming the running command and pointing at `isolarium shell` to reattach or `--new-session` to start another. `isolarium shell --type ec2` joins the session either way. The transports used internally by create (`PlaceRepository`, the `pid.yaml` script runner, the session probes) are unchanged and still run without tmux
+  - Evidence: `go test ./internal/ec2/ ./internal/backend/ -run 'Session|Tmux|Exec' exits 0, with tests asserting the ssh argument vector for `Exec` contains `-tt` and `tmux new-session -s <session>` with the `@isolarium-command` option set, that `Exec` attaches when the recorded command equals its args, that it refuses when they differ, and that the create-time transports carry neither`
+  - Steps:
+    - [ ] In `internal/ec2/ssh.go` add a forced-pty variant of `BuildSSHArgs`/`buildSSHCommand` that passes `-tt`, with a `BuildSessionExecCommand` for commands that must run in tmux but have no host terminal; test the argument vector in `ssh_test.go`
+    - [ ] In `internal/ec2/exec.go` add `ExecInSessionCommand`: streams stdout and stderr, leaves stdin disconnected, and maps exit status through `connectAwareExitCode` like the other transports
+    - [ ] In `internal/ec2/tmux.go` add `BuildDetachableTmuxCommand(session, args)` that starts a named session without `-A` and sets `@isolarium-command` to the shell-quoted args in the same tmux invocation; add `BuildAttachCommand(session)`; add `InstanceQuery.RecordedCommand(session)` that reads the option back with `tmux show-option -qv`; keep `BuildTmuxCommand` for the interactive path
+    - [ ] In `internal/backend/ec2_backend.go` give `EC2Backend` an `ExecInSessionFunc` transport (defaulting to `ec2.ExecInSessionCommand`) and make `Exec` resolve the session name through `inSession`; when `SessionExists`, compare `RecordedCommand` with `req.Args` and either attach or refuse with a message naming both commands; otherwise run the tmux-wrapped command; leave `instanceScriptRunner` and `provisionInstance` on `ExecFunc`
+    - [ ] Add backend tests: `Exec` reaches the session transport with the tmux-wrapped args and the recorded public DNS; `Exec` with `UseNewSession` picks a free session name; `Exec` attaches when the recorded command matches and does not start a second session; `Exec` refuses without reaching the session transport when the recorded command differs; the create path still uses the plain transport
+    - [ ] Update the `Exec` row and add a `Running under i2code` section to `docs/design/ec2.md` describing the i2code invocation (`isolarium --name i2code-<idea> --type ec2 run --create -- i2code ... implement --isolated ...`, non-interactive by default), why the command runs in tmux regardless of `--interactive`, that a re-run of the same command reattaches, how to reattach by hand, and the host-IP ingress pinning caveat
+- [ ] **Task 13.3: A non-interactive `run --type ec2` reports the command's own exit status, not tmux's, whether it started the session or reattached to it**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/ec2/ ./internal/backend/ -run 'ExitStatus|Exec'`
+  - Observable: The tmux client exits 0 whatever the command inside it did, so `Exec` wraps the command as `sh -c '<cmd>; echo $? > <status file>'` where the status file is deterministic per session (`~/.isolarium/status-<session>`), removed when the session starts and written when the command exits. Once the tmux client returns — after starting the session or after reattaching to it — `Exec` reads the file over the capture transport and returns the recorded status without deleting it, so a run and a reattached run of the same command both report the real status; a missing status file (the command was killed, or the instance rebooted) is reported as an error rather than as success. `isolarium run --type ec2 -- sh -c 'exit 3'` therefore exits 3, as it does for the other isolation types
+  - Evidence: `go test ./internal/ec2/ ./internal/backend/ -run 'ExitStatus|Exec' exits 0, with a test that `Exec` returns 3 when the status file holds `3`, a test that a reattached `Exec` returns the status the original command wrote, a test that the file is cleared before a new session starts, and a test that a missing status file yields a non-nil error`
+  - Steps:
+    - [ ] In `internal/ec2/tmux.go` add `StatusFilePath(session)` and a `WrapWithExitStatus(args, statusPath)` that shell-quotes the command with the existing `shellQuote` and appends the status write; test the quoting with arguments containing spaces and quotes
+    - [ ] In `internal/backend/ec2_backend.go` have `Exec` remove the session's status file before starting a new session (not when attaching), pass the wrapped command to the session transport, then read the file through `InstanceQuery.capture` after the client returns in both the start and attach paths; return the parsed status, or an error naming the path when the file is absent or unparsable
+    - [ ] Keep the `ErrSSHConnect` retry in `onInstance` ahead of the status read, so a refreshed address is the one the status is read from
+    - [ ] Backend tests for the status round trip, the reattach round trip, the clear-before-start, and the missing-file error
+- [ ] **Task 13.4: The tmux-backed run, reattach, and `--create` are verified against a real instance**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: Against a real account, `isolarium run --type ec2 --create --name <fresh> -- sh -c 'exit 3'` creates the environment and exits 3; a following `isolarium run --type ec2 --name <fresh> -- sh -c 'sleep 60; exit 4' &` leaves `tmux has-session -t isolarium` on the instance answering 0 while it runs; in that window an identical second `run` reattaches, streams the same output, and also exits 4 when the command ends, while a `run` with a different command fails naming the running one; `isolarium destroy --type ec2 --name <fresh>` terminates the instance; the i2code invocation `isolarium --name i2code-<idea> --type ec2 run --create -- echo ok` prints `ok` and exits 0
+  - Evidence: `./test-scripts/test-ec2.sh exits 0 against a real account with the new assertions present, and `make` exits 0`
+  - Steps:
+    - [ ] Extend the `//go:build ec2` integration test to assert `run --create` on a fresh name creates the environment, that a non-zero status travels back through tmux, that the session is present during a long-running command, that an identical concurrent `run` reattaches and reports the same status, and that a different concurrent `run` is refused
+    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and record the result
+    - [ ] Drive one real i2code invocation (`i2code implement --isolate --isolation-type ec2 <idea>` in a throwaway repository), interrupt it, re-run it, and record whether the re-run reattaches and returns the inner exit status
+    - [ ] Run `make` and confirm exit code 0
+## Steel Thread 14: `run` and `shell` recover when the host's public address changes
+SSH ingress to every EC2 environment is pinned to the host's public /32, resolved only by `create` and `destroy`. When the host moves network the security group still names the old address, so every `run` and `shell` fails to connect, and the existing retry in `onInstance` cannot help because it refreshes the instance's address, not the host's. This thread makes each connecting operation detect the host address first and re-apply the shared terraform when it differs from the one last applied (hybrid: a proactive check before connecting, plus one re-check when a connection fails), compares against `isolarium.auto.tfvars` written only after a successful apply, warns and proceeds when detection itself fails, and keeps the rule to a single address so switching machines re-applies on each.
+
+- [ ] **Task 14.1: The ingress CIDR is persisted only after a terraform apply succeeds**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/ec2/ ./internal/backend/ -run 'Ingress|CIDR|Create|Destroy'`
+  - Observable: `isolarium.auto.tfvars` holds the CIDR the security group was last successfully applied with. `ResolveIngressCIDR` no longer writes the file when it detects; `create` and `destroy` write it after their apply returns without error and leave the previous value in place when the apply fails, so a later comparison against the file cannot mistake a failed apply for an applied one. `destroy`'s fallback to the last known CIDR still reads the same file
+  - Evidence: `go test ./internal/ec2/ ./internal/backend/ -run 'Ingress|CIDR|Create|Destroy' exits 0, with a test that a create whose apply fails leaves the previously persisted CIDR untouched and a test that a successful create persists the detected one`
+  - Steps:
+    - [ ] In `internal/ec2/publicip.go` split detection from persistence: `ResolveIngressCIDR` returns the CIDR without writing; keep `PersistIngressCIDR` and `ReadPersistedIngressCIDR` as the file's only readers and writers
+    - [ ] In `internal/backend/ec2_backend.go` call `PersistIngressCIDR` after `terraform.Apply` succeeds in `applyInstance` and in `ec2Teardown.run`, using the CIDR the apply was given
+    - [ ] Adjust the create and destroy backend tests that asserted the early persist, and add the failed-apply test
+    - [ ] Update `docs/design/ec2.md` Create and Destroy sections: the CIDR is recorded after the apply, not before
+- [ ] **Task 14.2: `run` and `shell` re-apply the SSH ingress rule when the host's public address has changed**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/backend/ -run 'Ingress|Exec|Shell|CopyCredentials'`
+  - Observable: Before `Exec`, `ExecInteractive`, `OpenShell`, or `CopyCredentials` connects, the backend detects the host's public IP and compares it with the persisted CIDR. When they match it makes no terraform or AWS call and connects as before. When they differ it prints `host address changed from <old> to <new>; updating SSH ingress...` on stderr, runs `terraform init` and `terraform apply` over the shared working directory with the new `ingress_cidr` (region from `metadata.json`, the same `public_key` as create), persists the new CIDR on success, and then connects. When detection fails it prints a warning naming the detection error and connects anyway, so being offline from checkip never blocks a command that might still work. A re-apply that fails is reported as an error and the command does not run
+  - Evidence: `go test ./internal/backend/ -run 'Ingress|Exec|Shell|CopyCredentials' exits 0, with tests that an unchanged address makes no terraform call, a changed address runs init and apply with the new `ingress_cidr` before the SSH transport is reached and persists it, a detection failure warns and still reaches the transport, and `CopyCredentials` gets the same check`
+  - Steps:
+    - [ ] In `internal/ec2/publicip.go` add `OpConnect` to `Operation` with the warn-and-proceed policy, and an `IngressChanged(base, get)` that returns the detected CIDR, the persisted one, and whether they differ (a missing persisted file counts as changed)
+    - [ ] In `internal/backend/ec2_backend.go` add `ensureHostIngress(meta)` that runs the comparison, the notice, the apply via a shared `applySharedInfrastructure(plan)` extracted from `ec2Teardown.run`, and the persist; take the region from `meta.Region` so `run` does not need `AWS_REGION` set
+    - [ ] Call `ensureHostIngress` at the start of `onInstance`, and route `CopyCredentials` through `onInstance` so the credentials copy gets the check and the DNS refresh too
+    - [ ] Backend tests for the four observable cases, using the existing `ec2BackendWithRecordedInstance` fixture with a stub `CheckIPFunc` and `command.FakeRunner` for terraform
+    - [ ] Add a `Host address changes` section to `docs/design/ec2.md` describing the check, the notice, the warn-and-proceed policy, and that the rule holds one address so switching machines re-applies on each
+- [ ] **Task 14.3: An SSH connection failure re-checks the host address once before giving up**
+  - TaskType: OUTCOME
+  - Entrypoint: `go test ./internal/backend/ -run 'Refresh|Retry|Ingress'`
+  - Observable: When the first connection attempt in `onInstance` fails with `ErrSSHConnect` the backend re-detects the host address and re-applies the ingress rule if it differs from the persisted one (covering an address that changed between the proactive check and the connection, or a persisted file that was wrong), refreshes the instance's public DNS from AWS as today, and retries once. A retry that still cannot connect reports both what was refreshed and the original error. A command the instance ran and rejected is never retried
+  - Evidence: `go test ./internal/backend/ -run 'Refresh|Retry|Ingress' exits 0, with a test that a connect failure followed by a changed address re-applies and retries with the refreshed DNS, and a test that a rejected remote command is not retried`
+  - Steps:
+    - [ ] Extend the `ErrSSHConnect` branch of `onInstance` to call `ensureHostIngress` before `refreshPublicDNS`, reusing the proactive path's notice and apply
+    - [ ] Make the combined error message name the address check and the DNS refresh when the retry also fails
+    - [ ] Backend tests for the reactive path, including that an unchanged address on retry makes no terraform call
+- [ ] **Task 14.4: The host-address check is verified against a real instance**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: Against a real account, after `create`, the test applies the shared infrastructure with a wrong single-host CIDR (`terraform apply -var ingress_cidr=198.51.100.1/32` in the working directory) and writes that CIDR to `isolarium.auto.tfvars`, so the host is locked out and the persisted record agrees with AWS; `isolarium run --type ec2 -- echo ok` then prints the `host address changed` notice on stderr, re-applies, prints `ok`, and exits 0; a second `run` prints no notice and makes no terraform call; `destroy` still terminates the instance
+  - Evidence: `./test-scripts/test-ec2.sh exits 0 against a real account with the new assertions present, and `make` exits 0`
+  - Steps:
+    - [ ] Extend the `//go:build ec2` integration test with the lock-out-then-run scenario and the no-notice second run
+    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and record the result
+    - [ ] Run `make` and confirm exit code 0
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).
@@ -854,3 +942,18 @@ AC16: make exits 0 and writes bin/isolarium. AC17: every untagged internal/ec2 t
 
 ### 2026-08-21 12:19 - mark-task-complete
 make build produced bin/isolarium and ./test-scripts/test-end-to-end.sh --skip-docker-integration exited 0 with '=== All tests passed ===' and the ec2 preflight assertions green; go build -tags=ec2 ./... and go build -tags=e2e_ec2 ./... both succeed.
+
+### 2026-08-22 13:43 - insert-thread-after
+Review of i2code's IsolateMode against the ec2 run path found --create rejected and non-interactive runs outside tmux
+
+### 2026-08-22 13:55 - replace-task
+A re-run of the identical command should reattach to the running session rather than be refused; record the command on the session and compare args
+
+### 2026-08-22 13:55 - replace-task
+Reattaching needs a per-session status file rather than a per-invocation one so the reattached run reads the same status
+
+### 2026-08-22 13:55 - replace-task
+Verification must cover the reattach-on-identical-command behaviour added to 13.2 and 13.3
+
+### 2026-08-22 14:00 - insert-thread-after
+Host IP changes lock run and shell out of every EC2 environment; decided with the user: hybrid check, local tfvars persisted after apply, warn-and-proceed on detection failure, single address
