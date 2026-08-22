@@ -415,29 +415,3 @@ func (e *ec2Environment) runningSessionNames() []string {
 	slices.Sort(names)
 	return names
 }
-
-func (e *ec2Environment) instanceOutput(args ...string) string {
-	e.t.Helper()
-
-	exitCode, output := e.askInstance(args...)
-	if exitCode != 0 {
-		e.t.Fatalf("%s on the instance exited %d, want 0; output: %s", strings.Join(args, " "), exitCode, output)
-	}
-	return strings.TrimSpace(output)
-}
-
-// askInstance runs args on the instance and hands back its exit status together
-// with what it wrote. It collects that output into a buffer of its own rather
-// than by borrowing the process-wide stdout, because this test reads the
-// instance while interactive connections are being opened — and a connection
-// that started mid-read would inherit the borrowed stdout in place of its
-// terminal and hold it open for as long as the session lived.
-func (e *ec2Environment) askInstance(args ...string) (int, string) {
-	e.t.Helper()
-
-	output, exitCode, err := ec2.CaptureCommand(e.base, e.publicDNS, ec2.RemoteCommand{Args: args})
-	if err != nil {
-		e.t.Fatalf("running %s on the instance: %v", strings.Join(args, " "), err)
-	}
-	return exitCode, output
-}

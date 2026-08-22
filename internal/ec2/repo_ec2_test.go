@@ -34,12 +34,15 @@ func TestEC2Instance_HasRepositoryAtBranch(t *testing.T) {
 
 // TestEC2Instance_HasNoPersistedToken proves the clone token lives only in the
 // argument list of the single git clone that needs it, and never lands on the
-// instance's disk. It reads the whole home directory, so it too has to run
-// before anything else puts a file there.
+// instance's disk. The binary minted that token itself when it created the
+// instance, so the suite never sees it and searches instead for the shape of
+// the URL it travelled in, which is the only form git would ever record it in.
+// It reads the whole home directory, so it too has to run before anything else
+// puts a file there.
 func TestEC2Instance_HasNoPersistedToken(t *testing.T) {
 	environment := sharedInstance(t)
 
-	for _, search := range secretSearches(environment.repository.Token) {
+	for _, search := range secretSearches() {
 		environment.assertNothingOnTheInstanceContains(search)
 	}
 }
@@ -48,20 +51,20 @@ func (e *ec2Environment) assertCheckedOutBranchIsTheOneCreateRanFrom() {
 	e.t.Helper()
 
 	branch := e.gitOutput("rev-parse", "--abbrev-ref", "HEAD")
-	if branch != e.repository.Branch {
-		e.t.Errorf("the instance is on branch %q, want %q", branch, e.repository.Branch)
+	if branch != e.repository.branch {
+		e.t.Errorf("the instance is on branch %q, want %q", branch, e.repository.branch)
 	}
 }
 
 func (e *ec2Environment) assertCommitsAreAttributedToTheIsolatedAuthor() {
 	e.t.Helper()
 
-	wantName := e.repository.AuthorName + isolationNameSuffix
+	wantName := e.repository.authorName + isolationNameSuffix
 	if name := e.gitOutput("config", "user.name"); name != wantName {
 		e.t.Errorf("git user.name on the instance = %q, want %q", name, wantName)
 	}
 
-	wantEmail := git.TransformEmailForIsolation(e.repository.AuthorEmail)
+	wantEmail := git.TransformEmailForIsolation(e.repository.authorEmail)
 	if email := e.gitOutput("config", "user.email"); email != wantEmail {
 		e.t.Errorf("git user.email on the instance = %q, want %q", email, wantEmail)
 	}
@@ -87,11 +90,11 @@ func (e *ec2Environment) assertProjectConfigTravelledFromTheHost() {
 	e.t.Helper()
 
 	for _, name := range projectConfigFiles() {
-		if !hostHasProjectConfig(e.repository.HostDir, name) {
+		if !hostHasProjectConfig(e.workDir, name) {
 			e.t.Logf("%s does not exist on the host, so nothing should have travelled", name)
 			continue
 		}
-		exitCode, _ := e.run("test", "-f", name)
+		exitCode, _ := e.askInstance("test", "-f", name)
 		if exitCode != 0 {
 			e.t.Errorf("%s exists on the host but not in the clone on the instance", name)
 		}
@@ -101,7 +104,7 @@ func (e *ec2Environment) assertProjectConfigTravelledFromTheHost() {
 func (e *ec2Environment) assertNothingOnTheInstanceContains(search secretSearch) {
 	e.t.Helper()
 
-	exitCode, output := e.run(search.args...)
+	exitCode, output := e.askInstance(search.args...)
 	if exitCode == grepFoundNothingExitCode && strings.TrimSpace(output) == "" {
 		return
 	}
@@ -120,19 +123,13 @@ type secretSearch struct {
 	args []string
 }
 
-// secretSearches covers the token both by value and by the shape of the URL it
-// travelled in. The token search reads every file, because a token has no
-// legitimate home anywhere on the instance. The URL searches skip binaries and
-// the checkout, because this repository's own source and the Docker binary both
-// carry the literal x-access-token for reasons that have nothing to do with the
-// clone — but they do read the clone's git metadata, which is where git records
-// the authenticated remote it fetched from.
-func secretSearches(token string) []secretSearch {
+// secretSearches covers the shape of the URL the token travelled in. They skip
+// binaries and the checkout, because this repository's own source and the
+// Docker binary both carry the literal x-access-token for reasons that have
+// nothing to do with the clone — but they do read the clone's git metadata,
+// which is where git records the authenticated remote it fetched from.
+func secretSearches() []secretSearch {
 	return []secretSearch{
-		{
-			what: "the installation token",
-			args: []string{"grep", "-rlF", "--", token, instanceHomeDir},
-		},
 		{
 			what: "an authenticated clone URL outside the checkout",
 			args: []string{"grep", "-rlI", "--exclude-dir=repo", "x-access-token", instanceHomeDir},
@@ -183,7 +180,7 @@ func isLeftInTheCloneByCreate(entry string) bool {
 func (e *ec2Environment) gitOutput(args ...string) string {
 	e.t.Helper()
 
-	exitCode, output := e.run(append([]string{"git"}, args...)...)
+	exitCode, output := e.askInstance(append([]string{"git"}, args...)...)
 	if exitCode != 0 {
 		e.t.Fatalf("git %s on the instance exited %d, want 0", strings.Join(args, " "), exitCode)
 	}

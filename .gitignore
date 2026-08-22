@@ -13,6 +13,9 @@ logs/
 
 # The EC2 suite's working directory: keypair, terraform providers, backend state
 terraform-dev/
+# The project config the EC2 suite stages into its pid.yaml work directory for a run
+/internal/ec2/testdata/pidscripts/CLAUDE.md
+/internal/ec2/testdata/pidscripts/.claude/
 
 # Gradle (test project)
 testdata/spring-boot-app/.gradle/

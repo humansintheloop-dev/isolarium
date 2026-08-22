@@ -62,7 +62,7 @@ func (e *ec2Environment) assertInstanceMarkerRecordsTheScriptEnvironment(marker 
 	e.t.Helper()
 
 	path := instanceHomeDir + "/repo/" + marker
-	exitCode, output := e.run("cat", path)
+	exitCode, output := e.askInstance("cat", path)
 	if exitCode != 0 {
 		e.t.Fatalf("cat %s exited %d, want 0 — the script that writes it never ran", path, exitCode)
 	}

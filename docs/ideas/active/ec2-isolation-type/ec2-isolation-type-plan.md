@@ -656,10 +656,10 @@ Reviewing how i2code invokes isolarium (`isolarium --name i2code-<idea> --type <
   - Observable: Against a real account, `isolarium run --type ec2 --create --name <fresh> -- sh -c 'exit 3'` creates the environment and exits 3; a following `isolarium run --type ec2 --name <fresh> -- sh -c 'sleep 60; exit 4' &` leaves `tmux has-session -t isolarium` on the instance answering 0 while it runs; in that window an identical second `run` reattaches, streams the same output, and also exits 4 when the command ends, while a `run` with a different command fails naming the running one; `isolarium destroy --type ec2 --name <fresh>` terminates the instance; the i2code invocation `isolarium --name i2code-<idea> --type ec2 run --create -- echo ok` prints `ok` and exits 0
   - Evidence: `./test-scripts/test-ec2.sh exits 0 against a real account with the new assertions present, and `make` exits 0`
   - Steps:
-    - [ ] Extend the `//go:build ec2` integration test to assert `run --create` on a fresh name creates the environment, that a non-zero status travels back through tmux, that the session is present during a long-running command, that an identical concurrent `run` reattaches and reports the same status, and that a different concurrent `run` is refused
+    - [x] Extend the `//go:build ec2` integration test to assert `run --create` on a fresh name creates the environment, that a non-zero status travels back through tmux, that the session is present during a long-running command, that an identical concurrent `run` reattaches and reports the same status, and that a different concurrent `run` is refused
     - [ ] Run `./test-scripts/test-ec2.sh` against a real account and record the result
     - [ ] Drive one real i2code invocation (`i2code implement --isolate --isolation-type ec2 <idea>` in a throwaway repository), interrupt it, re-run it, and record whether the re-run reattaches and returns the inner exit status
-    - [ ] Run `make` and confirm exit code 0
+    - [x] Run `make` and confirm exit code 0
 ## Steel Thread 14: `run` and `shell` recover when the host's public address changes
 SSH ingress to every EC2 environment is pinned to the host's public /32, resolved only by `create` and `destroy`. When the host moves network the security group still names the old address, so every `run` and `shell` fails to connect, and the existing retry in `onInstance` cannot help because it refreshes the instance's address, not the host's. This thread makes each connecting operation detect the host address first and re-apply the shared terraform when it differs from the one last applied (hybrid: a proactive check before connecting, plus one re-check when a connection fails), compares against `isolarium.auto.tfvars` written only after a successful apply, warns and proceeds when detection itself fails, and keeps the rule to a single address so switching machines re-applies on each.
 
@@ -957,3 +957,9 @@ Verification must cover the reattach-on-identical-command behaviour added to 13.
 
 ### 2026-08-22 14:00 - insert-thread-after
 Host IP changes lock run and shell out of every EC2 environment; decided with the user: hybrid check, local tfvars persisted after apply, warn-and-proceed on detection failure, single address
+
+### 2026-08-22 15:40 - mark-step-complete
+The ec2-tagged suite now creates its shared instance through the binary's run --create (exit 3 asserted), drives concurrent runs through the binary for the session-present, reattach and refusal assertions in run_ec2_test.go, and observes the instance over the plain transport now that Exec is tmux-backed
+
+### 2026-08-22 15:40 - mark-step-complete
+make exited 0 with the extended suite compiling under go vet -tags=ec2,ec2_claude and golangci-lint reporting 0 issues

@@ -4,8 +4,10 @@ package ec2_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,25 +34,41 @@ const (
 	sshReadinessTimeout   = 5 * time.Minute
 	sshReadinessInterval  = 10 * time.Second
 	propagatedExitCode    = 42
+
+	// createCommandExitCode is what the command handed to `run --create` exits
+	// with. It is deliberately non-zero and deliberately not 1, so that the
+	// status coming back can only be the command's own, carried through the
+	// tmux session it ran in, and never the binary's failure exit.
+	createCommandExitCode = 3
 )
 
 // The whole ec2 suite works against a single billable instance, so the order the
 // tests run in is part of the design rather than an accident:
 //
 //   - go test runs the tests of one package in source order within a file, and
-//     walks the files in sorted-filename order. This file sorts first, so
-//     TestEC2Lifecycle_Creates is what actually creates the instance; the
-//     terminate test lives in the file that sorts last.
-//   - repo_ec2_test.go sorts ahead of session_ec2_test.go and tmux_ec2_test.go
-//     on purpose: its clone-cleanliness and token-grep assertions need an
-//     instance nothing has written to yet, and those two later files copy the
-//     Claude credentials in and place a script in the home directory.
+//     walks the files in sorted-filename order. This file sorts first among the
+//     files holding tests, so TestEC2Lifecycle_Creates is what actually creates
+//     the instance; the terminate test lives in the file that sorts last.
+//   - repo_ec2_test.go sorts ahead of run_ec2_test.go, session_ec2_test.go and
+//     tmux_ec2_test.go on purpose: its clone-cleanliness and token-grep
+//     assertions need an instance nothing has written to yet, and those later
+//     files copy the Claude credentials in and place a script in the home
+//     directory.
 //   - recovery_ec2_test.go sorts between this file and repo_ec2_test.go, which
 //     is where its stop and start belong: the instance already exists, and no
 //     test has yet built up the tmux state a reboot would throw away.
+//   - run_ec2_test.go sorts ahead of tmux_ec2_test.go because it needs the
+//     shared tmux session free, and the tmux tests deliberately leave a process
+//     running in it.
 //
 // Renaming one of those files, or adding a test that writes to the instance
 // ahead of them, breaks assertions elsewhere without breaking this test.
+//
+// The instance is created the way i2code creates one: through the built
+// binary's `run --create`, which launches the environment because none exists
+// and then runs the command inside it. The create helper asserts that the
+// command's own exit status came back, so a full run proves the i2code entry
+// point against a fresh name before anything else is asked of the instance.
 func TestEC2Lifecycle_Creates(t *testing.T) {
 	environment := sharedInstance(t)
 
@@ -92,6 +110,10 @@ func runSuiteAgainstOneInstance(m *testing.M) int {
 		status = 1
 	}
 	fmt.Fprintf(os.Stderr, "the suite's working directory was left at %s\n", dir)
+	if err := unstageProjectConfig(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		status = 1
+	}
 	if hostMarkerDir != "" {
 		if err := os.RemoveAll(hostMarkerDir); err != nil {
 			fmt.Fprintf(os.Stderr, "removing %s: %v\n", hostMarkerDir, err)
@@ -190,7 +212,7 @@ type ec2Environment struct {
 	workDir    string
 	region     string
 	backend    *backend.EC2Backend
-	repository ec2.RepositorySpec
+	repository hostRepository
 	instanceID string
 	publicDNS  string
 	createdAt  time.Time
@@ -199,35 +221,48 @@ type ec2Environment struct {
 }
 
 // newEC2Environment resolves everything create needs without launching anything,
-// so a missing gate, a missing credential or an unpushable branch fails before
-// the account is touched.
+// so a missing gate, a missing credential or an unresolvable checkout fails
+// before the account is touched. The branch is pushed, and the clone token
+// minted, by the binary itself when it creates — which is what a user's create
+// does too.
 func newEC2Environment(t *testing.T, name string) *ec2Environment {
 	t.Helper()
 
 	region := requireAWSCredentials(t)
+	requireGitHubApp(t)
 
 	instance := backend.NewEC2Backend()
 	instance.MetadataDir = sharedMetadataDir
+
+	checkout := repositoryCheckout(t)
+	workDir := pidScriptWorkDirectory(t)
+	stageProjectConfigInTheWorkDirectory(t, checkout, workDir)
 
 	return &ec2Environment{
 		t:          t,
 		name:       name,
 		base:       instance.MetadataDir,
-		workDir:    pidScriptWorkDirectory(t),
+		workDir:    workDir,
 		region:     region,
 		backend:    instance,
-		repository: integrationRepositorySpec(t),
+		repository: resolveHostRepository(t, checkout),
 	}
 }
 
-// integrationRepositorySpec resolves the checkout under test exactly as the
-// CLI does before create: the repository it belongs to, the branch being worked
-// on, and a freshly minted installation token. The branch is pushed so the
-// instance has something to clone.
-func integrationRepositorySpec(t *testing.T) ec2.RepositorySpec {
+// hostRepository is what the suite knows about the checkout the binary creates
+// from, resolved the same way the binary resolves it so the assertions about
+// the instance's clone have something to compare against.
+type hostRepository struct {
+	owner       string
+	repo        string
+	branch      string
+	authorEmail string
+	authorName  string
+}
+
+func resolveHostRepository(t *testing.T, checkout string) hostRepository {
 	t.Helper()
 
-	checkout := repositoryCheckout(t)
 	remoteURL, err := git.GetRemoteURL(checkout)
 	if err != nil {
 		t.Fatalf("resolving the remote of %s: %v", checkout, err)
@@ -240,18 +275,13 @@ func integrationRepositorySpec(t *testing.T) ec2.RepositorySpec {
 	if err != nil {
 		t.Fatalf("resolving the current branch of %s: %v", checkout, err)
 	}
-	if err := git.PushBranch(checkout, branch); err != nil {
-		t.Fatalf("pushing %s so the instance can clone it: %v", branch, err)
-	}
 
-	return ec2.RepositorySpec{
-		Owner:       owner,
-		Repo:        repo,
-		Branch:      branch,
-		Token:       mintIntegrationToken(t, owner, repo),
-		HostDir:     checkout,
-		AuthorEmail: hostGitSetting(t, checkout, git.GetUserEmail, "user.email"),
-		AuthorName:  hostGitSetting(t, checkout, git.GetUserName, "user.name"),
+	return hostRepository{
+		owner:       owner,
+		repo:        repo,
+		branch:      branch,
+		authorEmail: hostGitSetting(t, checkout, git.GetUserEmail, "user.email"),
+		authorName:  hostGitSetting(t, checkout, git.GetUserName, "user.name"),
 	}
 }
 
@@ -278,25 +308,49 @@ func resolveRepositoryCheckout() (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func mintIntegrationToken(t *testing.T, owner, repo string) string {
+// stagedProjectConfig is what the suite copied from the checkout into the work
+// directory, so it can be removed again once the run is over.
+var stagedProjectConfig []string
+
+// stageProjectConfigInTheWorkDirectory gives the work directory the project
+// config the checkout has, because create copies `.claude/settings.local.json`
+// and `CLAUDE.md` from the directory the binary runs in — the pid.yaml fixture
+// here, which carries neither of its own. In ordinary use that directory is the
+// repository root and the two are the same place. The copies are byte for byte
+// the checkout's, so the instance's clone is left unmodified by them, and they
+// are gitignored so a killed run cannot leave them looking like a change.
+func stageProjectConfigInTheWorkDirectory(t *testing.T, checkout, workDir string) {
 	t.Helper()
 
-	appID := requireEnvVar(t, "GITHUB_APP_ID")
-	privateKeyPath := requireEnvVar(t, "GITHUB_APP_PRIVATE_KEY_PATH")
+	for _, name := range projectConfigFiles() {
+		contents, err := os.ReadFile(filepath.Join(checkout, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			t.Fatalf("reading %s from the checkout: %v", name, err)
+		}
+		staged := filepath.Join(workDir, name)
+		if err := os.MkdirAll(filepath.Dir(staged), 0o755); err != nil {
+			t.Fatalf("staging %s into the work directory: %v", name, err)
+		}
+		if err := os.WriteFile(staged, contents, 0o644); err != nil {
+			t.Fatalf("staging %s into the work directory: %v", name, err)
+		}
+		stagedProjectConfig = append(stagedProjectConfig, staged)
+	}
+}
 
-	privateKey, err := os.ReadFile(privateKeyPath)
-	if err != nil {
-		t.Fatalf("reading the GitHub App private key from %s: %v", privateKeyPath, err)
+func unstageProjectConfig() error {
+	for _, staged := range stagedProjectConfig {
+		if err := os.Remove(staged); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("removing the staged %s: %w", staged, err)
+		}
+		// The directory a staged file was written into is removed only when it is
+		// left empty, so a fixture directory that carries other files survives.
+		_ = os.Remove(filepath.Dir(staged))
 	}
-	minter, err := github.NewTokenMinter(appID, string(privateKey), "")
-	if err != nil {
-		t.Fatalf("creating the GitHub App token minter: %v", err)
-	}
-	token, err := minter.MintInstallationToken(owner, repo)
-	if err != nil {
-		t.Fatalf("minting an installation token for %s/%s: %v", owner, repo, err)
-	}
-	return token
+	return nil
 }
 
 func hostGitSetting(t *testing.T, checkout string, read func(string) (string, error), key string) string {
@@ -318,6 +372,16 @@ func requireAWSCredentials(t *testing.T) string {
 	return region
 }
 
+// requireGitHubApp fails the run up front when the binary would be unable to
+// mint the clone token, rather than leaving that to surface minutes into a
+// create that has already launched an instance.
+func requireGitHubApp(t *testing.T) {
+	t.Helper()
+
+	requireEnvVar(t, "GITHUB_APP_ID")
+	requireEnvVar(t, "GITHUB_APP_PRIVATE_KEY_PATH")
+}
+
 func requireEnvVar(t *testing.T, name string) string {
 	t.Helper()
 
@@ -328,17 +392,19 @@ func requireEnvVar(t *testing.T, name string) string {
 	return value
 }
 
+// create launches the shared instance the way i2code launches one: through the
+// built binary's `run --create`, on a name nothing exists under yet. The command
+// it is given exits with createCommandExitCode, so the status coming back is the
+// proof of both halves at once — the environment was created, and the command's
+// own non-zero status travelled back through the tmux session it ran in.
 func (e *ec2Environment) create() {
 	e.t.Helper()
 
 	e.createdAt = time.Now()
-	createOptions := backend.CreateOptions{
-		Name:          e.name,
-		WorkDirectory: e.workDir,
-		Repository:    e.repositorySource(),
-	}
-	if err := e.backend.Create(createOptions); err != nil {
-		e.t.Fatalf("creating %s: %v", e.name, err)
+	exitCode, output := e.runIsolarium(e.runArgs(true, "sh", "-c", "exit "+strconv.Itoa(createCommandExitCode))...)
+	if exitCode != createCommandExitCode {
+		e.t.Fatalf("isolarium run --create --type ec2 --name %s -- sh -c 'exit %d' exited %d, want %d — the command's own status\n%s",
+			e.name, createCommandExitCode, exitCode, createCommandExitCode, output)
 	}
 	e.t.Logf("TIMING: create %s took %s", e.name, time.Since(e.createdAt).Round(time.Second))
 
@@ -348,10 +414,6 @@ func (e *ec2Environment) create() {
 	}
 	e.instanceID = meta.InstanceID
 	e.publicDNS = meta.PublicDNS
-}
-
-func (e *ec2Environment) repositorySource() backend.RepositorySource {
-	return func() (ec2.RepositorySpec, error) { return e.repository, nil }
 }
 
 func (e *ec2Environment) waitForSSH() {
@@ -376,13 +438,17 @@ func (e *ec2Environment) waitForSSHAt(publicDNS string) {
 	}
 }
 
-// sshLoginSucceedsAt probes reachability through the same command builder Exec
-// uses, but discards its output so the retry loop stays quiet.
+// sshLoginSucceedsAt probes reachability through the same command builder the
+// capture transport uses, but discards its output so the retry loop stays quiet.
 func (e *ec2Environment) sshLoginSucceedsAt(publicDNS string) bool {
 	args := ec2.BuildExecCommand(e.base, publicDNS, ec2.RemoteCommand{Args: []string{"true"}})
 	return exec.Command(args[0], args[1:]...).Run() == nil
 }
 
+// assertEchoWritesHelloToStdout drives Exec, which runs the command inside the
+// instance's tmux session and streams what the session draws. The text arrives
+// among the terminal control sequences tmux uses to paint it, so the assertion
+// is that hello is visible in the output rather than that it is the whole of it.
 func (e *ec2Environment) assertEchoWritesHelloToStdout() {
 	e.t.Helper()
 
@@ -401,23 +467,27 @@ func (e *ec2Environment) assertEchoWritesHelloToStdout() {
 	if exitCode != 0 {
 		e.t.Errorf("Exec of echo hello exit code = %d, want 0", exitCode)
 	}
-	if strings.TrimSpace(output) != "hello" {
-		e.t.Errorf("Exec of echo hello stdout = %q, want %q", output, "hello")
+	if !strings.Contains(visibleText(output), "hello") {
+		e.t.Errorf("Exec of echo hello streamed %q, want it to show %q", visibleText(output), "hello")
 	}
 }
 
+// assertExitCodeIsPropagated asks a shell to exit with the status, rather than
+// running a bare `exit`, because Exec runs the command under a shell of its own
+// that records the status once the command returns — a bare exit would end that
+// shell before it could.
 func (e *ec2Environment) assertExitCodeIsPropagated(want int) {
 	e.t.Helper()
 
 	exitCode, err := e.backend.Exec(backend.ExecRequest{
 		ContainerName: e.name,
-		Args:          []string{"exit", strconv.Itoa(want)},
+		Args:          []string{"sh", "-c", "exit " + strconv.Itoa(want)},
 	})
 	if err != nil {
-		e.t.Fatalf("Exec of exit %d: %v", want, err)
+		e.t.Fatalf("Exec of sh -c 'exit %d': %v", want, err)
 	}
 	if exitCode != want {
-		e.t.Errorf("Exec of exit %d returned %d, want %d", want, exitCode, want)
+		e.t.Errorf("Exec of sh -c 'exit %d' returned %d, want %d", want, exitCode, want)
 	}
 }
 
@@ -557,8 +627,40 @@ func (e *ec2Environment) awsConfig() aws.Config {
 	return *e.config
 }
 
-// captureStdout redirects the process-wide stdout that ExecCommand streams to,
-// so the remote command's own output can be asserted on.
+// instanceOutput runs args on the instance and hands back what it wrote, failing
+// the test when the command did not exit 0.
+func (e *ec2Environment) instanceOutput(args ...string) string {
+	e.t.Helper()
+
+	exitCode, output := e.askInstance(args...)
+	if exitCode != 0 {
+		e.t.Fatalf("%s on the instance exited %d, want 0; output: %s", strings.Join(args, " "), exitCode, output)
+	}
+	return strings.TrimSpace(output)
+}
+
+// askInstance runs args on the instance over the plain SSH transport and hands
+// back its exit status together with what it wrote. It is how the suite
+// observes the instance: the same non-interactive shell the product's own
+// probes and scripts run in, with none of the tmux rendering that Exec streams,
+// so what comes back can be compared exactly. It collects the output into a
+// buffer of its own rather than by borrowing the process-wide stdout, because
+// the tmux tests read the instance while interactive connections are being
+// opened — and a connection that started mid-read would inherit the borrowed
+// stdout in place of its terminal and hold it open for as long as the session
+// lived.
+func (e *ec2Environment) askInstance(args ...string) (int, string) {
+	e.t.Helper()
+
+	output, exitCode, err := ec2.CaptureCommand(e.base, e.publicDNS, ec2.RemoteCommand{Args: args})
+	if err != nil {
+		e.t.Fatalf("running %s on the instance: %v", strings.Join(args, " "), err)
+	}
+	return exitCode, output
+}
+
+// captureStdout redirects the process-wide stdout that Exec streams to, so the
+// remote command's own output can be asserted on.
 func captureStdout(t *testing.T, run func()) string {
 	t.Helper()
 

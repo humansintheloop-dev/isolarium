@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/humansintheloop-dev/isolarium/internal/backend"
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
 )
 
@@ -49,7 +48,7 @@ func (e *ec2Environment) assertCommandPrints(want string, args ...string) {
 	e.t.Helper()
 
 	command := strings.Join(args, " ")
-	exitCode, output := e.run(args...)
+	exitCode, output := e.askInstance(args...)
 	if exitCode != 0 {
 		e.t.Fatalf("%s exited %d, want 0; output: %s", command, exitCode, output)
 	}
@@ -61,7 +60,7 @@ func (e *ec2Environment) assertCommandPrints(want string, args ...string) {
 func (e *ec2Environment) assertNpmGlobalTreeHasNoClaudeCode() {
 	e.t.Helper()
 
-	exitCode, output := e.run("npm", "ls", "-g", "--depth=0")
+	exitCode, output := e.askInstance("npm", "ls", "-g", "--depth=0")
 	if exitCode != 0 {
 		e.t.Fatalf("npm ls -g --depth=0 exited %d, want 0; output: %s", exitCode, output)
 	}
@@ -92,7 +91,7 @@ func toolchainProbes() []toolchainProbe {
 func (e *ec2Environment) assertCloudInitReportsDone() {
 	e.t.Helper()
 
-	exitCode, output := e.run("cloud-init", "status", "--wait")
+	exitCode, output := e.askInstance("cloud-init", "status", "--wait")
 	if exitCode != 0 {
 		e.t.Fatalf("cloud-init status --wait exited %d, want 0; output: %s", exitCode, output)
 	}
@@ -111,7 +110,7 @@ func reportRenderedUserDataSize(t *testing.T) {
 func (e *ec2Environment) assertToolIsInstalled(probe toolchainProbe) {
 	e.t.Helper()
 
-	exitCode, output := e.run(probe.args...)
+	exitCode, output := e.askInstance(probe.args...)
 	if exitCode != 0 {
 		e.t.Errorf("%s: %s exited %d, want 0", probe.tool, strings.Join(probe.args, " "), exitCode)
 		return
@@ -122,7 +121,7 @@ func (e *ec2Environment) assertToolIsInstalled(probe toolchainProbe) {
 func (e *ec2Environment) assertUnprivilegedUserNamespacesAreUnrestricted() {
 	e.t.Helper()
 
-	exitCode, output := e.run("sysctl", "kernel.apparmor_restrict_unprivileged_userns")
+	exitCode, output := e.askInstance("sysctl", "kernel.apparmor_restrict_unprivileged_userns")
 	if exitCode != 0 {
 		e.t.Fatalf("sysctl kernel.apparmor_restrict_unprivileged_userns exited %d, want 0", exitCode)
 	}
@@ -131,22 +130,6 @@ func (e *ec2Environment) assertUnprivilegedUserNamespacesAreUnrestricted() {
 		e.t.Errorf("sysctl reported %q, want %q — rootless Docker cannot start while user namespaces are restricted",
 			strings.TrimSpace(output), want)
 	}
-}
-
-// run executes args on the instance exactly as isolarium run does, so a tool
-// that is only reachable from an interactive login shell counts as missing.
-func (e *ec2Environment) run(args ...string) (int, string) {
-	e.t.Helper()
-
-	var exitCode int
-	var err error
-	output := captureStdout(e.t, func() {
-		exitCode, err = e.backend.Exec(backend.ExecRequest{ContainerName: e.name, Args: args})
-	})
-	if err != nil {
-		e.t.Fatalf("Exec of %q: %v", strings.Join(args, " "), err)
-	}
-	return exitCode, output
 }
 
 func firstLine(output string) string {

@@ -9,12 +9,8 @@
 package ec2_test
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -62,7 +58,7 @@ func (e *ec2Environment) assertStatusReportsRunning() {
 }
 
 func (e *ec2Environment) expectedStatusDetails() string {
-	return fmt.Sprintf("%s/%s (%s)", e.repository.Owner, e.repository.Repo, e.repository.Branch)
+	return fmt.Sprintf("%s/%s (%s)", e.repository.owner, e.repository.repo, e.repository.branch)
 }
 
 // assertStatusReportsUnknownWithoutAWSCredentials asks for the state of an
@@ -176,30 +172,6 @@ func findEC2Row(rows []statusRow, name string) (statusRow, bool) {
 	return statusRow{}, false
 }
 
-// runBinaryStreaming runs one isolarium invocation, copying its output to the
-// suite's own stderr as it arrives, and returns what it printed. A command that
-// spends minutes inside terraform would otherwise say nothing until it exited,
-// which is indistinguishable from a hang.
-func runBinaryStreaming(binary *exec.Cmd) (string, error) {
-	var captured bytes.Buffer
-	binary.Stdout = io.MultiWriter(&captured, os.Stderr)
-	binary.Stderr = binary.Stdout
-
-	err := binary.Run()
-	return captured.String(), err
-}
-
-// processEnvironment is the environment one invocation of the built binary runs
-// with. It is its own type so that the helpers which strip credentials out of it
-// cannot be handed any slice of strings that happens to be at hand.
-type processEnvironment []string
-
-// binaryEnvironment points the built binary at the home directory the suite's
-// metadata lives under, since the CLI derives ~/.isolarium for itself.
-func binaryEnvironment() processEnvironment {
-	return append(os.Environ(), "HOME="+sharedHomeDir)
-}
-
 // withoutAWSCredentials clears the credentials for one invocation only, leaving
 // the surrounding suite — which still has an account to talk to — untouched.
 func withoutAWSCredentials(environment processEnvironment) processEnvironment {
@@ -223,25 +195,4 @@ func namesAWSCredentials(variable string) bool {
 		}
 	}
 	return false
-}
-
-// builtIsolariumBinary is the CLI under test, compiled once per run so both
-// tests drive the same binary a user would.
-var builtIsolariumBinary string
-
-func isolariumBinary(t *testing.T) string {
-	t.Helper()
-
-	if builtIsolariumBinary != "" {
-		return builtIsolariumBinary
-	}
-
-	path := filepath.Join(sharedHomeDir, "isolarium")
-	build := exec.Command("go", "build", "-o", path, "./cmd/isolarium")
-	build.Dir = repositoryCheckout(t)
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("building the isolarium binary: %v\n%s", err, output)
-	}
-	builtIsolariumBinary = path
-	return builtIsolariumBinary
 }

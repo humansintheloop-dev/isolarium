@@ -72,7 +72,7 @@ func (e *ec2Environment) copyClaudeCredentials(credentials string) {
 func (e *ec2Environment) assertCredentialsAreReadableOnlyByTheirOwner() {
 	e.t.Helper()
 
-	exitCode, output := e.run("stat", "-c", "%a", ec2.RemoteCredentialsPath)
+	exitCode, output := e.askInstance("stat", "-c", "%a", ec2.RemoteCredentialsPath)
 	if exitCode != 0 {
 		e.t.Fatalf("stat of %s exited %d, want 0; output: %s", ec2.RemoteCredentialsPath, exitCode, output)
 	}
@@ -85,7 +85,7 @@ func (e *ec2Environment) assertCredentialsAreReadableOnlyByTheirOwner() {
 func (e *ec2Environment) assertClaudeAnswersThePrompt() {
 	e.t.Helper()
 
-	exitCode, output := e.run("claude", "-p", authenticationPrompt)
+	exitCode, output := e.askInstance("claude", "-p", authenticationPrompt)
 	if exitCode != 0 {
 		e.t.Fatalf("claude -p %s exited %d, want 0; output: %s", authenticationPrompt, exitCode, output)
 	}
