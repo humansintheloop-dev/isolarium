@@ -2,27 +2,40 @@ package ec2
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 )
 
-// ErrSSHConnect marks a failure to reach the instance at all — ssh's own error
-// exit or a transport that never started — as distinct from a remote command the
-// instance ran and rejected. Only the former is worth refreshing an address for.
-var ErrSSHConnect = errors.New("ssh could not connect to the instance")
+// stdinMode is whether the host's standard input travels to the instance.
+type stdinMode bool
+
+const (
+	// disconnectedStdin sends nothing from the host, which is what a
+	// non-interactive command wants and what lets a forced pseudo-terminal start
+	// tmux when isolarium itself has no terminal.
+	disconnectedStdin stdinMode = false
+	// connectedStdin lets the user type into the remote command.
+	connectedStdin stdinMode = true
+)
 
 // ExecCommand runs cmd on the instance over SSH, streaming stdout and stderr to
 // the host terminal, and returns the remote command's exit code.
 func ExecCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
-	return runRemoteCommand(BuildExecCommand(base, publicDNS, cmd), false)
+	return runRemoteCommand(BuildExecCommand(base, publicDNS, cmd), disconnectedStdin)
 }
 
 // ExecInteractiveCommand runs cmd on the instance over SSH with a TTY attached,
 // connecting stdin as well, and returns the remote command's exit code.
 func ExecInteractiveCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
-	return runRemoteCommand(BuildInteractiveExecCommand(base, publicDNS, cmd), true)
+	return runRemoteCommand(BuildInteractiveExecCommand(base, publicDNS, cmd), connectedStdin)
+}
+
+// ExecInSessionCommand runs a tmux-wrapped cmd on the instance over SSH with a
+// forced pseudo-terminal, streaming stdout and stderr to the host but sending
+// nothing from it, so the session starts even when isolarium has no terminal
+// and keeps running if the connection drops.
+func ExecInSessionCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
+	return runRemoteCommand(BuildSessionExecCommand(base, publicDNS, cmd), disconnectedStdin)
 }
 
 // CaptureCommand runs cmd on the instance over SSH and returns what it wrote to
@@ -42,39 +55,18 @@ func CaptureCommand(base, publicDNS string, cmd RemoteCommand) (string, int, err
 
 // runRemoteCommand streams the command's stdio and maps a non-zero remote exit
 // into an exit code rather than an error, so callers can propagate it verbatim.
-func runRemoteCommand(cmdArgs []string, interactive bool) (int, error) {
+func runRemoteCommand(cmdArgs []string, stdin stdinMode) (int, error) {
+	return connectAwareExitCode(remoteProcess(cmdArgs, stdin).Run(), cmdArgs[0])
+}
+
+// remoteProcess is the host process that carries the command to the instance,
+// streaming what comes back to the host terminal.
+func remoteProcess(cmdArgs []string, stdin stdinMode) *exec.Cmd {
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-	if interactive {
+	if stdin == connectedStdin {
 		cmd.Stdin = os.Stdin
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	return connectAwareExitCode(cmd.Run(), cmdArgs[0])
-}
-
-// connectAwareExitCode reports a run whose command never reached the instance as
-// ErrSSHConnect, leaving a remote exit code to travel back on its own as before.
-func connectAwareExitCode(err error, binary string) (int, error) {
-	exitCode, runErr := remoteExitCode(err, binary)
-	if runErr != nil {
-		return exitCode, fmt.Errorf("%w: %v", ErrSSHConnect, runErr)
-	}
-	if exitCode == sshTransportFailureExit {
-		return exitCode, fmt.Errorf("%w: %s exited %d", ErrSSHConnect, binary, sshTransportFailureExit)
-	}
-	return exitCode, nil
-}
-
-// remoteExitCode separates a command the instance ran and rejected, which has an
-// exit status worth propagating, from one the host could not launch at all.
-func remoteExitCode(err error, binary string) (int, error) {
-	if err == nil {
-		return 0, nil
-	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		return exitErr.ExitCode(), nil
-	}
-	return 1, fmt.Errorf("failed to run %s on the instance: %w", binary, err)
+	return cmd
 }

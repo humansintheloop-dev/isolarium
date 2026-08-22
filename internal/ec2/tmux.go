@@ -10,11 +10,31 @@ import (
 // duplicated.
 const DefaultSessionName = "isolarium"
 
+// tmuxCommandSeparator lets one tmux invocation carry two commands. It reaches
+// the remote shell escaped, so the shell hands tmux a literal ';' rather than
+// ending the command line there.
+const tmuxCommandSeparator = `\;`
+
 // BuildTmuxCommand wraps args so the instance runs them inside a named tmux
 // session, which outlives the SSH connection that started it. `-A` attaches to
 // the session when it is already running instead of failing.
 func BuildTmuxCommand(sessionName string, args []string) []string {
 	return append([]string{"tmux", "new-session", "-A", "-s", sessionName, "--"}, args...)
+}
+
+// BuildDetachableTmuxCommand starts a named tmux session running args and, in
+// the same invocation, records the command on the session. Without `-A` it
+// never silently attaches to a session that is already running something else;
+// the caller decides what to do about one.
+func BuildDetachableTmuxCommand(sessionName string, args []string) []string {
+	start := append([]string{"tmux", "new-session", "-s", sessionName, "--"}, args...)
+	record := []string{tmuxCommandSeparator, "set-option", "-t", sessionName, commandOption, shellQuote(CommandRecord(args))}
+	return append(start, record...)
+}
+
+// BuildAttachCommand joins the named session and streams it until it ends.
+func BuildAttachCommand(sessionName string) []string {
+	return []string{"tmux", "attach-session", "-t", sessionName}
 }
 
 // SessionExists reports whether the instance is already running the named

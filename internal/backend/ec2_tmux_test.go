@@ -84,16 +84,6 @@ func TestEC2TmuxBackendFailsToOpenAShellOnAnEnvironmentThatWasNeverCreated(t *te
 	}
 }
 
-func TestEC2TmuxBackendLeavesExecOutsideTmux(t *testing.T) {
-	f := ec2BackendWithRecordedInstance(t, 0)
-
-	if _, err := f.backend.Exec(ExecRequest{ContainerName: "my-work", Args: []string{"echo", "hello"}}); err != nil {
-		t.Fatalf("Exec() error = %v, want nil", err)
-	}
-
-	assertArgsEqual(t, "exec args", f.exec.command.Args, []string{"echo", "hello"})
-}
-
 func TestEC2TmuxNoticePrintedOnlyWhenSessionExists(t *testing.T) {
 	entryPoints := []struct {
 		name string

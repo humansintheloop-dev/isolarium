@@ -59,8 +59,9 @@ func (s *ec2RefreshStub) describe(ctx context.Context, region, instanceID string
 }
 
 // ec2RefreshFixture is a backend whose environment "my-work" was created at
-// ec2SpyPublicDNS, with the SSH transport and the AWS lookup both scripted so a
-// connect failure and the refresh it provokes can be counted.
+// ec2SpyPublicDNS, with the session SSH transport and the AWS lookup both
+// scripted so a connect failure and the refresh it provokes can be counted. No
+// tmux session is running on the instance, so Exec starts one.
 type ec2RefreshFixture struct {
 	backend  *EC2Backend
 	ssh      *ec2RetrySpy
@@ -70,10 +71,10 @@ type ec2RefreshFixture struct {
 func ec2BackendAnswering(t *testing.T, script ...ec2RemoteOutcome) ec2RefreshFixture {
 	t.Helper()
 
-	f := ec2BackendWithRecordedInstance(t, 0)
+	f := ec2BackendWithIdleInstance(t, 0)
 	ssh := &ec2RetrySpy{script: script}
 	describe := &ec2RefreshStub{publicDNS: ec2MovedPublicDNS}
-	f.backend.ExecFunc = ssh.exec
+	f.backend.ExecInSessionFunc = ssh.exec
 	f.backend.DescribeInstanceFunc = describe.describe
 	return ec2RefreshFixture{backend: f.backend, ssh: ssh, describe: describe}
 }

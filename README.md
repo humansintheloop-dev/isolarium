@@ -97,8 +97,12 @@ where it left off; isolarium prints
 `attaching to existing session 'isolarium'` to stderr when it does, because tmux
 discards the command it was handed once the session already exists.
 
-Non-interactive `isolarium run` deliberately stays outside tmux, so the exit code
-and output you see are the remote command's own.
+Non-interactive `isolarium run` also runs inside the tmux session, over
+`ssh -tt` so tmux starts even when isolarium has no terminal of its own (as
+under i2code). It records the command on the session; a re-run of the same
+command reattaches to it and streams its output, while a different command is
+refused until that session ends — reattach with `isolarium shell --type ec2`,
+or start another session with `--new-session`.
 
 If you also run tmux on your own machine, the instance's session is nested inside
 your local one, which swallows the prefix key. Press `Ctrl-b Ctrl-b` to send the

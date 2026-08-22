@@ -701,10 +701,13 @@ func (s *ec2ExecSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int, e
 
 // ec2ExecFixture is a backend whose environment "my-work" has already been
 // created, so Exec has metadata to read, with every remote collaborator spied on.
+// The plain transport (exec) also answers the `tmux has-session` probe, so its
+// exit code decides whether the instance is running a session.
 type ec2ExecFixture struct {
 	backend     *EC2Backend
 	exec        *ec2ExecSpy
 	interactive *ec2ExecSpy
+	session     *ec2ExecSpy
 	bucket      *ensureBucketSpy
 	terraform   *command.FakeRunner
 }
@@ -716,6 +719,7 @@ func ec2BackendWithRecordedInstance(t *testing.T, exitCode int) ec2ExecFixture {
 	bucket := &ensureBucketSpy{name: ec2SpyBucket}
 	execSpy := &ec2ExecSpy{exitCode: exitCode}
 	interactiveSpy := &ec2ExecSpy{exitCode: exitCode}
+	sessionSpy := &ec2ExecSpy{exitCode: exitCode}
 
 	fixture := ec2BackendFixture{
 		env:         map[string]string{"AWS_REGION": "us-west-2"},
@@ -732,7 +736,18 @@ func ec2BackendWithRecordedInstance(t *testing.T, exitCode int) ec2ExecFixture {
 	b := fixture.backend()
 	b.ExecFunc = execSpy.exec
 	b.ExecInteractiveFunc = interactiveSpy.exec
-	return ec2ExecFixture{backend: b, exec: execSpy, interactive: interactiveSpy, bucket: bucket, terraform: runner}
+	b.ExecInSessionFunc = sessionSpy.exec
+	return ec2ExecFixture{backend: b, exec: execSpy, interactive: interactiveSpy, session: sessionSpy, bucket: bucket, terraform: runner}
+}
+
+// ec2BackendWithIdleInstance is a recorded instance on which no tmux session is
+// running, so Exec starts one rather than finding one.
+func ec2BackendWithIdleInstance(t *testing.T, exitCode int) ec2ExecFixture {
+	t.Helper()
+
+	f := ec2BackendWithRecordedInstance(t, exitCode)
+	f.exec.exitCode = 1
+	return f
 }
 
 func seedRecordedInstance(t *testing.T, metadataDir string) {
@@ -750,7 +765,7 @@ func seedRecordedInstance(t *testing.T, metadataDir string) {
 }
 
 func TestEC2Exec_BackendPropagatesExitCode(t *testing.T) {
-	f := ec2BackendWithRecordedInstance(t, 42)
+	f := ec2BackendWithIdleInstance(t, 42)
 
 	exitCode, err := f.backend.Exec(ExecRequest{
 		ContainerName: "my-work",
@@ -764,7 +779,7 @@ func TestEC2Exec_BackendPropagatesExitCode(t *testing.T) {
 	if exitCode != 42 {
 		t.Errorf("Exec() exit code = %d, want 42", exitCode)
 	}
-	assertExecUsedRecordedInstance(t, f.exec, f.backend.MetadataDir)
+	assertExecUsedRecordedInstance(t, f.session, f.backend.MetadataDir)
 	assertNoRemoteInfrastructureCalls(t, f.bucket, f.terraform)
 }
 
@@ -772,7 +787,7 @@ func assertExecUsedRecordedInstance(t *testing.T, spy *ec2ExecSpy, metadataDir s
 	t.Helper()
 
 	if !spy.called {
-		t.Fatal("Exec() did not reach the SSH transport")
+		t.Fatal("Exec() did not reach the session SSH transport")
 	}
 	if spy.publicDNS != ec2SpyPublicDNS {
 		t.Errorf("Exec() used public DNS %q, want the one recorded in metadata.json (%q)", spy.publicDNS, ec2SpyPublicDNS)
@@ -783,7 +798,7 @@ func assertExecUsedRecordedInstance(t *testing.T, spy *ec2ExecSpy, metadataDir s
 	if spy.command.EnvVars["GH_TOKEN"] != "tok123" {
 		t.Errorf("Exec() passed GH_TOKEN %q, want %q", spy.command.EnvVars["GH_TOKEN"], "tok123")
 	}
-	assertArgsEqual(t, "exec args", spy.command.Args, []string{"sh", "-c", "exit 42"})
+	assertArgsEqual(t, "exec args", spy.command.Args, sessionStart("isolarium", "sh -c 'exit 42'", "sh", "-c", "exit 42"))
 }
 
 func assertArgsEqual(t *testing.T, label string, got, want []string) {
@@ -816,8 +831,32 @@ func TestEC2Exec_BackendFailsWhenTheEnvironmentWasNeverCreated(t *testing.T) {
 	if exitCode != 1 {
 		t.Errorf("Exec() exit code = %d, want 1", exitCode)
 	}
-	if f.exec.called {
+	if f.exec.called || f.session.called {
 		t.Error("Exec() reached the SSH transport despite the missing metadata")
+	}
+}
+
+// TestEC2Backend_Create_NeverUsesTheSessionTransport pins that the transports
+// create uses internally — the readiness probes, the clone, the pid.yaml
+// scripts — stay outside tmux and off the forced pseudo-terminal.
+func TestEC2Backend_Create_NeverUsesTheSessionTransport(t *testing.T) {
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), ec2FakeTerraform(t))
+	session := &ec2ExecSpy{}
+	b := fixture.backend()
+	b.ExecInSessionFunc = session.exec
+
+	if err := b.Create(fixture.createOptions()); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if session.called {
+		t.Errorf("Create() ran %v over the session transport, want it to stay on the plain one", session.command.Args)
+	}
+	if len(fixture.remote.commands) == 0 {
+		t.Fatal("Create() ran nothing over the plain transport")
+	}
+	if fixture.remote.ranCommand("tmux") {
+		t.Errorf("Create() wrapped a command in tmux: %v", fixture.remote.commands)
 	}
 }
 
@@ -996,6 +1035,16 @@ func assertContainsAll(t *testing.T, name, content string, wanted ...string) {
 	for _, want := range wanted {
 		if !strings.Contains(content, want) {
 			t.Errorf("%s = %q, want it to contain %q", name, content, want)
+		}
+	}
+}
+
+func assertContainsNone(t *testing.T, name, content string, unwanted ...string) {
+	t.Helper()
+
+	for _, forbidden := range unwanted {
+		if strings.Contains(content, forbidden) {
+			t.Errorf("%s = %q, want it not to contain %q", name, content, forbidden)
 		}
 	}
 }

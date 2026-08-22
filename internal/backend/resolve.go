@@ -61,6 +61,7 @@ func NewEC2Backend() *EC2Backend {
 		SleepFunc:              time.Sleep,
 		ExecFunc:               ec2.ExecCommand,
 		ExecInteractiveFunc:    ec2.ExecInteractiveCommand,
+		ExecInSessionFunc:      ec2.ExecInSessionCommand,
 	}
 }
 

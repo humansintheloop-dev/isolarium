@@ -29,20 +29,27 @@ func assertCommandEquals(t *testing.T, got, want []string) {
 	}
 }
 
-func TestBuildSSHArgs(t *testing.T) {
-	base := t.TempDir()
+func TestBuildSSHArgsDiffersOnlyInTerminalHandling(t *testing.T) {
+	tests := []struct {
+		name     string
+		tty      ttyMode
+		ttyFlags []string
+	}{
+		{name: "no terminal", tty: noTTY, ttyFlags: nil},
+		{name: "a terminal when the host has one", tty: requestTTY, ttyFlags: []string{"-t"}},
+		{name: "a terminal even without one on the host", tty: forceTTY, ttyFlags: []string{"-tt"}},
+	}
 
-	got := BuildSSHArgs(base, testPublicDNS, false)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			base := t.TempDir()
 
-	assertCommandEquals(t, got, append(sshOptionSet(base), "ubuntu@"+testPublicDNS))
-}
+			got := buildSSHArgs(base, testPublicDNS, tc.tty)
 
-func TestBuildSSHArgsWithTTYRequestsRemoteTerminal(t *testing.T) {
-	base := t.TempDir()
-
-	got := BuildSSHArgs(base, testPublicDNS, true)
-
-	assertCommandEquals(t, got, append(sshOptionSet(base), "-t", "ubuntu@"+testPublicDNS))
+			want := append(sshOptionSet(base), tc.ttyFlags...)
+			assertCommandEquals(t, got, append(want, "ubuntu@"+testPublicDNS))
+		})
+	}
 }
 
 func TestEC2ExecCommandArgs(t *testing.T) {
@@ -99,6 +106,25 @@ func TestEC2ExecCommandArgsChangesToTheWorkdirWhenGiven(t *testing.T) {
 		"ubuntu@"+testPublicDNS, "--",
 		"cd", "/home/ubuntu/repo", "&&",
 		"git", "status",
+	)
+	assertCommandEquals(t, got, want)
+}
+
+func TestBuildSessionExecCommandForcesATTYWithoutAHostTerminal(t *testing.T) {
+	base := t.TempDir()
+	envVars := map[string]string{"GH_TOKEN": "tok123"}
+
+	got := BuildSessionExecCommand(base, testPublicDNS, RemoteCommand{
+		Workdir: RemoteRepoDir,
+		EnvVars: envVars,
+		Args:    []string{"tmux", "new-session", "-s", "isolarium", "--", "claude"},
+	})
+
+	want := append(sshOptionSet(base),
+		"-tt", "ubuntu@"+testPublicDNS, "--",
+		"cd", RemoteRepoDir, "&&",
+		"env", "GH_TOKEN=tok123",
+		"tmux", "new-session", "-s", "isolarium", "--", "claude",
 	)
 	assertCommandEquals(t, got, want)
 }

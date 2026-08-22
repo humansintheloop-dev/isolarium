@@ -52,6 +52,7 @@ type EC2Backend struct {
 	SleepFunc              func(time.Duration)
 	ExecFunc               ec2ExecFunc
 	ExecInteractiveFunc    ec2ExecFunc
+	ExecInSessionFunc      ec2ExecFunc
 	CaptureFunc            ec2.RemoteOutputRunner
 	SessionNameFunc        SessionNameFunc
 	CopyCredentialsFunc    ec2CopyCredentialsFunc
@@ -74,6 +75,15 @@ func (b *EC2Backend) capture() ec2.RemoteOutputRunner {
 		return b.CaptureFunc
 	}
 	return ec2.CaptureCommand
+}
+
+// execInSession is the transport for a command that must run inside tmux while
+// isolarium itself may have no terminal, as it does not under i2code.
+func (b *EC2Backend) execInSession() ec2ExecFunc {
+	if b.ExecInSessionFunc != nil {
+		return b.ExecInSessionFunc
+	}
+	return ec2.ExecInSessionCommand
 }
 
 // sessionName defaults to the single shared session, so an ordinary run finds
@@ -496,31 +506,55 @@ func (b *EC2Backend) printErr(message string) {
 	_, _ = fmt.Fprintln(b.errOut(), message)
 }
 
+// Exec runs the command inside the instance's tmux session even though it is
+// non-interactive, so the long-running command i2code starts keeps running when
+// the connection drops and a re-run of the same command finds it again. A
+// session already running a different command is left alone: nothing is run,
+// and the error names both commands.
 func (b *EC2Backend) Exec(req ExecRequest) (int, error) {
-	return b.onInstance(req.ContainerName, func(publicDNS string) (int, error) {
-		return b.ExecFunc(b.MetadataDir, publicDNS, ec2.RemoteCommand{
+	return b.withSession(req.ContainerName, func(target sessionTarget) (int, error) {
+		if ec2.SessionExists(b.instanceSession(target.publicDNS, b.ExecFunc), target.session) {
+			return b.rejoinSession(target, req.Args)
+		}
+		return b.execInSession()(b.MetadataDir, target.publicDNS, ec2.RemoteCommand{
 			Workdir: ec2.RemoteRepoDir,
 			EnvVars: req.EnvVars,
-			Args:    req.Args,
+			Args:    ec2.BuildDetachableTmuxCommand(target.session, req.Args),
 		})
 	})
+}
+
+// rejoinSession attaches to a session that is running the very command Exec
+// was asked to run, streaming it until it ends, and refuses any other session
+// rather than starting a second command beside it.
+func (b *EC2Backend) rejoinSession(target sessionTarget, args []string) (int, error) {
+	recorded, err := ec2.NewInstanceQuery(b.MetadataDir, target.publicDNS, b.capture()).RecordedCommand(target.session)
+	if err != nil {
+		return 1, err
+	}
+	if recorded != ec2.CommandRecord(args) {
+		return 1, ec2.SessionBusyError(target.session, recorded, args)
+	}
+
+	b.printErr(fmt.Sprintf("reattaching to session '%s', which is already running: %s", target.session, recorded))
+	return b.execInSession()(b.MetadataDir, target.publicDNS, ec2.RemoteCommand{Args: ec2.BuildAttachCommand(target.session)})
 }
 
 // ExecInteractive runs the command inside the instance's tmux session, so a
 // dropped connection leaves it running rather than killing it.
 func (b *EC2Backend) ExecInteractive(req ExecRequest) (int, error) {
-	return b.inSession(req.ContainerName, func(publicDNS, session string) (int, error) {
-		return b.ExecInteractiveFunc(b.MetadataDir, publicDNS, ec2.RemoteCommand{
+	return b.inSession(req.ContainerName, func(target sessionTarget) (int, error) {
+		return b.ExecInteractiveFunc(b.MetadataDir, target.publicDNS, ec2.RemoteCommand{
 			Workdir: ec2.RemoteRepoDir,
 			EnvVars: req.EnvVars,
-			Args:    ec2.BuildTmuxCommand(session, req.Args),
+			Args:    ec2.BuildTmuxCommand(target.session, req.Args),
 		})
 	})
 }
 
 func (b *EC2Backend) OpenShell(req ExecRequest) (int, error) {
-	return b.inSession(req.ContainerName, func(publicDNS, session string) (int, error) {
-		return ec2.OpenShell(b.instanceSession(publicDNS, b.ExecInteractiveFunc), session, req.EnvVars)
+	return b.inSession(req.ContainerName, func(target sessionTarget) (int, error) {
+		return ec2.OpenShell(b.instanceSession(target.publicDNS, b.ExecInteractiveFunc), target.session, req.EnvVars)
 	})
 }
 
@@ -569,20 +603,33 @@ func (b *EC2Backend) refreshPublicDNS(store *ec2.MetadataStore, meta ec2.Metadat
 	return publicDNS, nil
 }
 
-// inSession resolves the tmux session an interactive command is about to join
-// on the instance and hands it to run, announcing a reattach first because tmux
-// discards the command it was handed once the session already exists. Both the
-// session and the announcement are resolved inside the retried attempt, so a
-// refreshed address is the one they speak to.
-func (b *EC2Backend) inSession(name string, run func(publicDNS, session string) (int, error)) (int, error) {
+// sessionTarget is the tmux session a command is about to join, on the address
+// where its instance can currently be reached.
+type sessionTarget struct {
+	publicDNS string
+	session   string
+}
+
+// withSession resolves the tmux session a command is about to join on the
+// instance and hands it to run. The session is resolved inside the retried
+// attempt, so a refreshed address is the one it is asked of.
+func (b *EC2Backend) withSession(name string, run func(target sessionTarget) (int, error)) (int, error) {
 	return b.onInstance(name, func(publicDNS string) (int, error) {
 		session, err := b.sessionName(publicDNS)
 		if err != nil {
 			return 1, err
 		}
+		return run(sessionTarget{publicDNS: publicDNS, session: session})
+	})
+}
 
-		ec2.AnnounceReattach(b.errOut(), b.instanceSession(publicDNS, b.ExecFunc), session)
-		return run(publicDNS, session)
+// inSession is withSession for the interactive commands, announcing a reattach
+// first because tmux discards the command it was handed once the session
+// already exists.
+func (b *EC2Backend) inSession(name string, run func(target sessionTarget) (int, error)) (int, error) {
+	return b.withSession(name, func(target sessionTarget) (int, error) {
+		ec2.AnnounceReattach(b.errOut(), b.instanceSession(target.publicDNS, b.ExecFunc), target.session)
+		return run(target)
 	})
 }
 

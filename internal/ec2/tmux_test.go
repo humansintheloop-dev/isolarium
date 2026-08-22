@@ -3,6 +3,7 @@ package ec2
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -45,6 +46,117 @@ func TestEC2TmuxCommandTravelsOverTheInteractiveTransport(t *testing.T) {
 		"tmux", "new-session", "-A", "-s", "isolarium", "--", "claude",
 	)
 	assertCommandEquals(t, got, want)
+}
+
+func TestEC2TmuxDetachableCommandStartsANamedSessionAndRecordsTheCommand(t *testing.T) {
+	got := BuildDetachableTmuxCommand(DefaultSessionName, []string{"claude", "-p", "hello"})
+
+	assertCommandEquals(t, got, []string{
+		"tmux", "new-session", "-s", "isolarium", "--", "claude", "-p", "hello",
+		`\;`, "set-option", "-t", "isolarium", "@isolarium-command", "'claude -p hello'",
+	})
+}
+
+func TestEC2TmuxDetachableCommandNeverAttachesToARunningSession(t *testing.T) {
+	got := strings.Join(BuildDetachableTmuxCommand(DefaultSessionName, []string{"claude"}), " ")
+
+	assertContainsNone(t, "the detachable tmux command", got, " -A ", "attach-session")
+}
+
+func TestEC2TmuxDetachableCommandTravelsOverTheSessionTransport(t *testing.T) {
+	base := t.TempDir()
+
+	got := strings.Join(BuildSessionExecCommand(base, testPublicDNS, RemoteCommand{
+		Workdir: RemoteRepoDir,
+		Args:    BuildDetachableTmuxCommand(DefaultSessionName, []string{"claude"}),
+	}), " ")
+
+	assertContainsAll(t, "the session command line", got,
+		"-tt ubuntu@"+testPublicDNS,
+		"tmux new-session -s isolarium -- claude",
+		"@isolarium-command 'claude'",
+	)
+}
+
+func TestEC2TmuxCommandRecordQuotesOnlyWhatTheShellWouldSplit(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "plain words", args: []string{"claude", "-p", "hello"}, want: "claude -p hello"},
+		{name: "an argument with a space", args: []string{"sh", "-c", "exit 3"}, want: "sh -c 'exit 3'"},
+		{name: "an argument with a quote", args: []string{"echo", "it's"}, want: `echo 'it'\''s'`},
+		{name: "paths and flags", args: []string{"i2code", "--isolated", "docs/ideas/x", "--with-sdkman"}, want: "i2code --isolated docs/ideas/x --with-sdkman"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := CommandRecord(tc.args); got != tc.want {
+				t.Errorf("CommandRecord(%q) = %q, want %q", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestEC2TmuxAttachCommandJoinsTheNamedSession(t *testing.T) {
+	got := BuildAttachCommand("isolarium-2")
+
+	assertCommandEquals(t, got, []string{"tmux", "attach-session", "-t", "isolarium-2"})
+}
+
+func TestEC2TmuxRecordedCommandAsksTheInstance(t *testing.T) {
+	base := t.TempDir()
+	lister := &sessionLister{output: "claude -p hello\n"}
+
+	got, err := NewInstanceQuery(base, testPublicDNS, lister.run).RecordedCommand(DefaultSessionName)
+
+	if err != nil {
+		t.Fatalf("RecordedCommand() error = %v, want nil", err)
+	}
+	assertCommandEquals(t, lister.command.Args, []string{"tmux", "show-option", "-qv", "-t", "isolarium", "@isolarium-command"})
+	if lister.base != base {
+		t.Errorf("RecordedCommand() used base %q, want %q", lister.base, base)
+	}
+	if lister.publicDNS != testPublicDNS {
+		t.Errorf("RecordedCommand() used public DNS %q, want %q", lister.publicDNS, testPublicDNS)
+	}
+	if got != "claude -p hello" {
+		t.Errorf("RecordedCommand() = %q, want %q", got, "claude -p hello")
+	}
+}
+
+func TestEC2TmuxRecordedCommandIsEmptyWhenTheSessionRecordedNone(t *testing.T) {
+	tests := []struct {
+		name   string
+		lister sessionLister
+	}{
+		{name: "the option is unset", lister: sessionLister{output: "\n"}},
+		{name: "tmux rejects the query", lister: sessionLister{exitCode: 1, output: "no such session"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lister := tc.lister
+
+			got, err := NewInstanceQuery(t.TempDir(), testPublicDNS, lister.run).RecordedCommand(DefaultSessionName)
+
+			if err != nil {
+				t.Fatalf("RecordedCommand() error = %v, want nil", err)
+			}
+			if got != "" {
+				t.Errorf("RecordedCommand() = %q, want no recorded command", got)
+			}
+		})
+	}
+}
+
+func TestEC2TmuxRecordedCommandReportsAnUnreachableInstance(t *testing.T) {
+	lister := &sessionLister{err: errors.New("ssh: connect failed")}
+
+	if _, err := NewInstanceQuery(t.TempDir(), testPublicDNS, lister.run).RecordedCommand(DefaultSessionName); err == nil {
+		t.Fatal("RecordedCommand() returned nil error for an unreachable instance")
+	}
 }
 
 func TestEC2TmuxSessionExistsAsksTheInstance(t *testing.T) {

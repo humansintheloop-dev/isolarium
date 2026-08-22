@@ -1,21 +1,36 @@
 package ec2
 
-import "sort"
-
 const sshBinary = "ssh"
 
-// RemoteCommand is what the instance should run: the command itself, the
-// directory it runs from, and the environment it sees.
-type RemoteCommand struct {
-	Workdir string
-	EnvVars map[string]string
-	Args    []string
+// ttyMode is what ssh is asked to do about a remote pseudo-terminal.
+type ttyMode int
+
+const (
+	// noTTY runs the command plainly, so its exit code and stdout stay faithful.
+	noTTY ttyMode = iota
+	// requestTTY asks for a remote terminal when the host has one, which is what
+	// an interactive command needs.
+	requestTTY
+	// forceTTY allocates a remote terminal even when the host has none, which is
+	// what tmux needs when isolarium itself runs without a terminal.
+	forceTTY
+)
+
+func (m ttyMode) sshFlags() []string {
+	switch m {
+	case requestTTY:
+		return []string{"-t"}
+	case forceTTY:
+		return []string{"-tt"}
+	default:
+		return nil
+	}
 }
 
-// BuildSSHArgs is the single source of the SSH option set, so Exec,
-// ExecInteractive, OpenShell, and CopyCredentials cannot drift apart. A TTY is
-// requested only by the interactive paths.
-func BuildSSHArgs(base, publicDNS string, tty bool) []string {
+// buildSSHArgs is the single source of the SSH option set, so Exec,
+// ExecInteractive, OpenShell, and CopyCredentials cannot drift apart. Only the
+// terminal handling differs between them.
+func buildSSHArgs(base, publicDNS string, tty ttyMode) []string {
 	args := []string{
 		sshBinary,
 		"-i", PrivateKeyPath(base),
@@ -26,56 +41,31 @@ func BuildSSHArgs(base, publicDNS string, tty bool) []string {
 		"-o", "ServerAliveInterval=15",
 		"-o", "ServerAliveCountMax=4",
 	}
-	if tty {
-		args = append(args, "-t")
-	}
+	args = append(args, tty.sshFlags()...)
 	return append(args, RemoteUser+"@"+publicDNS)
 }
 
 // BuildExecCommand constructs the ssh command that runs cmd on the instance
 // without a TTY and without tmux, so the exit code and stdout stay faithful.
 func BuildExecCommand(base, publicDNS string, cmd RemoteCommand) []string {
-	return buildSSHCommand(base, publicDNS, cmd, false)
+	return buildSSHCommand(base, publicDNS, cmd, noTTY)
 }
 
 // BuildInteractiveExecCommand constructs the ssh command that runs cmd on the
 // instance with a TTY attached.
 func BuildInteractiveExecCommand(base, publicDNS string, cmd RemoteCommand) []string {
-	return buildSSHCommand(base, publicDNS, cmd, true)
+	return buildSSHCommand(base, publicDNS, cmd, requestTTY)
 }
 
-func buildSSHCommand(base, publicDNS string, cmd RemoteCommand, tty bool) []string {
-	ssh := append(BuildSSHArgs(base, publicDNS, tty), "--")
-	ssh = append(ssh, changeDirectoryPrefix(cmd.Workdir)...)
-	ssh = append(ssh, buildEnvPrefix(cmd.EnvVars)...)
-	return append(ssh, cmd.Args...)
+// BuildSessionExecCommand constructs the ssh command for a cmd that must run
+// inside tmux on the instance while isolarium itself may have no terminal: the
+// pseudo-terminal is forced so tmux can start, and nothing is read from the
+// host.
+func BuildSessionExecCommand(base, publicDNS string, cmd RemoteCommand) []string {
+	return buildSSHCommand(base, publicDNS, cmd, forceTTY)
 }
 
-// changeDirectoryPrefix returns the remote-shell prefix that runs the command
-// from workdir. An empty workdir leaves the command in the login directory.
-func changeDirectoryPrefix(workdir string) []string {
-	if workdir == "" {
-		return nil
-	}
-	return []string{"cd", workdir, "&&"}
-}
-
-// buildEnvPrefix returns the "env KEY=VALUE ..." prefix that injects environment
-// variables into the remote process, with keys sorted so the command is
-// deterministic. Returns nil when envVars is nil or empty.
-func buildEnvPrefix(envVars map[string]string) []string {
-	if len(envVars) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(envVars))
-	for key := range envVars {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	prefix := []string{"env"}
-	for _, key := range keys {
-		prefix = append(prefix, key+"="+envVars[key])
-	}
-	return prefix
+func buildSSHCommand(base, publicDNS string, cmd RemoteCommand, tty ttyMode) []string {
+	ssh := append(buildSSHArgs(base, publicDNS, tty), "--")
+	return append(ssh, cmd.shellWords()...)
 }

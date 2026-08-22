@@ -14,7 +14,7 @@ talks to the instance over SSH and manages it with Terraform. The backend is
 |---|---|
 | `isolarium create --type ec2 --name <name>` | `Create` |
 | `isolarium destroy --type ec2 --name <name>` | `Destroy` |
-| `isolarium run --type ec2 --name <name> -- <cmd>` | `Exec` |
+| `isolarium run --type ec2 --name <name> -- <cmd>` | `Exec` (inside the tmux session; a re-run of the same command reattaches) |
 | `isolarium run --type ec2 --name <name> --create -- <cmd>` | `GetState`, then `Create` when it answers `none`, then `Exec` |
 | `isolarium run -i --type ec2 --name <name> -- <cmd>` | `ExecInteractive` |
 | `isolarium shell --type ec2 --name <name>` | `OpenShell` |
@@ -75,9 +75,38 @@ infrastructure, in place.
 
 ## Exec
 
-`Exec(req)` runs a non-interactive command over SSH in the repository
-directory on the instance and returns the remote exit code. The address comes
-from `metadata.json`, so no AWS or Terraform call is made.
+`Exec(req)` runs a non-interactive command in the repository directory on the
+instance, inside the instance's tmux session, and returns the exit code of the
+SSH transport. The address comes from `metadata.json`, so no AWS or Terraform
+call is made.
+
+The command travels over `ssh -tt`, which forces a pseudo-terminal on the
+instance even when isolarium itself has no terminal, with the host's stdin left
+disconnected (`ec2.ExecInSessionCommand`). That is what lets tmux start under
+i2code, and what keeps the command running if the connection drops.
+
+- If no session is running, `Exec` starts one: `tmux new-session -s <session>
+  -- <cmd> \; set-option -t <session> @isolarium-command '<cmd>'`. The second
+  tmux command records the command's arguments on the session as a tmux user
+  option, rendered by `ec2.CommandRecord` (arguments quoted only where the
+  shell would split them; environment excluded, since the per-run token always
+  differs).
+- If the session is already running, `Exec` reads `@isolarium-command` back
+  with `tmux show-option -qv`. When it equals the arguments about to run,
+  `Exec` prints `reattaching to session '<session>', which is already running:
+  <cmd>` on stderr and runs `tmux attach-session -t <session>`, streaming the
+  session until it ends. When it differs — or the session recorded nothing,
+  because `run -i` or `shell` started it — `Exec` runs nothing and fails with
+  `cannot run '<cmd>': session '<session>' on the instance is already running
+  '<recorded>'; reattach to it with isolarium shell --type ec2, or start
+  another session with --new-session`.
+- `--new-session` (`UseNewSession`) resolves a free session name first, as it
+  does for `ExecInteractive`, so the new command never meets a running one.
+
+The transports create uses internally — the SSH and cloud-init readiness
+probes, `PlaceRepository`, the `pid.yaml` script runner, and the session probes
+— stay on the plain transport (`ExecFunc`, `CaptureFunc`), without tmux and
+without a forced pseudo-terminal.
 
 ## ExecInteractive
 
@@ -127,6 +156,41 @@ rather than fails.
 the instance over SSH. It overwrites the instance's copy only when the host's
 is fresher, so a session running on the instance that refreshed its own
 credentials keeps them.
+
+## Running under i2code
+
+i2code drives an isolated implementation run as
+
+```
+isolarium --name i2code-<idea> --type ec2 run --create -- i2code --with-sdkman implement --isolated <idea dir> ...
+```
+
+It is non-interactive by default (`--interactive` only when asked for), and
+i2code starts it with `Popen(start_new_session=True)`, so isolarium has no
+terminal of its own. Three consequences follow.
+
+- `--create` launches the environment when `GetState` answers `none`
+  (`createEC2IfNeeded` in `internal/cli/cmd_run.go`), paying the multi-minute
+  cold start only on the first run, and then calls `Exec`.
+- The command runs in tmux regardless of `--interactive`. `i2code implement`
+  runs for a long time; over plain SSH it would die with the connection, and
+  nothing could rejoin it. Forcing the pseudo-terminal (`-tt`) is what makes
+  tmux start when there is no host terminal to inherit one from.
+- A re-run of the same command reattaches. `Exec` records the command on the
+  session and compares it on the next run, so i2code's retry finds the run it
+  started rather than starting a second one beside it, and streams its output
+  until it ends. A run with a different command is refused while that session
+  is running.
+
+To reattach by hand, run `isolarium shell --type ec2 --name i2code-<idea>`,
+which joins the same tmux session (`isolarium` unless `--new-session` chose
+another), or `ssh` to the instance and run `tmux attach-session -t isolarium`.
+If you also run tmux locally, the prefix key is `Ctrl-b Ctrl-b`.
+
+One caveat: SSH ingress is pinned to the host's public `/32`, resolved by
+`create` and `destroy` only. A host that moves network after the instance was
+created cannot connect until the ingress rule is re-applied, so a re-run from
+a different address fails to connect rather than reattaching.
 
 ## Wipe
 
