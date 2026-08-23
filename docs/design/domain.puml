@@ -1,0 +1,88 @@
+@startuml
+hide empty members
+skinparam linetype ortho
+
+package "Git / GitHub" {
+  class WorkingTree {
+    path
+    branch
+    remoteURL
+    gitIdentity
+    isGitWorktree
+  }
+
+  class Repository {
+    owner
+    name
+  }
+
+  class RepositoryToken {
+    GH_TOKEN
+  }
+
+  class GitHubApp {
+    appID
+    privateKey
+  }
+}
+
+package Isolarium {
+  class Environment {
+    name
+    state
+  }
+
+  enum IsolationType {
+    vm
+    container
+    nono
+    ec2
+  }
+
+  interface Backend {
+    Create()
+    Destroy()
+    Exec()
+    ExecInteractive()
+    OpenShell()
+    GetState()
+    CopyCredentials()
+  }
+
+  class Command {
+    args
+    envVars
+    interactive
+    exitCode
+  }
+
+  abstract class Credentials
+  class ClaudeSession
+  class RunEnvVars
+
+  class ProjectConfiguration {
+    runEnv : [varName]
+  }
+  class Script {
+    path
+    env : [varName]
+  }
+}
+
+WorkingTree "*" --> "1" Repository
+WorkingTree "1" *-right- "0..1" ProjectConfiguration
+Environment "*" -left-> "1" WorkingTree : created from
+Environment "1" --> "1" IsolationType
+IsolationType "1" -down-> "1" Backend : realised by
+Command "*" --> "1" Environment : runs in
+Command "1" o-- "*" Credentials
+Credentials <|-- RepositoryToken
+Credentials <|-- ClaudeSession
+Credentials <|-- RunEnvVars
+RepositoryToken --> Repository : scoped to
+GitHubApp ..> RepositoryToken : mints
+ProjectConfiguration "1" *-- "*" Script : creationScripts
+ProjectConfiguration "1" *-- "*" Script : hostScripts
+ProjectConfiguration "1" *-- "*" Script : envScripts
+ProjectConfiguration ..> RunEnvVars : names
+@enduml
