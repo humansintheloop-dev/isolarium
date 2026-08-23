@@ -88,7 +88,8 @@ infrastructure, in place.
 `Exec(req)` runs a non-interactive command in the repository directory on the
 instance, inside the instance's tmux session, and returns the command's own
 exit status. The address comes from `metadata.json`, so no AWS or Terraform
-call is made.
+call is made unless the host's own address has changed (see "Host address
+changes").
 
 The command travels over `ssh -tt`, which forces a pseudo-terminal on the
 instance even when isolarium itself has no terminal, with the host's stdin left
@@ -167,6 +168,36 @@ for the current address, rewrites `metadata.json`, prints `instance moved to
 is not retried; a genuinely unreachable instance costs two attempts, not a
 loop.
 
+## Host address changes
+
+SSH ingress is one rule in the shared `security.tf`, pinned to a single host
+`/32`, and `isolarium.auto.tfvars` records the CIDR it was last successfully
+applied with. A host that moves network — a laptop taken home, a new VPN exit —
+still has the old address in the rule, so every connection would fail.
+
+Before `Exec`, `ExecInteractive`, `OpenShell`, or `CopyCredentials` connects,
+`onInstance` runs `ensureHostIngress`:
+
+- It detects the host's public IP (`ec2.IngressChanged`, the same
+  `checkip.amazonaws.com` lookup create uses) and compares the `/32` with the
+  recorded one. A missing record counts as changed.
+- When they match, nothing else happens: no terraform and no AWS call.
+- When they differ, it prints `host address changed from <old> to <new>;
+  updating SSH ingress...` on stderr, runs `terraform init` and `terraform
+  apply` over the shared working directory with the new `ingress_cidr`, the
+  region from `metadata.json` (so `run` needs no `AWS_REGION`) and the same
+  `public_key` as create, records the new CIDR once the apply succeeds, and
+  then connects. A re-apply that fails is reported as an error and the command
+  does not run.
+- When detection itself fails, it prints `warning: public IP detection failed
+  (<error>); connecting without checking the SSH ingress rule` and connects
+  anyway (`ec2.OpConnect`): being offline from checkip never blocks a command
+  that might still work.
+
+The rule holds one address. Working from two machines, or two networks,
+re-applies it on each switch; that is the cost of never opening SSH wider than
+one host.
+
 ## GetState
 
 `GetState(name)` reads `metadata.json` and asks AWS for the instance state,
@@ -189,7 +220,8 @@ rather than fails.
 `CopyCredentials(name, credentials)` copies the host's Claude credentials to
 the instance over SSH. It overwrites the instance's copy only when the host's
 is fresher, so a session running on the instance that refreshed its own
-credentials keeps them.
+credentials keeps them. It goes through `onInstance` like the other connecting
+operations, so it gets the host-address check and the address refresh.
 
 ## Running under i2code
 
@@ -221,10 +253,9 @@ which joins the same tmux session (`isolarium` unless `--new-session` chose
 another), or `ssh` to the instance and run `tmux attach-session -t isolarium`.
 If you also run tmux locally, the prefix key is `Ctrl-b Ctrl-b`.
 
-One caveat: SSH ingress is pinned to the host's public `/32`, resolved by
-`create` and `destroy` only. A host that moves network after the instance was
-created cannot connect until the ingress rule is re-applied, so a re-run from
-a different address fails to connect rather than reattaching.
+SSH ingress is pinned to the host's public `/32`; a re-run from a different
+address re-applies the rule first (see "Host address changes") and then
+reattaches.
 
 ## Wipe
 

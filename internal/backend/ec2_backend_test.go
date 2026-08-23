@@ -371,7 +371,13 @@ func TestEC2Backend_Create_LeavesThePersistedIngressCIDRWhenTheApplyFails(t *tes
 func seedPersistedIngressCIDR(t *testing.T, base string) {
 	t.Helper()
 
-	if err := ec2.PersistIngressCIDR(base, ec2SpyPersistedCIDR); err != nil {
+	persistIngressCIDR(t, base, ec2SpyPersistedCIDR)
+}
+
+func persistIngressCIDR(t *testing.T, base, cidr string) {
+	t.Helper()
+
+	if err := ec2.PersistIngressCIDR(base, cidr); err != nil {
 		t.Fatalf("seeding the persisted ingress CIDR: %v", err)
 	}
 }

@@ -318,11 +318,8 @@ func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, erro
 		return launchedInstance{}, err
 	}
 
-	terraform := ec2.NewTerraformRunner(b.Runner, plan.terraformConfig(b.MetadataDir), b.errOut())
-	if err := terraform.Init(); err != nil {
-		return launchedInstance{}, err
-	}
-	if err := b.applyAndRecordIngress(terraform, plan); err != nil {
+	terraform, err := b.applySharedInfrastructure(plan)
+	if err != nil {
 		return launchedInstance{}, err
 	}
 
@@ -337,15 +334,25 @@ func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, erro
 	return launchedInstance{id: instanceID, publicDNS: publicDNS}, nil
 }
 
-// applyAndRecordIngress applies the plan and, only once the apply has returned
-// without error, records the ingress CIDR it was given as the one the security
-// group now holds. A failed apply leaves the earlier record in place, so the
-// file never names an address that did not reach AWS.
-func (b *EC2Backend) applyAndRecordIngress(terraform *ec2.TerraformRunner, plan environmentPlan) error {
-	if err := terraform.Apply(plan.applyVariables()); err != nil {
-		return err
+// applySharedInfrastructure runs init and apply over the shared working
+// directory — every environment's instance file plus the VPC, security group,
+// and key pair they share — and, only once the apply has returned without
+// error, records the ingress CIDR it was given as the one the security group
+// now holds. A failed apply leaves the earlier record in place, so the file
+// never names an address that did not reach AWS. The runner is returned for a
+// caller that goes on to read terraform's outputs.
+func (b *EC2Backend) applySharedInfrastructure(plan environmentPlan) (*ec2.TerraformRunner, error) {
+	terraform := ec2.NewTerraformRunner(b.Runner, plan.terraformConfig(b.MetadataDir), b.errOut())
+	if err := terraform.Init(); err != nil {
+		return nil, err
 	}
-	return ec2.PersistIngressCIDR(b.MetadataDir, plan.host.ingressCIDR)
+	if err := terraform.Apply(plan.applyVariables()); err != nil {
+		return nil, err
+	}
+	if err := ec2.PersistIngressCIDR(b.MetadataDir, plan.host.ingressCIDR); err != nil {
+		return nil, err
+	}
+	return terraform, nil
 }
 
 func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInstance, source ec2.RepositorySpec) error {
@@ -461,11 +468,7 @@ func (t ec2Teardown) run() error {
 		return err
 	}
 
-	terraform := ec2.NewTerraformRunner(t.backend.Runner, plan.terraformConfig(base), t.backend.errOut())
-	if err := terraform.Init(); err != nil {
-		return err
-	}
-	if err := t.backend.applyAndRecordIngress(terraform, plan); err != nil {
+	if _, err := t.backend.applySharedInfrastructure(plan); err != nil {
 		return err
 	}
 
@@ -617,6 +620,9 @@ func (b *EC2Backend) onInstance(name string, run func(publicDNS string) (int, er
 	if err != nil {
 		return 1, err
 	}
+	if err := b.ensureHostIngress(*meta); err != nil {
+		return 1, err
+	}
 
 	exitCode, err := run(meta.PublicDNS)
 	if !errors.Is(err, ec2.ErrSSHConnect) {
@@ -629,6 +635,62 @@ func (b *EC2Backend) onInstance(name string, run func(publicDNS string) (int, er
 	}
 	b.printErr(fmt.Sprintf("instance moved to %s; retrying", publicDNS))
 	return run(publicDNS)
+}
+
+// ensureHostIngress re-applies the shared SSH ingress rule when the host's
+// public address is no longer the one the rule was last applied with, so a host
+// that moved network can still reach its instances. An unchanged address costs
+// no terraform or AWS call. A host whose address cannot be detected is warned
+// and connected anyway, since the command might still work; a re-apply that
+// fails is an error, because the connection it was clearing the way for would
+// fail too.
+func (b *EC2Backend) ensureHostIngress(meta ec2.Metadata) error {
+	change, warning, err := ec2.IngressChanged(b.MetadataDir, b.CheckIPFunc)
+	if err != nil {
+		return err
+	}
+	if warning != "" {
+		b.printErr(warning)
+		return nil
+	}
+	if !change.Changed {
+		return nil
+	}
+
+	b.printErr(fmt.Sprintf("host address changed from %s to %s; updating SSH ingress...", describePersistedCIDR(change.Persisted), change.Detected))
+	plan, err := b.sharedInfrastructurePlan(meta.Region, change.Detected)
+	if err != nil {
+		return err
+	}
+	_, err = b.applySharedInfrastructure(plan)
+	return err
+}
+
+func describePersistedCIDR(persisted string) string {
+	if persisted == "" {
+		return "(none recorded)"
+	}
+	return persisted
+}
+
+// sharedInfrastructurePlan is what re-applying the shared rule needs: the
+// region create recorded, so a run needs no AWS_REGION of its own, the state
+// bucket in it, and the same public key create applied.
+func (b *EC2Backend) sharedInfrastructurePlan(region, ingressCIDR string) (environmentPlan, error) {
+	bucket, err := b.EnsureBucketFunc(context.Background(), region)
+	if err != nil {
+		return environmentPlan{}, err
+	}
+
+	publicKey, err := b.EnsureKeypairFunc(b.MetadataDir)
+	if err != nil {
+		return environmentPlan{}, err
+	}
+	return environmentPlan{
+		region: region,
+		bucket: bucket,
+		host:   hostState{publicKey: publicKey, ingressCIDR: ingressCIDR},
+	}, nil
 }
 
 // refreshPublicDNS asks AWS where the recorded instance can be reached now and
@@ -725,12 +787,14 @@ func (b *EC2Backend) describeInstance() DescribeInstanceFunc {
 
 // CopyCredentials carries the host's Claude credentials to the instance, which
 // only overwrites what is already there when the host's copy is the fresher one.
+// It goes through onInstance like every other connecting operation, so it gets
+// the host-address check and the address refresh; the exit code onInstance
+// carries is meaningless for a copy and dropped.
 func (b *EC2Backend) CopyCredentials(name string, credentials string) error {
-	meta, err := ec2.NewMetadataStore(b.MetadataDir, name).Read()
-	if err != nil {
-		return err
-	}
-	return b.copyCredentials()(b.MetadataDir, meta.PublicDNS, credentials)
+	_, err := b.onInstance(name, func(publicDNS string) (int, error) {
+		return 0, b.copyCredentials()(b.MetadataDir, publicDNS, credentials)
+	})
+	return err
 }
 
 func (b *EC2Backend) copyCredentials() ec2CopyCredentialsFunc {

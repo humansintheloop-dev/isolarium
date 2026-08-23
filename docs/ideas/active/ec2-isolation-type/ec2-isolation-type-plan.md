@@ -673,17 +673,17 @@ SSH ingress to every EC2 environment is pinned to the host's public /32, resolve
     - [x] In `internal/backend/ec2_backend.go` call `PersistIngressCIDR` after `terraform.Apply` succeeds in `applyInstance` and in `ec2Teardown.run`, using the CIDR the apply was given
     - [x] Adjust the create and destroy backend tests that asserted the early persist, and add the failed-apply test
     - [x] Update `docs/design/ec2.md` Create and Destroy sections: the CIDR is recorded after the apply, not before
-- [ ] **Task 14.2: `run` and `shell` re-apply the SSH ingress rule when the host's public address has changed**
+- [x] **Task 14.2: `run` and `shell` re-apply the SSH ingress rule when the host's public address has changed**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/ -run 'Ingress|Exec|Shell|CopyCredentials'`
   - Observable: Before `Exec`, `ExecInteractive`, `OpenShell`, or `CopyCredentials` connects, the backend detects the host's public IP and compares it with the persisted CIDR. When they match it makes no terraform or AWS call and connects as before. When they differ it prints `host address changed from <old> to <new>; updating SSH ingress...` on stderr, runs `terraform init` and `terraform apply` over the shared working directory with the new `ingress_cidr` (region from `metadata.json`, the same `public_key` as create), persists the new CIDR on success, and then connects. When detection fails it prints a warning naming the detection error and connects anyway, so being offline from checkip never blocks a command that might still work. A re-apply that fails is reported as an error and the command does not run
   - Evidence: `go test ./internal/backend/ -run 'Ingress|Exec|Shell|CopyCredentials' exits 0, with tests that an unchanged address makes no terraform call, a changed address runs init and apply with the new `ingress_cidr` before the SSH transport is reached and persists it, a detection failure warns and still reaches the transport, and `CopyCredentials` gets the same check`
   - Steps:
-    - [ ] In `internal/ec2/publicip.go` add `OpConnect` to `Operation` with the warn-and-proceed policy, and an `IngressChanged(base, get)` that returns the detected CIDR, the persisted one, and whether they differ (a missing persisted file counts as changed)
-    - [ ] In `internal/backend/ec2_backend.go` add `ensureHostIngress(meta)` that runs the comparison, the notice, the apply via a shared `applySharedInfrastructure(plan)` extracted from `ec2Teardown.run`, and the persist; take the region from `meta.Region` so `run` does not need `AWS_REGION` set
-    - [ ] Call `ensureHostIngress` at the start of `onInstance`, and route `CopyCredentials` through `onInstance` so the credentials copy gets the check and the DNS refresh too
-    - [ ] Backend tests for the four observable cases, using the existing `ec2BackendWithRecordedInstance` fixture with a stub `CheckIPFunc` and `command.FakeRunner` for terraform
-    - [ ] Add a `Host address changes` section to `docs/design/ec2.md` describing the check, the notice, the warn-and-proceed policy, and that the rule holds one address so switching machines re-applies on each
+    - [x] In `internal/ec2/publicip.go` add `OpConnect` to `Operation` with the warn-and-proceed policy, and an `IngressChanged(base, get)` that returns the detected CIDR, the persisted one, and whether they differ (a missing persisted file counts as changed)
+    - [x] In `internal/backend/ec2_backend.go` add `ensureHostIngress(meta)` that runs the comparison, the notice, the apply via a shared `applySharedInfrastructure(plan)` extracted from `ec2Teardown.run`, and the persist; take the region from `meta.Region` so `run` does not need `AWS_REGION` set
+    - [x] Call `ensureHostIngress` at the start of `onInstance`, and route `CopyCredentials` through `onInstance` so the credentials copy gets the check and the DNS refresh too
+    - [x] Backend tests for the four observable cases, using the existing `ec2BackendWithRecordedInstance` fixture with a stub `CheckIPFunc` and `command.FakeRunner` for terraform
+    - [x] Add a `Host address changes` section to `docs/design/ec2.md` describing the check, the notice, the warn-and-proceed policy, and that the rule holds one address so switching machines re-applies on each
 - [ ] **Task 14.3: An SSH connection failure re-checks the host address once before giving up**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/ -run 'Refresh|Retry|Ingress'`

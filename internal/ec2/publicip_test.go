@@ -234,6 +234,34 @@ func writeTfvars(t *testing.T, base, cidr string) {
 	}
 }
 
+// TestResolveIngressCIDR_WarnsAndProceedsOnConnect pins the connect policy: a
+// run or shell whose host address cannot be detected may still reach the
+// instance, so detection failure yields a warning and no CIDR rather than an
+// error.
+func TestResolveIngressCIDR_WarnsAndProceedsOnConnect(t *testing.T) {
+	base := t.TempDir()
+	if err := PersistIngressCIDR(base, "198.51.100.4/32"); err != nil {
+		t.Fatalf("persisting the ingress CIDR: %v", err)
+	}
+
+	cidr, warning, err := ResolveIngressCIDR(base, OpConnect, failingCheckIP("dial tcp: no route to host"))
+
+	if err != nil {
+		t.Fatalf("ResolveIngressCIDR(OpConnect) error = %v, want detection failure not to block a connection", err)
+	}
+	if cidr != "" {
+		t.Errorf("ResolveIngressCIDR(OpConnect) = %q, want no CIDR when detection fails", cidr)
+	}
+	assertContainsAll(t, "the connect warning", warning,
+		"warning: public IP detection failed",
+		"dial tcp: no route to host",
+		"connecting without checking the SSH ingress rule",
+	)
+	if OpConnect.String() != "connect" {
+		t.Errorf("OpConnect.String() = %q, want %q", OpConnect.String(), "connect")
+	}
+}
+
 func TestReadPersistedIngressCIDRReportsMissingFile(t *testing.T) {
 	base := t.TempDir()
 

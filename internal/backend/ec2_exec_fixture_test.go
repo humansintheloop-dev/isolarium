@@ -110,11 +110,13 @@ func (f *ec2InstanceFake) addressesAsked(prefix string) []string {
 }
 
 // ec2ExecFixture is a backend whose environment "my-work" has already been
-// created, so Exec has metadata to read, with every remote collaborator spied on.
-// The plain transport (exec) also answers the `tmux has-session` probe, so its
-// exit code decides whether the instance is running a session. The session
-// transport exits 0 as a tmux client does whatever its command did; the exit
-// code a test asks for is what the instance's status file holds.
+// created from the address the host still has, so Exec has metadata to read and
+// no ingress rule to re-apply, with every remote collaborator spied on. The
+// plain transport (exec) also answers the `tmux has-session` probe, so its exit
+// code decides whether the instance is running a session. The session transport
+// exits 0 as a tmux client does whatever its command did; the exit code a test
+// asks for is what the instance's status file holds. The terraform fake answers
+// nothing, so any invocation fails the test unless it registers one.
 type ec2ExecFixture struct {
 	backend     *EC2Backend
 	exec        *ec2ExecSpy
@@ -148,6 +150,7 @@ func ec2BackendWithRecordedInstance(t *testing.T, exitCode int) ec2ExecFixture {
 		runner:      runner,
 	}
 	seedRecordedInstance(t, fixture.metadataDir)
+	persistIngressCIDR(t, fixture.metadataDir, ec2SpyDetectedCIDR)
 
 	b := fixture.backend()
 	b.ExecFunc = execSpy.exec

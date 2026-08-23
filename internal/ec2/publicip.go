@@ -56,24 +56,36 @@ const (
 	// OpDestroy falls back to the last known CIDR, so that being off the network
 	// isolarium was created from never blocks a teardown.
 	OpDestroy
+	// OpConnect warns and proceeds with no CIDR at all: a run or shell whose
+	// host address cannot be detected may still reach the instance, so being
+	// offline from checkip never blocks a command that might work.
+	OpConnect
 )
 
 func (o Operation) String() string {
-	if o == OpDestroy {
+	switch o {
+	case OpDestroy:
 		return "destroy"
+	case OpConnect:
+		return "connect"
+	default:
+		return "create"
 	}
-	return "create"
 }
 
 // ResolveIngressCIDR yields the CIDR SSH ingress is pinned to, together with a
 // warning the caller is expected to report when it had to fall back. Detection
-// failure is fatal for every operation except OpDestroy, and no path returns an
-// open CIDR. It never writes the persisted file: that records the CIDR last
-// applied, which the caller knows only once its apply has succeeded.
+// failure is fatal for OpCreate, falls back to the persisted CIDR for
+// OpDestroy, and yields an empty CIDR with a warning for OpConnect; no path
+// returns an open CIDR. It never writes the persisted file: that records the
+// CIDR last applied, which the caller knows only once its apply has succeeded.
 func ResolveIngressCIDR(base string, op Operation, get HTTPGetFunc) (cidr string, warning string, err error) {
 	cidr, err = DetectPublicIP(get)
 	if err == nil {
 		return cidr, "", nil
+	}
+	if op == OpConnect {
+		return "", fmt.Sprintf("warning: public IP detection failed (%v); connecting without checking the SSH ingress rule", err), nil
 	}
 	if op != OpDestroy {
 		return "", "", err
