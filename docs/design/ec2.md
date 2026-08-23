@@ -160,13 +160,23 @@ with the same session resolution and `--new-session` behaviour as
 
 ## Address refresh
 
-`Exec`, `ExecInteractive`, and `OpenShell` all go through `onInstance`. The
-instance ID is fixed but the public DNS changes across a stop/start, so if SSH
-cannot connect at the recorded address the backend calls `DescribeInstances`
-for the current address, rewrites `metadata.json`, prints `instance moved to
-<dns>; retrying`, and tries once more. A command the instance ran and rejected
-is not retried; a genuinely unreachable instance costs two attempts, not a
-loop.
+`Exec`, `ExecInteractive`, `OpenShell`, and `CopyCredentials` all go through
+`onInstance`. The instance ID is fixed but the public DNS changes across a
+stop/start, so if SSH cannot connect at the recorded address the backend:
+
+- re-checks the host address (`ensureHostIngress` again, see "Host address
+  changes") and re-applies the ingress rule if it differs from the persisted
+  one — covering an address that changed between the proactive check and the
+  connection, or a persisted record that was wrong; an unchanged address makes
+  no terraform call
+- calls `DescribeInstances` for the instance's current address, rewrites
+  `metadata.json`, and prints `instance moved to <dns>; retrying`
+- tries once more
+
+A retry that still cannot connect reports the original connect error together
+with what was checked and refreshed before it (the host address outcome and
+the refreshed instance address). A command the instance ran and rejected is
+not retried; a genuinely unreachable instance costs two attempts, not a loop.
 
 ## Host address changes
 

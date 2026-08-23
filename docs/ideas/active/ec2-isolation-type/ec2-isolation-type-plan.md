@@ -684,15 +684,15 @@ SSH ingress to every EC2 environment is pinned to the host's public /32, resolve
     - [x] Call `ensureHostIngress` at the start of `onInstance`, and route `CopyCredentials` through `onInstance` so the credentials copy gets the check and the DNS refresh too
     - [x] Backend tests for the four observable cases, using the existing `ec2BackendWithRecordedInstance` fixture with a stub `CheckIPFunc` and `command.FakeRunner` for terraform
     - [x] Add a `Host address changes` section to `docs/design/ec2.md` describing the check, the notice, the warn-and-proceed policy, and that the rule holds one address so switching machines re-applies on each
-- [ ] **Task 14.3: An SSH connection failure re-checks the host address once before giving up**
+- [x] **Task 14.3: An SSH connection failure re-checks the host address once before giving up**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/ -run 'Refresh|Retry|Ingress'`
   - Observable: When the first connection attempt in `onInstance` fails with `ErrSSHConnect` the backend re-detects the host address and re-applies the ingress rule if it differs from the persisted one (covering an address that changed between the proactive check and the connection, or a persisted file that was wrong), refreshes the instance's public DNS from AWS as today, and retries once. A retry that still cannot connect reports both what was refreshed and the original error. A command the instance ran and rejected is never retried
   - Evidence: `go test ./internal/backend/ -run 'Refresh|Retry|Ingress' exits 0, with a test that a connect failure followed by a changed address re-applies and retries with the refreshed DNS, and a test that a rejected remote command is not retried`
   - Steps:
-    - [ ] Extend the `ErrSSHConnect` branch of `onInstance` to call `ensureHostIngress` before `refreshPublicDNS`, reusing the proactive path's notice and apply
-    - [ ] Make the combined error message name the address check and the DNS refresh when the retry also fails
-    - [ ] Backend tests for the reactive path, including that an unchanged address on retry makes no terraform call
+    - [x] Extend the `ErrSSHConnect` branch of `onInstance` to call `ensureHostIngress` before `refreshPublicDNS`, reusing the proactive path's notice and apply
+    - [x] Make the combined error message name the address check and the DNS refresh when the retry also fails
+    - [x] Backend tests for the reactive path, including that an unchanged address on retry makes no terraform call
 - [ ] **Task 14.4: The host-address check is verified against a real instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

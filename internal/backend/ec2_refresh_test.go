@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/humansintheloop-dev/isolarium/internal/command"
 	"github.com/humansintheloop-dev/isolarium/internal/ec2"
 )
 
@@ -63,10 +64,13 @@ func (s *ec2RefreshStub) describe(ctx context.Context, region, instanceID string
 // scripted so a connect failure and the refresh it provokes can be counted. No
 // tmux session is running on the instance, so Exec starts one.
 type ec2RefreshFixture struct {
-	backend  *EC2Backend
-	ssh      *ec2RetrySpy
-	describe *ec2RefreshStub
-	instance *ec2InstanceFake
+	backend    *EC2Backend
+	ssh        *ec2RetrySpy
+	describe   *ec2RefreshStub
+	instance   *ec2InstanceFake
+	detections *ec2CheckIPScript
+	bucket     *ensureBucketSpy
+	terraform  *command.FakeRunner
 }
 
 func ec2BackendAnswering(t *testing.T, script ...ec2RemoteOutcome) ec2RefreshFixture {
@@ -77,7 +81,16 @@ func ec2BackendAnswering(t *testing.T, script ...ec2RemoteOutcome) ec2RefreshFix
 	describe := &ec2RefreshStub{publicDNS: ec2MovedPublicDNS}
 	f.backend.ExecInSessionFunc = ssh.exec
 	f.backend.DescribeInstanceFunc = describe.describe
-	return ec2RefreshFixture{backend: f.backend, ssh: ssh, describe: describe, instance: f.instance}
+	detections := answerCheckIPInTurn(f.backend, addressOf(ec2SpyDetectedCIDR))
+	return ec2RefreshFixture{
+		backend:    f.backend,
+		ssh:        ssh,
+		describe:   describe,
+		instance:   f.instance,
+		detections: detections,
+		bucket:     f.bucket,
+		terraform:  f.terraform,
+	}
 }
 
 func (f ec2RefreshFixture) exec() (int, error) {
@@ -118,6 +131,10 @@ func TestEC2Backend_Exec_DoesNotRefreshOnNonZeroExit(t *testing.T) {
 	if f.describe.calls != 0 {
 		t.Errorf("Exec() made %d AWS lookups for a command the instance ran and rejected, want 0", f.describe.calls)
 	}
+	if f.detections.calls != 1 {
+		t.Errorf("Exec() detected the host address %d times for a command the instance ran and rejected, want only the check before connecting", f.detections.calls)
+	}
+	assertNoRemoteInfrastructureCalls(t, f.bucket, f.terraform)
 	assertSSHAttempts(t, f.ssh, ec2SpyPublicDNS)
 	assertRecordedPublicDNS(t, f.backend.MetadataDir, ec2SpyPublicDNS)
 }
@@ -158,6 +175,26 @@ func TestEC2Backend_Exec_RetriesAtMostOnce(t *testing.T) {
 	}
 	assertRefreshedOnce(t, f.describe)
 	assertSSHAttempts(t, f.ssh, ec2SpyPublicDNS, ec2MovedPublicDNS)
+}
+
+// A retry that still cannot connect says what was checked and refreshed before
+// it, so the reader knows neither a stale host address nor a stale instance
+// address is what is left to fix.
+func TestEC2Backend_Exec_RetryFailureNamesTheHostCheckAndTheRefresh(t *testing.T) {
+	f := ec2BackendAnswering(t, ec2RemoteOutcome{exitCode: 255, err: ec2ConnectFailure()})
+
+	_, err := f.exec()
+
+	if !errors.Is(err, ec2.ErrSSHConnect) {
+		t.Fatalf("Exec() error = %v, want the connect failure to survive the retry", err)
+	}
+	assertContainsAll(t, "error", err.Error(),
+		"ssh exited 255",
+		"host address",
+		ec2SpyDetectedCIDR,
+		"instance address",
+		ec2MovedPublicDNS,
+	)
 }
 
 func assertRefreshedOnce(t *testing.T, describe *ec2RefreshStub) {

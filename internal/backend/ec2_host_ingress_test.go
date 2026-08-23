@@ -195,6 +195,88 @@ func TestEC2HostIngress_CopyCredentialsReappliesTheIngressRuleWhenTheHostAddress
 	assertContainsAll(t, "stderr", f.errOut.String(), "host address changed from "+ec2SpyPersistedCIDR+" to "+ec2SpyDetectedCIDR)
 }
 
+// ec2CheckIPScript stands in for the public-IP lookup service across a
+// connection attempt, answering each address once, in order, the last repeating,
+// and counting the lookups so a test can say when the host address was
+// re-checked.
+type ec2CheckIPScript struct {
+	calls     int
+	addresses []string
+}
+
+func answerCheckIPInTurn(b *EC2Backend, addresses ...string) *ec2CheckIPScript {
+	script := &ec2CheckIPScript{addresses: addresses}
+	b.CheckIPFunc = script.get
+	return script
+}
+
+func (s *ec2CheckIPScript) get(string) (string, error) {
+	s.calls++
+	address := s.addresses[len(s.addresses)-1]
+	if s.calls <= len(s.addresses) {
+		address = s.addresses[s.calls-1]
+	}
+	return address + "\n", nil
+}
+
+func addressOf(cidr string) string {
+	return strings.TrimSuffix(cidr, "/32")
+}
+
+// A host whose address changed between the proactive check and the connection,
+// or whose persisted record was wrong, gets the rule re-applied once the
+// connection fails, before the instance address is refreshed and retried.
+func TestEC2HostIngress_ConnectFailureReappliesTheIngressRuleWhenTheHostAddressChanged(t *testing.T) {
+	f := ec2BackendReachedFromAnotherAddress(t)
+	answerCheckIPInTurn(f.backend, addressOf(ec2SpyPersistedCIDR), addressOf(ec2SpyDetectedCIDR))
+	describe := &ec2RefreshStub{publicDNS: ec2MovedPublicDNS}
+	f.backend.DescribeInstanceFunc = describe.describe
+	ssh := &ec2RetrySpy{script: []ec2RemoteOutcome{{exitCode: 255, err: ec2ConnectFailure()}, {exitCode: 0}}}
+	var terraformCallsWhenRetrying int
+	f.backend.ExecInSessionFunc = func(base, publicDNS string, cmd ec2.RemoteCommand) (int, error) {
+		terraformCallsWhenRetrying = len(f.terraform.Calls())
+		return ssh.exec(base, publicDNS, cmd)
+	}
+
+	exitCode, err := runHello(f.backend)
+
+	if err != nil {
+		t.Fatalf("Exec() error = %v, want the retry to have succeeded", err)
+	}
+	if exitCode != 0 {
+		t.Errorf("Exec() exit code = %d, want 0", exitCode)
+	}
+	assertSharedInfrastructureApplied(t, f.ec2ExecFixture)
+	if terraformCallsWhenRetrying != 2 {
+		t.Errorf("Exec() had run %d terraform invocations when it retried, want init and apply first", terraformCallsWhenRetrying)
+	}
+	assertSSHAttempts(t, ssh, ec2SpyPublicDNS, ec2MovedPublicDNS)
+	assertRefreshedOnce(t, describe)
+	assertPersistedIngressCIDR(t, f.backend.MetadataDir, ec2SpyDetectedCIDR)
+	assertRecordedPublicDNS(t, f.backend.MetadataDir, ec2MovedPublicDNS)
+	assertContainsAll(t, "stderr", f.errOut.String(),
+		"host address changed from "+ec2SpyPersistedCIDR+" to "+ec2SpyDetectedCIDR+"; updating SSH ingress...",
+		"instance moved to "+ec2MovedPublicDNS+"; retrying",
+	)
+}
+
+func TestEC2HostIngress_ConnectFailureRechecksTheHostAddressWithoutTerraformWhenItIsUnchanged(t *testing.T) {
+	f := ec2BackendAnswering(t,
+		ec2RemoteOutcome{exitCode: 255, err: ec2ConnectFailure()},
+		ec2RemoteOutcome{exitCode: 0},
+	)
+
+	if _, err := f.exec(); err != nil {
+		t.Fatalf("Exec() error = %v, want the retry to have succeeded", err)
+	}
+
+	if f.detections.calls != 2 {
+		t.Errorf("Exec() detected the host address %d times, want once before connecting and once after the connect failure", f.detections.calls)
+	}
+	assertNoRemoteInfrastructureCalls(t, f.bucket, f.terraform)
+	assertSSHAttempts(t, f.ssh, ec2SpyPublicDNS, ec2MovedPublicDNS)
+}
+
 // CopyCredentials goes through onInstance, so a moved instance gets the same
 // address refresh and retry the other connecting operations get.
 func TestEC2HostIngress_CopyCredentialsRefreshesTheAddressOnConnectFailure(t *testing.T) {

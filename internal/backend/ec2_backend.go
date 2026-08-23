@@ -609,18 +609,20 @@ func (b *EC2Backend) OpenShell(req ExecRequest) (int, error) {
 // recorded at create time, so running a command costs no AWS or terraform call.
 // Commands run from the repository create placed on the instance.
 //
-// The instance ID is immutable but the public DNS is not, so a connection that
-// never reached the instance — as opposed to a command it ran and rejected —
-// buys one lookup of the current address, one rewrite of metadata.json, and one
-// further attempt. A stop and start recovers; a genuinely unreachable instance
-// costs two attempts rather than a loop.
+// Neither address is fixed: the host's public IP moves with its network and
+// the instance's public DNS changes across a stop and start, so a connection
+// that never reached the instance — as opposed to a command it ran and
+// rejected — buys one re-check of the host address, one lookup of the
+// instance's current address, one rewrite of metadata.json, and one further
+// attempt. A genuinely unreachable instance costs two attempts rather than a
+// loop.
 func (b *EC2Backend) onInstance(name string, run func(publicDNS string) (int, error)) (int, error) {
 	store := ec2.NewMetadataStore(b.MetadataDir, name)
 	meta, err := store.Read()
 	if err != nil {
 		return 1, err
 	}
-	if err := b.ensureHostIngress(*meta); err != nil {
+	if _, err := b.ensureHostIngress(*meta); err != nil {
 		return 1, err
 	}
 
@@ -628,13 +630,29 @@ func (b *EC2Backend) onInstance(name string, run func(publicDNS string) (int, er
 	if !errors.Is(err, ec2.ErrSSHConnect) {
 		return exitCode, err
 	}
+	return b.retryAfterRefreshingAddresses(store, *meta, exitCode, err, run)
+}
 
-	publicDNS, refreshErr := b.refreshPublicDNS(store, *meta)
+// retryAfterRefreshingAddresses is the one further attempt a connect failure
+// buys. The host address is re-checked first, since the persisted record may
+// have been wrong or the address may have changed since the proactive check;
+// a retry that still fails says what was checked and refreshed before it.
+func (b *EC2Backend) retryAfterRefreshingAddresses(store *ec2.MetadataStore, meta ec2.Metadata, exitCode int, connectErr error, run func(publicDNS string) (int, error)) (int, error) {
+	hostCheck, ingressErr := b.ensureHostIngress(meta)
+	if ingressErr != nil {
+		return exitCode, fmt.Errorf("%w; and the SSH ingress rule could not be re-applied: %v", connectErr, ingressErr)
+	}
+	publicDNS, refreshErr := b.refreshPublicDNS(store, meta)
 	if refreshErr != nil {
-		return exitCode, fmt.Errorf("%w; and its current address could not be looked up: %v", err, refreshErr)
+		return exitCode, fmt.Errorf("%w; and its current address could not be looked up: %v", connectErr, refreshErr)
 	}
 	b.printErr(fmt.Sprintf("instance moved to %s; retrying", publicDNS))
-	return run(publicDNS)
+
+	exitCode, retryErr := run(publicDNS)
+	if retryErr == nil {
+		return exitCode, nil
+	}
+	return exitCode, fmt.Errorf("%w; retried after %s and refreshing the instance address to %s, and the retry failed too: %v", connectErr, hostCheck, publicDNS, retryErr)
 }
 
 // ensureHostIngress re-applies the shared SSH ingress rule when the host's
@@ -643,27 +661,29 @@ func (b *EC2Backend) onInstance(name string, run func(publicDNS string) (int, er
 // no terraform or AWS call. A host whose address cannot be detected is warned
 // and connected anyway, since the command might still work; a re-apply that
 // fails is an error, because the connection it was clearing the way for would
-// fail too.
-func (b *EC2Backend) ensureHostIngress(meta ec2.Metadata) error {
+// fail too. It reports what it did, for a later error to name.
+func (b *EC2Backend) ensureHostIngress(meta ec2.Metadata) (string, error) {
 	change, warning, err := ec2.IngressChanged(b.MetadataDir, b.CheckIPFunc)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if warning != "" {
 		b.printErr(warning)
-		return nil
+		return "skipping the host address check (detection failed)", nil
 	}
 	if !change.Changed {
-		return nil
+		return fmt.Sprintf("finding the host address unchanged (%s)", change.Detected), nil
 	}
 
 	b.printErr(fmt.Sprintf("host address changed from %s to %s; updating SSH ingress...", describePersistedCIDR(change.Persisted), change.Detected))
 	plan, err := b.sharedInfrastructurePlan(meta.Region, change.Detected)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, err = b.applySharedInfrastructure(plan)
-	return err
+	if _, err := b.applySharedInfrastructure(plan); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("re-applying SSH ingress for %s", change.Detected), nil
 }
 
 func describePersistedCIDR(persisted string) string {
