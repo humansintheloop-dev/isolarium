@@ -702,6 +702,40 @@ SSH ingress to every EC2 environment is pinned to the host's public /32, resolve
     - [x] Extend the `//go:build ec2` integration test with the lock-out-then-run scenario and the no-notice second run
     - [x] Run `./test-scripts/test-ec2.sh` against a real account and record the result
     - [x] Run `make` and confirm exit code 0
+## Steel Thread 15: Project workloads build and test inside the instance: Gradle in spring-boot-app and uv in python-cli-app
+The suite so far proves the toolchain is present and that plain shell commands run; it never builds or tests a real project. The Lima, container and nono backends have gradlew and pytest end-to-end tests over `testdata/spring-boot-app` and `testdata/python-cli-app`, pushed to a throwaway GitHub repository. The EC2 backend needs no throwaway repository: `create` clones this repository, and both testdata projects are tracked, so they are already at `~/repo/testdata` on the instance. The gradle workload cannot pass today because `cloud-init.yaml` installs SDKMAN but not Java or Gradle — Lima installs those after cloning with `install-using-sdkman.sh`, and EC2's `Create` does not — so the first task closes that gap and the next two add the workload tests to the `ec2`-tagged suite run by `./test-scripts/test-ec2.sh`.
+
+- [ ] **Task 15.1: A freshly created EC2 instance has Java and Gradle installed through SDKMAN**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: on an instance created by `isolarium create --type ec2`, `java -version` and `bash -lc 'source ~/.sdkman/bin/sdkman-init.sh && gradle --version'` each exit 0, alongside the existing toolchain probes
+  - Evidence: ``TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` gains `java` and `gradle` probes and passes in a green `./test-scripts/test-ec2.sh` run`
+  - Steps:
+    - [ ] Add `java` and `gradle` entries to `toolchainProbes()` in `internal/ec2/toolchain_ec2_test.go` and confirm they fail against the current cloud-init, which installs SDKMAN but neither candidate
+    - [ ] Move `install-using-sdkman.sh` out of `internal/lima` into a package both backends can embed (for example `internal/toolchain`), keeping `lima.InstallUsingSDKMAN` working unchanged
+    - [ ] Add `InstallUsingSDKMAN(session InstanceSession) error` to `internal/ec2/clone.go` that pipes the script to `bash -s` over the plain transport, mirroring how Lima runs it, and call it from `Create` after `PlaceRepository`
+    - [ ] Cover the new call with a runner-based unit test in `internal/ec2/clone_test.go` asserting the script is sent once and a non-zero exit is reported
+    - [ ] Record the added create-time duration in `README.md` next to the cloud-init timing
+- [ ] **Task 15.2: `./gradlew clean build` succeeds in `testdata/spring-boot-app` on the instance**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: `isolarium run --type ec2 -- bash -c 'source ~/.sdkman/bin/sdkman-init.sh && cd testdata/spring-boot-app && ./gradlew clean build'` exits 0 and its output contains `BUILD SUCCESSFUL`, using the `testdata/spring-boot-app` directory that arrives with the clone of this repository
+  - Evidence: ``TestEC2Run_GradlewBuildsTheSpringBootApp` in `internal/ec2/gradlew_ec2_test.go` behind `//go:build ec2` passes in a green `./test-scripts/test-ec2.sh` run`
+  - Steps:
+    - [ ] Add `internal/ec2/gradlew_ec2_test.go` behind `//go:build ec2`, driving the shared instance through `startIsolariumRun` from `run_ec2_test.go` with the gradlew command and asserting exit 0 and `BUILD SUCCESSFUL` in the output
+    - [ ] Assert `testdata/spring-boot-app/gradlew` exists in the clone before running, so a missing checkout fails with a clear message rather than a gradle error
+    - [ ] Name the file so it sorts after `repo_ec2_test.go`, because the build writes `testdata/spring-boot-app/build` and `.gradle` into the clone and `repo_ec2_test.go` asserts the clone is clean; record that ordering in the file-order comment in `lifecycle_ec2_test.go`
+    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and record the gradlew duration in the log
+- [ ] **Task 15.3: `uv run pytest` and `uv run greeter` succeed in `testdata/python-cli-app` on the instance**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: `isolarium run --type ec2 -- bash -c 'cd testdata/python-cli-app && rm -rf .venv && uv run pytest -v'` exits 0 with `2 passed` in its output, and `isolarium run --type ec2 -- bash -c 'cd testdata/python-cli-app && uv run greeter EC2'` exits 0 printing `Hello, EC2!`, matching the commands `cmd/isolarium/e2e_pytest_vm_test.go` runs in a VM
+  - Evidence: ``TestEC2Run_PytestPassesInThePythonCliApp` and `TestEC2Run_GreeterCliPrintsAGreeting` in `internal/ec2/pytest_ec2_test.go` behind `//go:build ec2` pass in a green `./test-scripts/test-ec2.sh` run`
+  - Steps:
+    - [ ] Add `internal/ec2/pytest_ec2_test.go` behind `//go:build ec2` with both tests driving the shared instance through `startIsolariumRun`, asserting the exit code and the expected output text
+    - [ ] Confirm `uv` resolves in the non-interactive shell the run uses (`$HOME/.local/bin`); if it does not, prefix the command with `export PATH=$HOME/.local/bin:$PATH` as the VM test does and note why
+    - [ ] Name the file so it sorts after `repo_ec2_test.go`, because `uv run` creates `.venv` in the clone; add it to the file-order comment in `lifecycle_ec2_test.go`
+    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and confirm both tests pass with no isolarium instance left running
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).
@@ -984,3 +1018,6 @@ All four steps verified: ./test-scripts/test-ec2.sh exited 0 against the real ac
 
 ### 2026-08-22 18:04 - mark-task-complete
 ResolveIngressCIDR detects without writing; applyAndRecordIngress in the backend persists the CIDR only after terraform apply returns without error for both create and destroy. Backend tests cover a failed create and a failed destroy leaving the earlier CIDR in place, and a successful create persisting the detected one; docs/design/ec2.md Create and Destroy sections updated.
+
+### 2026-08-23 16:24 - insert-thread-after
+Add workload tests for the EC2 backend matching the gradlew and pytest end-to-end tests the other backends have; the clone already carries both testdata projects, and Java/Gradle must be installed first since EC2 create never ran install-using-sdkman.sh
