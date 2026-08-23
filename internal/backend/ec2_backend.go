@@ -353,7 +353,8 @@ func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInsta
 // one that can actually be worked in, then places the repository inside it.
 func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySpec) error {
 	// The readiness probes are queries rather than plain commands: cloud-init's
-	// own report of a degraded run is what names the modules that failed.
+	// own report is what names a failed module, or the warnings of a degraded
+	// run that is otherwise ready.
 	query := b.instanceQuery(publicDNS)
 
 	if err := ec2.WaitForSSH(query, b.sleep()); err != nil {
@@ -361,8 +362,12 @@ func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySp
 	}
 
 	b.print("Waiting for cloud-init...")
-	if err := ec2.WaitForCloudInit(query, b.sleep()); err != nil {
+	notice, err := ec2.WaitForCloudInit(query, b.sleep())
+	if err != nil {
 		return err
+	}
+	if notice != "" {
+		b.printErr(notice)
 	}
 
 	b.print("Cloning repository...")

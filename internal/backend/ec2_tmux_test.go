@@ -138,7 +138,7 @@ func assertSessionProbe(t *testing.T, spy *ec2ExecSpy) {
 	if !spy.called {
 		t.Fatal("the tmux session was never probed for")
 	}
-	assertArgsEqual(t, "session probe", spy.command.Args, []string{"tmux", "has-session", "-t", "isolarium"})
+	assertArgsEqual(t, "session probe", spy.command.Args, []string{"tmux", "has-session", "-t", "isolarium", "2>/dev/null"})
 	if spy.command.Workdir != "" {
 		t.Errorf("session probe workdir = %q, want it to run from the login directory", spy.command.Workdir)
 	}
@@ -184,7 +184,7 @@ func TestEC2NewSessionBackendOpensAShellInTheAdditionalSession(t *testing.T) {
 }
 
 func onlyDefaultSessionIsRunning(base, publicDNS string, cmd ec2.RemoteCommand) (int, error) {
-	if strings.Join(cmd.Args, " ") == "tmux has-session -t isolarium" {
+	if strings.Join(cmd.Args, " ") == "tmux has-session -t isolarium 2>/dev/null" {
 		return 0, nil
 	}
 	return 1, nil

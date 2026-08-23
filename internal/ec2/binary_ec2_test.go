@@ -9,6 +9,7 @@ package ec2_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -44,10 +45,35 @@ func isolariumBinary(t *testing.T) string {
 type processEnvironment []string
 
 // binaryEnvironment points the built binary at the home directory the suite's
-// metadata lives under, since the CLI derives ~/.isolarium for itself.
+// metadata lives under, since the CLI derives ~/.isolarium for itself. Moving
+// HOME also moves where git looks for the host's global config, and create reads
+// user.email and user.name from there for the instance's clone, so the host's
+// own file is named explicitly.
 func binaryEnvironment() processEnvironment {
-	return append(os.Environ(), "HOME="+sharedHomeDir)
+	return append(os.Environ(), "HOME="+sharedHomeDir, "GIT_CONFIG_GLOBAL="+hostGitConfigPath)
 }
+
+// hostGitConfigPath is the global git config the host keeps its author identity
+// in, resolved once by TestMain so that a host without one fails the suite
+// before any instance is launched rather than minutes into create.
+var hostGitConfigPath string
+
+// resolveHostGitConfigPath asks git which file user.email comes from, rather
+// than assuming ~/.gitconfig, so a host that keeps its identity under
+// $XDG_CONFIG_HOME/git or in an included file is handed the right one.
+func resolveHostGitConfigPath() (string, error) {
+	output, err := exec.Command("git", "config", "--global", "--show-origin", "--get", "user.email").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolving the host's global git config: git config --global --show-origin --get user.email: %w", err)
+	}
+	origin, _, found := strings.Cut(strings.TrimSpace(string(output)), "\t")
+	if !found || !strings.HasPrefix(origin, gitConfigFileOrigin) {
+		return "", fmt.Errorf("resolving the host's global git config: unexpected origin %q", origin)
+	}
+	return strings.TrimPrefix(origin, gitConfigFileOrigin), nil
+}
+
+const gitConfigFileOrigin = "file:"
 
 // runBinaryStreaming runs one isolarium invocation, copying its output to the
 // suite's own stderr as it arrives, and returns what it printed. A command that

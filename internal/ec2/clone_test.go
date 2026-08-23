@@ -87,8 +87,15 @@ type readinessCase struct {
 func readinessCases() []readinessCase {
 	return []readinessCase{
 		{"SSH", WaitForSSH, SSHTimeout, "instance did not become reachable over SSH within 5m0s"},
-		{"cloud-init", WaitForCloudInit, CloudInitTimeout, "instance did not finish cloud-init within 15m0s"},
+		{"cloud-init", waitForCloudInitDiscardingTheNotice, CloudInitTimeout, "instance did not finish cloud-init within 15m0s"},
 	}
+}
+
+// waitForCloudInitDiscardingTheNotice gives the cloud-init wait the shape the
+// shared cases expect; what it says about a degraded run has its own tests.
+func waitForCloudInitDiscardingTheNotice(query InstanceQuery, sleep SleepFunc) error {
+	_, err := WaitForCloudInit(query, sleep)
+	return err
 }
 
 func TestReadinessLoops_GiveUpOnceTheirBudgetIsSpent(t *testing.T) {
@@ -169,7 +176,7 @@ func TestWaitForCloudInit_AsksTheInstanceToWaitForProvisioningToFinish(t *testin
 	runner := &remoteRunnerSpy{exitCodes: []int{0}}
 	sleeper := &sleepSpy{}
 
-	if err := WaitForCloudInit(runner.query(t), sleeper.sleep); err != nil {
+	if _, err := WaitForCloudInit(runner.query(t), sleeper.sleep); err != nil {
 		t.Fatalf("WaitForCloudInit returned %v, want nil", err)
 	}
 
@@ -186,7 +193,7 @@ func TestWaitForCloudInit_RetriesWhileTheInstanceIsStillUnreachable(t *testing.T
 	runner := &remoteRunnerSpy{exitCodes: []int{255, 255, 0}}
 	sleeper := &sleepSpy{}
 
-	if err := WaitForCloudInit(runner.query(t), sleeper.sleep); err != nil {
+	if _, err := WaitForCloudInit(runner.query(t), sleeper.sleep); err != nil {
 		t.Fatalf("WaitForCloudInit returned %v, want nil", err)
 	}
 
@@ -199,36 +206,54 @@ func TestWaitForCloudInit_RetriesWhileTheInstanceIsStillUnreachable(t *testing.T
 	}
 }
 
-// degradedCloudInitStatus is what `cloud-init status --wait --long` prints when
-// provisioning ran to the end but a module failed on the way: the run is over —
-// `status: done` — so re-probing it can only spend the budget.
+// degradedCloudInitStatus is what `cloud-init status --wait --long` printed on a
+// real Ubuntu 24.04 instance on 2026-08-22: provisioning ran to the end with
+// every module succeeding — `errors: []` — and cloud-init still exited 2,
+// because the IMDS probe over IPv6 had logged a warning on an instance that has
+// no IPv6. A module that fails is recorded under `errors` and reported as
+// `status: error` instead, so `degraded` is the instance saying it is ready
+// and has something to mention, not that it is broken.
 const degradedCloudInitStatus = `.....
-status: degraded done
+status: done
 extended_status: degraded done
-last_update: Thu, 20 Aug 2026 14:03:21 +0000
+last_update: Thu, 01 Jan 1970 00:01:29 +0000
 detail: DataSourceEc2Local
 errors: []
 recoverable_errors:
-	WARNING: Failed to run module install_claude_code
+WARNING:
+	- Calling 'http://[fd00:ec2::254]/latest/api/token' failed [0/240s]: request error [HTTPConnectionPool(host='fd00:ec2::254', port=80): Max retries exceeded with url: /latest/api/token (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x730017ef9d30>: Failed to establish a new connection: [Errno 101] Network is unreachable'))]
 `
 
-func TestWaitForCloudInit_FailsFastWhenProvisioningFinishesDegraded(t *testing.T) {
+func TestWaitForCloudInit_AcceptsADegradedRunAndRelaysItsWarnings(t *testing.T) {
 	runner := &remoteRunnerSpy{exitCodes: []int{2}, outputs: []string{degradedCloudInitStatus}}
 	sleeper := &sleepSpy{}
 
-	err := WaitForCloudInit(runner.query(t), sleeper.sleep)
+	notice, err := WaitForCloudInit(runner.query(t), sleeper.sleep)
 
-	if err == nil {
-		t.Fatal("WaitForCloudInit returned nil, want an error for a degraded provisioning run")
+	if err != nil {
+		t.Fatalf("WaitForCloudInit returned %v, want nil — a degraded run finished with every module succeeding", err)
 	}
 	assertSettledWithoutRetrying(t, runner, sleeper)
-	for _, want := range []string{"degraded", "install_claude_code", "/var/log/cloud-init-output.log"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error = %q, want it to contain %q", err, want)
+	for _, want := range []string{"degraded", "fd00:ec2::254", "Network is unreachable", "/var/log/cloud-init-output.log"} {
+		if !strings.Contains(notice, want) {
+			t.Errorf("notice = %q, want it to contain %q", notice, want)
 		}
 	}
-	if strings.Contains(err.Error(), "did not finish") {
-		t.Errorf("error = %q, want it not to claim cloud-init never finished", err)
+	if strings.Contains(notice, ".....") {
+		t.Errorf("notice = %q, want the --wait progress dots left out", notice)
+	}
+}
+
+func TestWaitForCloudInit_SaysNothingAboutACleanRun(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{0}, outputs: []string{"status: done\n"}}
+
+	notice, err := WaitForCloudInit(runner.query(t), (&sleepSpy{}).sleep)
+
+	if err != nil {
+		t.Fatalf("WaitForCloudInit returned %v, want nil", err)
+	}
+	if notice != "" {
+		t.Errorf("notice = %q, want nothing to relay for a clean run", notice)
 	}
 }
 
@@ -237,7 +262,7 @@ func TestWaitForCloudInit_FailsFastWhenProvisioningErrors(t *testing.T) {
 	runner := &remoteRunnerSpy{exitCodes: []int{1}, outputs: []string{errorStatus}}
 	sleeper := &sleepSpy{}
 
-	err := WaitForCloudInit(runner.query(t), sleeper.sleep)
+	_, err := WaitForCloudInit(runner.query(t), sleeper.sleep)
 
 	if err == nil {
 		t.Fatal("WaitForCloudInit returned nil, want an error for a failed provisioning run")

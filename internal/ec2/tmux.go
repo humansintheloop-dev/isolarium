@@ -41,11 +41,18 @@ func BuildAttachCommand(sessionName string) []string {
 
 // SessionExists reports whether the instance is already running the named
 // session. An unreachable instance answers no, leaving the failure to the
-// command that follows, which reports it far better than a probe can.
+// command that follows, which reports it far better than a probe can. tmux's
+// own complaint when there is no server to ask — the ordinary case on every
+// first run — is dropped on the instance, so the probe's answer is its exit
+// status alone and nothing reaches the user's terminal.
 func SessionExists(session InstanceSession, sessionName string) bool {
-	exitCode, err := session.exitCode(RemoteCommand{Args: []string{"tmux", "has-session", "-t", sessionName}})
+	exitCode, err := session.exitCode(RemoteCommand{Args: []string{"tmux", "has-session", "-t", sessionName, discardRemoteStderr}})
 	return err == nil && exitCode == 0
 }
+
+// discardRemoteStderr is interpreted by the remote shell, which re-parses the
+// words ssh hands it, so it silences the command it follows on the instance.
+const discardRemoteStderr = "2>/dev/null"
 
 // AnnounceReattach warns that the command about to be sent will be discarded,
 // which is what `tmux new-session -A` silently does when the session already

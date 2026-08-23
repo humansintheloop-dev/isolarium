@@ -70,13 +70,15 @@ func newHostProvisioningSpy() *hostProvisioningSpy {
 // ec2RemoteSpy stands in for the SSH transport during Create, recording every
 // command the instance was asked to run. A command named in neverSucceeds always
 // exits non-zero, which is how an unreachable instance and a stalled cloud-init
-// are reproduced.
+// are reproduced; cloudInitWarnings, when set, is the degraded report the
+// cloud-init probe answers with.
 type ec2RemoteSpy struct {
-	commands      []ec2.RemoteCommand
-	base          string
-	publicDNS     string
-	neverSucceeds string
-	rejects       string
+	commands          []ec2.RemoteCommand
+	base              string
+	publicDNS         string
+	neverSucceeds     string
+	rejects           string
+	cloudInitWarnings string
 }
 
 func (s *ec2RemoteSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int, error) {
@@ -96,8 +98,15 @@ func (s *ec2RemoteSpy) exec(base, publicDNS string, cmd ec2.RemoteCommand) (int,
 // output as well as its exit code, which is how the readiness probes run.
 func (s *ec2RemoteSpy) capture(base, publicDNS string, cmd ec2.RemoteCommand) (string, int, error) {
 	exitCode, err := s.exec(base, publicDNS, cmd)
+	if s.cloudInitWarnings != "" && cmd.Args[0] == "cloud-init" {
+		return s.cloudInitWarnings, cloudInitDegradedExit, nil
+	}
 	return "", exitCode, err
 }
+
+// cloudInitDegradedExit is what `cloud-init status` exits with when provisioning
+// finished with warnings and no failed module.
+const cloudInitDegradedExit = 2
 
 func (s *ec2RemoteSpy) ranCommand(marker string) bool {
 	for _, cmd := range s.commands {
@@ -491,6 +500,35 @@ func TestEC2Backend_Create_ReportsProgressThroughEachStage(t *testing.T) {
 	want := "Creating EC2 instance...\nWaiting for cloud-init...\nCloning repository...\n"
 	if got := out.String(); got != want {
 		t.Errorf("Create() printed %q, want %q", got, want)
+	}
+}
+
+// A cloud-init run that finished degraded — warnings logged, no module failed —
+// is an instance that is ready and has something to mention. Create goes on to
+// clone and relays the warnings on stderr, where they cannot be mistaken for
+// the command's own output.
+func TestEC2Backend_Create_RelaysCloudInitWarningsAndCarriesOn(t *testing.T) {
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), ec2FakeTerraform(t))
+	fixture.remote.cloudInitWarnings = "status: done\nextended_status: degraded done\nerrors: []\nrecoverable_errors:\nWARNING:\n\t- Calling 'http://[fd00:ec2::254]/latest/api/token' failed\n"
+	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
+	b := fixture.backend()
+	b.Out = out
+	b.ErrWriter = errOut
+
+	if err := b.Create(fixture.createOptions()); err != nil {
+		t.Fatalf("Create() error = %v, want nil for a degraded run with no failed module", err)
+	}
+
+	if !fixture.remote.ranCommand("git clone") {
+		t.Error("Create() did not clone the repository onto an instance whose cloud-init finished with warnings only")
+	}
+	for _, want := range []string{"degraded", "fd00:ec2::254"} {
+		if !strings.Contains(errOut.String(), want) {
+			t.Errorf("Create() wrote %q to stderr, want it to relay %q", errOut.String(), want)
+		}
+	}
+	if strings.Contains(out.String(), "fd00:ec2::254") {
+		t.Errorf("Create() wrote the cloud-init warnings to stdout:\n%s", out.String())
 	}
 }
 

@@ -103,6 +103,11 @@ func runSuiteAgainstOneInstance(m *testing.M) int {
 		fmt.Fprintf(os.Stderr, "creating the shared metadata directory: %v\n", err)
 		return 1
 	}
+	hostGitConfigPath, err = resolveHostGitConfigPath()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
 
 	status := m.Run()
 	if err := terminateSharedInstance(); err != nil {
@@ -652,7 +657,22 @@ func (e *ec2Environment) instanceOutput(args ...string) string {
 func (e *ec2Environment) askInstance(args ...string) (int, string) {
 	e.t.Helper()
 
-	output, exitCode, err := ec2.CaptureCommand(e.base, e.publicDNS, ec2.RemoteCommand{Args: args})
+	return e.askInstanceIn("", args...)
+}
+
+// askInstanceInRepo is askInstance run inside the clone, which is where Exec
+// runs a user's command and so where the assertions about the checkout belong.
+// The plain transport lands in the home directory, not there.
+func (e *ec2Environment) askInstanceInRepo(args ...string) (int, string) {
+	e.t.Helper()
+
+	return e.askInstanceIn(ec2.RemoteRepoDir, args...)
+}
+
+func (e *ec2Environment) askInstanceIn(workdir string, args ...string) (int, string) {
+	e.t.Helper()
+
+	output, exitCode, err := ec2.CaptureCommand(e.base, e.publicDNS, ec2.RemoteCommand{Workdir: workdir, Args: args})
 	if err != nil {
 		e.t.Fatalf("running %s on the instance: %v", strings.Join(args, " "), err)
 	}

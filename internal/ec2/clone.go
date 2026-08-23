@@ -30,7 +30,7 @@ const cloudInitLogPath = "/var/log/cloud-init-output.log"
 const sshTransportFailureExit = 255
 
 // cloudInitDegradedExit is what `cloud-init status` reports when provisioning
-// ran to the end but some of its modules failed.
+// ran to the end with warnings logged and no module failed.
 const cloudInitDegradedExit = 2
 
 // isolationNameSuffix distinguishes commits authored inside an isolated
@@ -101,14 +101,28 @@ func (s InstanceSession) mustRun(cmd RemoteCommand, description string) error {
 // the answer, or wait and probe again.
 type probeOutcome struct {
 	settled bool
-	err     error
+	// notice is what a ready instance said that is worth relaying to whoever
+	// asked — nothing, for a clean run.
+	notice string
+	err    error
 }
 
 func instanceIsReady() probeOutcome { return probeOutcome{settled: true} }
 
+func instanceIsReadyAndSays(notice string) probeOutcome {
+	return probeOutcome{settled: true, notice: notice}
+}
+
 func waitingCannotHelp(err error) probeOutcome { return probeOutcome{settled: true, err: err} }
 
 func notReadyYet() probeOutcome { return probeOutcome{} }
+
+// probeResult is one answer the instance gave a probe: what the command exited
+// with and what it printed on the way.
+type probeResult struct {
+	exitCode int
+	output   string
+}
 
 // readinessLoop retries a probe on a fixed interval until its outcome settles,
 // or the budget runs out. What each exit code means belongs to the probe rather
@@ -117,63 +131,84 @@ type readinessLoop struct {
 	budget    time.Duration
 	interval  time.Duration
 	probe     RemoteCommand
-	assess    func(exitCode int, output string) probeOutcome
+	assess    func(probeResult) probeOutcome
 	giveUpMsg string
 }
 
-func (l readinessLoop) wait(query InstanceQuery, sleep SleepFunc) error {
+// wait hands back the notice of the outcome that settled the loop alongside its
+// error, so a probe that found the instance ready with something to mention can
+// pass that on.
+func (l readinessLoop) wait(query InstanceQuery, sleep SleepFunc) (string, error) {
 	for waited := time.Duration(0); waited < l.budget; waited += l.interval {
 		output, exitCode, err := query.capture(l.probe)
 		if err != nil {
-			return err
+			return "", err
 		}
-		if outcome := l.assess(exitCode, output); outcome.settled {
-			return outcome.err
+		if outcome := l.assess(probeResult{exitCode: exitCode, output: output}); outcome.settled {
+			return outcome.notice, outcome.err
 		}
 		sleep(l.interval)
 	}
-	return fmt.Errorf("%s within %s", l.giveUpMsg, l.budget)
+	return "", fmt.Errorf("%s within %s", l.giveUpMsg, l.budget)
 }
 
 // everyFailureMeansNotUpYet is how the SSH probe reads its exit codes: until the
 // instance answers at all, nothing distinguishes a failure worth reporting from
 // one worth waiting out.
-func everyFailureMeansNotUpYet(exitCode int, _ string) probeOutcome {
-	if exitCode == 0 {
+func everyFailureMeansNotUpYet(result probeResult) probeOutcome {
+	if result.exitCode == 0 {
 		return instanceIsReady()
 	}
 	return notReadyYet()
 }
 
 // assessCloudInit separates the answers the instance itself gives — provisioning
-// finished, finished with failed modules, or failed outright — from the ssh
-// transport failure that means sshd is not listening yet. Only that last one is
-// worth probing again for; the other three are the instance's final word.
-func assessCloudInit(exitCode int, output string) probeOutcome {
-	switch exitCode {
+// finished, finished degraded, or failed outright — from the ssh transport
+// failure that means sshd is not listening yet. Only that last one is worth
+// probing again for; the other three are the instance's final word.
+//
+// Degraded is cloud-init saying every module ran and something logged a
+// warning on the way — a module that fails is recorded under `errors` and
+// reported as `status: error` instead. The Ubuntu AMI's IMDS probe over IPv6,
+// on an instance that has no IPv6, is enough to make every run degraded, so the
+// instance is taken as ready and the warnings are relayed rather than acted on.
+func assessCloudInit(result probeResult) probeOutcome {
+	report := cloudInitReport(result.output)
+	switch result.exitCode {
 	case 0:
 		return instanceIsReady()
 	case sshTransportFailureExit:
 		return notReadyYet()
 	case cloudInitDegradedExit:
-		return waitingCannotHelp(cloudInitFinishedBadly("finished degraded — some provisioning modules failed", output))
+		return instanceIsReadyAndSays(report.warnings())
 	default:
-		return waitingCannotHelp(cloudInitFinishedBadly("failed", output))
+		return waitingCannotHelp(report.failure())
 	}
 }
 
-// cloudInitFinishedBadly reports a provisioning run the instance has declared
-// over, quoting the status it gave so the failing modules are named, and
-// pointing at the log that holds the rest.
-func cloudInitFinishedBadly(condition, output string) error {
-	return fmt.Errorf("cloud-init %s on the instance:\n%s\nsee %s on the instance for the full output",
-		condition, cloudInitStatusReport(output), cloudInitLogPath)
+// cloudInitReport is what `cloud-init status --wait --long` printed: the
+// instance's own account of how first-boot provisioning went.
+type cloudInitReport string
+
+// failure reports a provisioning run the instance has declared over with a
+// module failed, quoting the status it gave so the failing modules are named,
+// and pointing at the log that holds the rest.
+func (r cloudInitReport) failure() error {
+	return fmt.Errorf("cloud-init failed on the instance:\n%s\nsee %s on the instance for the full output",
+		r.summary(), cloudInitLogPath)
 }
 
-// cloudInitStatusReport is what the long status said, without the progress dots
-// `--wait` prints while first-boot provisioning is still running.
-func cloudInitStatusReport(output string) string {
-	return strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(output), "."))
+// warnings is the notice for a degraded run: the warnings cloud-init recorded,
+// quoted in full, and where the rest of the output is.
+func (r cloudInitReport) warnings() string {
+	return fmt.Sprintf("Warning: cloud-init finished degraded on the instance — it logged warnings, but no module failed:\n%s\nsee %s on the instance for the full output",
+		r.summary(), cloudInitLogPath)
+}
+
+// summary is what the long status said, without the progress dots `--wait`
+// prints while first-boot provisioning is still running.
+func (r cloudInitReport) summary() string {
+	return strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(string(r)), "."))
 }
 
 // sshReadiness covers the window in which AWS calls the instance running but
@@ -198,10 +233,14 @@ var cloudInitReadiness = readinessLoop{
 }
 
 func WaitForSSH(query InstanceQuery, sleep SleepFunc) error {
-	return sshReadiness.wait(query, sleep)
+	_, err := sshReadiness.wait(query, sleep)
+	return err
 }
 
-func WaitForCloudInit(query InstanceQuery, sleep SleepFunc) error {
+// WaitForCloudInit returns once provisioning is over. The notice is empty for a
+// clean run and carries cloud-init's own warnings for a degraded one, so the
+// caller can relay them; an error means the instance cannot be worked in.
+func WaitForCloudInit(query InstanceQuery, sleep SleepFunc) (string, error) {
 	return cloudInitReadiness.wait(query, sleep)
 }
 

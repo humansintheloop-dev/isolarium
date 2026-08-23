@@ -94,7 +94,7 @@ func (e *ec2Environment) assertProjectConfigTravelledFromTheHost() {
 			e.t.Logf("%s does not exist on the host, so nothing should have travelled", name)
 			continue
 		}
-		exitCode, _ := e.askInstance("test", "-f", name)
+		exitCode, _ := e.askInstanceInRepo("test", "-f", name)
 		if exitCode != 0 {
 			e.t.Errorf("%s exists on the host but not in the clone on the instance", name)
 		}
@@ -180,7 +180,7 @@ func isLeftInTheCloneByCreate(entry string) bool {
 func (e *ec2Environment) gitOutput(args ...string) string {
 	e.t.Helper()
 
-	exitCode, output := e.askInstance(append([]string{"git"}, args...)...)
+	exitCode, output := e.askInstanceInRepo(append([]string{"git"}, args...)...)
 	if exitCode != 0 {
 		e.t.Fatalf("git %s on the instance exited %d, want 0", strings.Join(args, " "), exitCode)
 	}

@@ -48,8 +48,12 @@ that holds the repository and has run the project's `pid.yaml` hooks. In order:
 8. Write `metadata.json` (instance ID, public DNS, region, owner, repo, branch,
    created-at). This happens before waiting on the instance so a create that
    times out during provisioning can still be destroyed.
-9. Wait for SSH, then wait for cloud-init to finish. A degraded cloud-init run
-   is reported with the modules that failed.
+9. Wait for SSH, then wait for cloud-init to finish. `cloud-init status
+   --wait --long` exits 0 for a clean run, 2 for a degraded one (every module
+   ran, something logged a warning — which the Ubuntu AMI's IMDS probe over
+   IPv6 does on every instance without IPv6) and 1 when a module failed. A
+   degraded run counts as ready and its warnings are relayed on stderr; a
+   failed one fails the create with the modules named.
 10. Clone the repository onto the instance.
 11. Run the `pid.yaml` `ec2.create` hooks: creation scripts on the instance,
     then host scripts on the host, then post-creation env scripts on the
@@ -85,17 +89,24 @@ instance even when isolarium itself has no terminal, with the host's stdin left
 disconnected (`ec2.ExecInSessionCommand`). That is what lets tmux start under
 i2code, and what keeps the command running if the connection drops.
 
+- Whether a session is running is asked with `tmux has-session -t <session>
+  2>/dev/null` over the plain transport; only its exit status is wanted, and
+  tmux's complaint that no server is running — the ordinary first-run case —
+  is dropped on the instance rather than shown to the user.
 - If no session is running, `Exec` first clears the session's status file
   (`mkdir -p ~/.isolarium && rm -f ~/.isolarium/status-<session>`, over the
   capture transport) and then starts one: `tmux new-session -s <session> -- sh
-  -c '<cmd>; echo $? > ~/.isolarium/status-<session>' \; set-option -t
-  <session> @isolarium-command '<cmd>'`. The `sh -c` wrapper
+  -c '<cmd>; echo $? > ~/.isolarium/status-<session>; sleep 1' \; set-option
+  -t <session> @isolarium-command '<cmd>'`. The `sh -c` wrapper
   (`ec2.WrapWithExitStatus`) records the command's exit status when it ends,
-  because the tmux client exits 0 whatever the command did. The second tmux
-  command records the unwrapped arguments on the session as a tmux user
-  option, rendered by `ec2.CommandRecord` (arguments quoted only where the
-  shell would split them; environment excluded, since the per-run token always
-  differs).
+  because the tmux client exits 0 whatever the command did, and then holds the
+  pane open for a second: tmux tears the window down the moment its process
+  exits, and the client that started the session draws the pane only a few
+  milliseconds after attaching, so a command that ends inside that window —
+  `echo ok` — would otherwise stream nothing. The second tmux command records
+  the unwrapped arguments on the session as a tmux user option, rendered by
+  `ec2.CommandRecord` (arguments quoted only where the shell would split them;
+  environment excluded, since the per-run token always differs).
 - If the session is already running, `Exec` reads `@isolarium-command` back
   with `tmux show-option -qv`. When it equals the arguments about to run,
   `Exec` prints `reattaching to session '<session>', which is already running:

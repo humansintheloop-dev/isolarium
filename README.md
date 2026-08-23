@@ -403,12 +403,13 @@ should not have to rebuild all of them. An optional argument narrows the run:
 A narrowed run that matches nothing still fails, because the script rejects a
 `go test` that reported `no tests to run`.
 
-One failure worth recognising: `create "<name>": instance did not finish
-cloud-init within 15m0s` while the log fills with `status: done`. That is an
-instance whose cloud-init finished degraded — `cloud-init status --wait` prints
-`done` but exits non-zero — which the readiness loop cannot distinguish from one
-still provisioning. It is an unlucky instance rather than a broken test; re-run
-that single test by name.
+One message worth recognising: `Warning: cloud-init finished degraded on the
+instance — it logged warnings, but no module failed`, followed by cloud-init's
+own report. `cloud-init status --wait` exits 2 when any module logged a warning,
+and the Ubuntu AMI's IMDS probe over IPv6 does so on every instance that has no
+IPv6, so a healthy instance routinely reports `degraded done` with `errors: []`.
+Create relays the warnings on stderr and carries on; a module that actually
+failed is reported as `status: error` and fails the create.
 
 The run reports three timings you should expect to see in the output: `TIMING:
 create` (the `terraform apply` wall clock, which includes waiting for cloud-init

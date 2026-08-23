@@ -10,12 +10,13 @@ import (
 
 // sessionStart is the command line Exec sends when no session is running: a
 // detachable session running the command under sh, which writes the command's
-// exit status to the session's status file when it ends, with the record of the
+// exit status to the session's status file when it ends and then holds the pane
+// open for a second so the client has drawn it, with the record of the
 // unwrapped command set on the session in the same tmux invocation. Both the
 // script and the record travel through the remote shell in single quotes, with
 // any single quote inside them closed, escaped, and reopened.
 func sessionStart(session, record string) []string {
-	script := singleQuoted(record + "; echo $? > ~/.isolarium/status-" + session)
+	script := singleQuoted(record + "; echo $? > ~/.isolarium/status-" + session + "; sleep 1")
 	start := []string{"tmux", "new-session", "-s", session, "--", "sh", "-c", script}
 	return append(start, `\;`, "set-option", "-t", session, "@isolarium-command", singleQuoted(record))
 }
@@ -139,5 +140,5 @@ func TestEC2NewSessionBackendRunsExecInAnAdditionalSession(t *testing.T) {
 		t.Fatal("--new-session never asked the instance which sessions are running")
 	}
 	assertArgsEqual(t, "exec args", f.session.command.Args, sessionStart("isolarium-2", "bash"))
-	assertArgsEqual(t, "session probe", f.exec.command.Args, []string{"tmux", "has-session", "-t", "isolarium-2"})
+	assertArgsEqual(t, "session probe", f.exec.command.Args, []string{"tmux", "has-session", "-t", "isolarium-2", "2>/dev/null"})
 }

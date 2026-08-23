@@ -18,13 +18,24 @@ func StatusFilePath(sessionName string) string {
 	return statusDir + "/status-" + sessionName
 }
 
-// WrapWithExitStatus runs args under sh and writes the command's exit status to
-// statusPath once it ends. The tmux client exits 0 whatever the command inside
-// it did, so the status has to travel through a file. The script is quoted as
-// one word for the remote login shell, with the command's own arguments quoted
-// inside it for the sh that runs them.
+// paneLinger holds the tmux pane open after the command has ended and its
+// status is recorded. tmux tears the window down as soon as its process exits,
+// and the client that started the session draws the pane only after the start
+// sequences it sent have been written — a few milliseconds — so a command that
+// ends inside that window, `echo ok` say, would be gone before anything was
+// drawn and stream nothing at all. A second is far more than the draw needs and
+// is paid once per run. The status file is written first, so a run that joins
+// during the linger reads the real status the moment the session ends.
+const paneLinger = "sleep 1"
+
+// WrapWithExitStatus runs args under sh, writes the command's exit status to
+// statusPath once it ends, and then lingers so the pane is drawn before it goes.
+// The tmux client exits 0 whatever the command inside it did, so the status has
+// to travel through a file. The script is quoted as one word for the remote
+// login shell, with the command's own arguments quoted inside it for the sh
+// that runs them.
 func WrapWithExitStatus(args []string, statusPath string) []string {
-	script := CommandRecord(args) + "; echo $? > " + statusPath
+	script := CommandRecord(args) + "; echo $? > " + statusPath + "; " + paneLinger
 	return []string{"sh", "-c", shellQuote(script)}
 }
 

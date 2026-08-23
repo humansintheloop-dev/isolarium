@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ const (
 	sessionStartTimeout  = 90 * time.Second
 	sessionStartInterval = 2 * time.Second
 	refusalTimeout       = 90 * time.Second
+	interruptTimeout     = 30 * time.Second
 	longRunTimeout       = longRunSeconds*time.Second + 3*time.Minute
 )
 
@@ -57,6 +59,33 @@ func TestEC2Run_ReattachesToTheCommandAlreadyRunning(t *testing.T) {
 	environment.assertBothRunsReportTheCommandStatus(first, reattached)
 	environment.assertTheReattachedRunJoinedTheSession(reattached)
 	environment.assertBothRunsStreamedTheCommandOutput(first, reattached)
+}
+
+// TestEC2Run_ReattachesAfterTheRunWasInterrupted is the situation the tmux
+// session exists for: i2code's run is interrupted the way a terminal's Ctrl-C
+// interrupts it — SIGINT to the whole process group, the binary and the ssh it
+// spawned — the command keeps running in the instance's session, and running
+// the same command again joins it and ends with the command's own status.
+func TestEC2Run_ReattachesAfterTheRunWasInterrupted(t *testing.T) {
+	environment := sharedInstance(t)
+	environment.clearWhatAnEarlierTmuxTestLeftBehind()
+
+	interrupted := environment.startIsolariumRun(longRunningCommand()...)
+	environment.waitForTheSessionToBeRunning()
+	interrupted.interruptLikeATerminalWould()
+
+	environment.assertTheInterruptedRunEndedWithoutTheCommandStatus(interrupted)
+	environment.assertTheSessionIsStillRunning()
+
+	rerun := environment.startIsolariumRun(longRunningCommand()...)
+
+	if exitCode := rerun.waitUntilItEnds(longRunTimeout); exitCode != longRunExitCode {
+		t.Errorf("the run started after the interrupt exited %d, want the command's own %d\n%s", exitCode, longRunExitCode, rerun.output())
+	}
+	environment.assertTheReattachedRunJoinedTheSession(rerun)
+	if !strings.Contains(visibleText(rerun.output()), finishedMarker) {
+		t.Errorf("the run started after the interrupt did not stream the command's end %q:\n%s", finishedMarker, visibleText(rerun.output()))
+	}
 }
 
 // TestEC2Run_CreateFlagRunsTheCommandWhenTheEnvironmentExists is the other half
@@ -98,6 +127,28 @@ func (e *ec2Environment) waitForTheSessionToBeRunning() {
 		time.Sleep(sessionStartInterval)
 	}
 	e.t.Fatalf("tmux has-session -t %s on the instance did not answer 0 within %s of starting the run", ec2.DefaultSessionName, sessionStartTimeout)
+}
+
+// assertTheInterruptedRunEndedWithoutTheCommandStatus checks that the interrupt
+// ended the run on the host — ssh and binary alike — while the command it had
+// started was still running, so whatever status it reports cannot be the
+// command's own.
+func (e *ec2Environment) assertTheInterruptedRunEndedWithoutTheCommandStatus(interrupted *isolariumRun) {
+	e.t.Helper()
+
+	if exitCode := interrupted.waitUntilItEnds(interruptTimeout); exitCode == longRunExitCode {
+		e.t.Errorf("the interrupted run exited %d, the command's own status, but the command was still running when it was interrupted\n%s", exitCode, interrupted.output())
+	}
+}
+
+// assertTheSessionIsStillRunning is what interrupting the run must leave behind:
+// the command, still running in the instance's session, for a later run to join.
+func (e *ec2Environment) assertTheSessionIsStillRunning() {
+	e.t.Helper()
+
+	if exitCode, _ := e.askInstance("tmux", "has-session", "-t", ec2.DefaultSessionName); exitCode != 0 {
+		e.t.Fatalf("tmux has-session -t %s on the instance answered %d after the run was interrupted; want the command left running in the session", ec2.DefaultSessionName, exitCode)
+	}
 }
 
 func (e *ec2Environment) assertRunWasRefusedNamingTheRunningCommand(refused *isolariumRun) {
@@ -152,7 +203,9 @@ func (e *ec2Environment) assertBothRunsStreamedTheCommandOutput(first, reattache
 // background so that a second and third can be started while it is still
 // running. Its output is collected rather than streamed, because three runs
 // interleaving on the suite's stderr would be unreadable; it is reported in full
-// when an assertion about it fails.
+// when an assertion about it fails. Each run leads its own process group, so
+// that a signal meant for it reaches the ssh it spawned as well as the binary —
+// the way a terminal delivers Ctrl-C — and never the suite.
 type isolariumRun struct {
 	t        *testing.T
 	label    string
@@ -175,6 +228,7 @@ func (e *ec2Environment) startIsolariumRun(command ...string) *isolariumRun {
 	run.command.Env = binaryEnvironment()
 	run.command.Stdout = run.captured
 	run.command.Stderr = run.captured
+	run.command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := run.command.Start(); err != nil {
 		e.t.Fatalf("starting %s: %v", run.label, err)
@@ -209,12 +263,28 @@ func (r *isolariumRun) output() string {
 }
 
 // killIfStillRunning makes sure a run the test gave up on cannot outlive it and
-// hold the session, and the suite, open.
+// hold the session, and the suite, open. The whole process group goes, so the
+// ssh the binary spawned does not stay attached to the session on its own.
 func (r *isolariumRun) killIfStillRunning() {
 	if r.command.ProcessState != nil {
 		return
 	}
-	_ = r.command.Process.Kill()
+	_ = r.signalProcessGroup(syscall.SIGKILL)
+}
+
+// interruptLikeATerminalWould is Ctrl-C as a terminal delivers it: SIGINT to
+// the run's process group, the binary and its ssh together, which is what
+// interrupting i2code does to the run it is driving.
+func (r *isolariumRun) interruptLikeATerminalWould() {
+	r.t.Helper()
+
+	if err := r.signalProcessGroup(syscall.SIGINT); err != nil {
+		r.t.Fatalf("interrupting %s: %v", r.label, err)
+	}
+}
+
+func (r *isolariumRun) signalProcessGroup(signal syscall.Signal) error {
+	return syscall.Kill(-r.command.Process.Pid, signal)
 }
 
 // terminalControlSequence matches what tmux writes to paint a screen — cursor
