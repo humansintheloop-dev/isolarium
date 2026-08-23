@@ -693,15 +693,15 @@ SSH ingress to every EC2 environment is pinned to the host's public /32, resolve
     - [x] Extend the `ErrSSHConnect` branch of `onInstance` to call `ensureHostIngress` before `refreshPublicDNS`, reusing the proactive path's notice and apply
     - [x] Make the combined error message name the address check and the DNS refresh when the retry also fails
     - [x] Backend tests for the reactive path, including that an unchanged address on retry makes no terraform call
-- [ ] **Task 14.4: The host-address check is verified against a real instance**
+- [x] **Task 14.4: The host-address check is verified against a real instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: Against a real account, after `create`, the test applies the shared infrastructure with a wrong single-host CIDR (`terraform apply -var ingress_cidr=198.51.100.1/32` in the working directory) and writes that CIDR to `isolarium.auto.tfvars`, so the host is locked out and the persisted record agrees with AWS; `isolarium run --type ec2 -- echo ok` then prints the `host address changed` notice on stderr, re-applies, prints `ok`, and exits 0; a second `run` prints no notice and makes no terraform call; `destroy` still terminates the instance
   - Evidence: `./test-scripts/test-ec2.sh exits 0 against a real account with the new assertions present, and `make` exits 0`
   - Steps:
-    - [ ] Extend the `//go:build ec2` integration test with the lock-out-then-run scenario and the no-notice second run
-    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and record the result
-    - [ ] Run `make` and confirm exit code 0
+    - [x] Extend the `//go:build ec2` integration test with the lock-out-then-run scenario and the no-notice second run
+    - [x] Run `./test-scripts/test-ec2.sh` against a real account and record the result
+    - [x] Run `make` and confirm exit code 0
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).

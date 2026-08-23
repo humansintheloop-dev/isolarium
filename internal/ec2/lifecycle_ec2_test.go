@@ -57,9 +57,9 @@ const (
 //   - recovery_ec2_test.go sorts between this file and repo_ec2_test.go, which
 //     is where its stop and start belong: the instance already exists, and no
 //     test has yet built up the tmux state a reboot would throw away.
-//   - run_ec2_test.go sorts ahead of tmux_ec2_test.go because it needs the
-//     shared tmux session free, and the tmux tests deliberately leave a process
-//     running in it.
+//   - run_ec2_test.go and run_hostaddress_ec2_test.go sort ahead of
+//     tmux_ec2_test.go because they need the shared tmux session free, and the
+//     tmux tests deliberately leave a process running in it.
 //
 // Renaming one of those files, or adding a test that writes to the instance
 // ahead of them, breaks assertions elsewhere without breaking this test.
@@ -544,17 +544,23 @@ func (e *ec2Environment) countSharedResource(resource sharedResource) int {
 func (e *ec2Environment) assertStateBucketExists() {
 	e.t.Helper()
 
-	ctx := context.Background()
-	identity, err := sts.NewFromConfig(e.awsConfig()).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		e.t.Fatalf("resolving the AWS account: %v", err)
-	}
-
-	bucket := ec2.StateBucketName(aws.ToString(identity.Account), e.region)
-	_, err = s3.NewFromConfig(e.awsConfig()).HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(bucket)})
+	bucket := e.stateBucketName()
+	_, err := s3.NewFromConfig(e.awsConfig()).HeadBucket(context.Background(), &s3.HeadBucketInput{Bucket: aws.String(bucket)})
 	if err != nil {
 		e.t.Errorf("HeadBucket on the state bucket %s failed: %v", bucket, err)
 	}
+}
+
+// stateBucketName is the remote-state bucket create provisioned, named the way
+// the product names it from the account and region.
+func (e *ec2Environment) stateBucketName() string {
+	e.t.Helper()
+
+	identity, err := sts.NewFromConfig(e.awsConfig()).GetCallerIdentity(context.Background(), &sts.GetCallerIdentityInput{})
+	if err != nil {
+		e.t.Fatalf("resolving the AWS account: %v", err)
+	}
+	return ec2.StateBucketName(aws.ToString(identity.Account), e.region)
 }
 
 // managedByIsolarium selects only the resources this project's Terraform
