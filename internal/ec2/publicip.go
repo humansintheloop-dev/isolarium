@@ -68,11 +68,12 @@ func (o Operation) String() string {
 // ResolveIngressCIDR yields the CIDR SSH ingress is pinned to, together with a
 // warning the caller is expected to report when it had to fall back. Detection
 // failure is fatal for every operation except OpDestroy, and no path returns an
-// open CIDR.
+// open CIDR. It never writes the persisted file: that records the CIDR last
+// applied, which the caller knows only once its apply has succeeded.
 func ResolveIngressCIDR(base string, op Operation, get HTTPGetFunc) (cidr string, warning string, err error) {
 	cidr, err = DetectPublicIP(get)
 	if err == nil {
-		return cidr, "", PersistIngressCIDR(base, cidr)
+		return cidr, "", nil
 	}
 	if op != OpDestroy {
 		return "", "", err

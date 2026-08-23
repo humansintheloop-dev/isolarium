@@ -149,10 +149,16 @@ func TestResolveIngressCIDR_FailsOnDestroyWithNothingPersisted(t *testing.T) {
 	}
 }
 
-func TestResolveIngressCIDR_PersistsWhatItDetects(t *testing.T) {
+// TestResolveIngressCIDR_DetectsWithoutPersisting pins detection apart from
+// persistence: the file records what was last applied, and a detected CIDR has
+// not been applied yet.
+func TestResolveIngressCIDR_DetectsWithoutPersisting(t *testing.T) {
 	for _, op := range []Operation{OpCreate, OpDestroy} {
 		t.Run(op.String(), func(t *testing.T) {
 			base := t.TempDir()
+			if err := PersistIngressCIDR(base, "198.51.100.4/32"); err != nil {
+				t.Fatalf("seeding the persisted CIDR: %v", err)
+			}
 
 			cidr, warning, err := ResolveIngressCIDR(base, op, fakeCheckIPReturning("203.0.113.7\n"))
 
@@ -170,8 +176,8 @@ func TestResolveIngressCIDR_PersistsWhatItDetects(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ReadPersistedIngressCIDR() error = %v", err)
 			}
-			if persisted != "203.0.113.7/32" {
-				t.Errorf("persisted CIDR = %q, want %q", persisted, "203.0.113.7/32")
+			if persisted != "198.51.100.4/32" {
+				t.Errorf("persisted CIDR = %q after detection, want the previous %q left in place", persisted, "198.51.100.4/32")
 			}
 		})
 	}

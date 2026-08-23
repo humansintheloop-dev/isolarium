@@ -41,8 +41,11 @@ that holds the repository and has run the project's `pid.yaml` hooks. In order:
    pin SSH ingress to it.
 5. Render cloud-init user data, check it fits the user-data size limit, and
    write `instance-<name>.tf`. Create refuses if that file already exists.
-6. Run `terraform init` and `terraform apply`, then read `terraform output
-   -json` and pick out `instance_id_<name>` and `public_dns_<name>`.
+6. Run `terraform init` and `terraform apply`. Once the apply returns without
+   error, record the ingress CIDR it was given in `isolarium.auto.tfvars`, so
+   the file holds the CIDR the security group was last applied with; a failed
+   apply leaves the earlier value in place. Then read `terraform output -json`
+   and pick out `instance_id_<name>` and `public_dns_<name>`.
 7. Resolve the repository source. This pushes the current branch and mints a
    short-lived clone token, so it is deferred until an instance exists.
 8. Write `metadata.json` (instance ID, public DNS, region, owner, repo, branch,
@@ -69,11 +72,14 @@ infrastructure, in place.
 - Otherwise it resolves the account (region and bucket), keypair, and ingress
   CIDR first, so a failure there leaves the environment intact. It skips the
   Terraform version check: the environment was created by a Terraform that
-  passed it, and refusing to destroy would strand a running instance.
+  passed it, and refusing to destroy would strand a running instance. When
+  public IP detection fails it falls back to the CIDR recorded in
+  `isolarium.auto.tfvars`, with a warning on stderr.
 - It deletes `instance-<name>.tf` and runs `terraform apply` again rather than
   a targeted destroy. A resource that is in state but has no configuration is
   always planned for destruction, so an interrupted destroy converges when it
-  is re-run.
+  is re-run. Once the apply succeeds it records the ingress CIDR it applied in
+  `isolarium.auto.tfvars`; a failed apply leaves the earlier value alone.
 - It evicts the instance's host key from `<metadata>/ec2/known_hosts` (if
   metadata recorded a public DNS) and removes `metadata.json`.
 

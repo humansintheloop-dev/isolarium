@@ -322,7 +322,7 @@ func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, erro
 	if err := terraform.Init(); err != nil {
 		return launchedInstance{}, err
 	}
-	if err := terraform.Apply(plan.applyVariables()); err != nil {
+	if err := b.applyAndRecordIngress(terraform, plan); err != nil {
 		return launchedInstance{}, err
 	}
 
@@ -335,6 +335,17 @@ func (b *EC2Backend) applyInstance(plan environmentPlan) (launchedInstance, erro
 		return launchedInstance{}, err
 	}
 	return launchedInstance{id: instanceID, publicDNS: publicDNS}, nil
+}
+
+// applyAndRecordIngress applies the plan and, only once the apply has returned
+// without error, records the ingress CIDR it was given as the one the security
+// group now holds. A failed apply leaves the earlier record in place, so the
+// file never names an address that did not reach AWS.
+func (b *EC2Backend) applyAndRecordIngress(terraform *ec2.TerraformRunner, plan environmentPlan) error {
+	if err := terraform.Apply(plan.applyVariables()); err != nil {
+		return err
+	}
+	return ec2.PersistIngressCIDR(b.MetadataDir, plan.host.ingressCIDR)
 }
 
 func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInstance, source ec2.RepositorySpec) error {
@@ -454,7 +465,7 @@ func (t ec2Teardown) run() error {
 	if err := terraform.Init(); err != nil {
 		return err
 	}
-	if err := terraform.Apply(plan.applyVariables()); err != nil {
+	if err := t.backend.applyAndRecordIngress(terraform, plan); err != nil {
 		return err
 	}
 

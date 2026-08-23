@@ -663,16 +663,16 @@ Reviewing how i2code invokes isolarium (`isolarium --name i2code-<idea> --type <
 ## Steel Thread 14: `run` and `shell` recover when the host's public address changes
 SSH ingress to every EC2 environment is pinned to the host's public /32, resolved only by `create` and `destroy`. When the host moves network the security group still names the old address, so every `run` and `shell` fails to connect, and the existing retry in `onInstance` cannot help because it refreshes the instance's address, not the host's. This thread makes each connecting operation detect the host address first and re-apply the shared terraform when it differs from the one last applied (hybrid: a proactive check before connecting, plus one re-check when a connection fails), compares against `isolarium.auto.tfvars` written only after a successful apply, warns and proceeds when detection itself fails, and keeps the rule to a single address so switching machines re-applies on each.
 
-- [ ] **Task 14.1: The ingress CIDR is persisted only after a terraform apply succeeds**
+- [x] **Task 14.1: The ingress CIDR is persisted only after a terraform apply succeeds**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/ec2/ ./internal/backend/ -run 'Ingress|CIDR|Create|Destroy'`
   - Observable: `isolarium.auto.tfvars` holds the CIDR the security group was last successfully applied with. `ResolveIngressCIDR` no longer writes the file when it detects; `create` and `destroy` write it after their apply returns without error and leave the previous value in place when the apply fails, so a later comparison against the file cannot mistake a failed apply for an applied one. `destroy`'s fallback to the last known CIDR still reads the same file
   - Evidence: `go test ./internal/ec2/ ./internal/backend/ -run 'Ingress|CIDR|Create|Destroy' exits 0, with a test that a create whose apply fails leaves the previously persisted CIDR untouched and a test that a successful create persists the detected one`
   - Steps:
-    - [ ] In `internal/ec2/publicip.go` split detection from persistence: `ResolveIngressCIDR` returns the CIDR without writing; keep `PersistIngressCIDR` and `ReadPersistedIngressCIDR` as the file's only readers and writers
-    - [ ] In `internal/backend/ec2_backend.go` call `PersistIngressCIDR` after `terraform.Apply` succeeds in `applyInstance` and in `ec2Teardown.run`, using the CIDR the apply was given
-    - [ ] Adjust the create and destroy backend tests that asserted the early persist, and add the failed-apply test
-    - [ ] Update `docs/design/ec2.md` Create and Destroy sections: the CIDR is recorded after the apply, not before
+    - [x] In `internal/ec2/publicip.go` split detection from persistence: `ResolveIngressCIDR` returns the CIDR without writing; keep `PersistIngressCIDR` and `ReadPersistedIngressCIDR` as the file's only readers and writers
+    - [x] In `internal/backend/ec2_backend.go` call `PersistIngressCIDR` after `terraform.Apply` succeeds in `applyInstance` and in `ec2Teardown.run`, using the CIDR the apply was given
+    - [x] Adjust the create and destroy backend tests that asserted the early persist, and add the failed-apply test
+    - [x] Update `docs/design/ec2.md` Create and Destroy sections: the CIDR is recorded after the apply, not before
 - [ ] **Task 14.2: `run` and `shell` re-apply the SSH ingress rule when the host's public address has changed**
   - TaskType: OUTCOME
   - Entrypoint: `go test ./internal/backend/ -run 'Ingress|Exec|Shell|CopyCredentials'`
@@ -981,3 +981,6 @@ TestEC2Run_ReattachesAfterTheRunWasInterrupted passed in the green ./test-script
 
 ### 2026-08-22 17:49 - mark-task-complete
 All four steps verified: ./test-scripts/test-ec2.sh exited 0 against the real account (logs/test-ec2-task-13-4-run5.log) and make exited 0 (logs/make-task-13-4-d.log)
+
+### 2026-08-22 18:04 - mark-task-complete
+ResolveIngressCIDR detects without writing; applyAndRecordIngress in the backend persists the CIDR only after terraform apply returns without error for both create and destroy. Backend tests cover a failed create and a failed destroy leaving the earlier CIDR in place, and a successful create persisting the detected one; docs/design/ec2.md Create and Destroy sections updated.

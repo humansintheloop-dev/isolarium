@@ -336,7 +336,44 @@ func TestEC2Backend_Create_ProvisionsHostStateAfterBucketBootstrap(t *testing.T)
 		t.Errorf("host provisioning order = %q, want %q", got, "scaffold,keypair,detect")
 	}
 	assertHostProvisionedUnder(t, host, fixture.metadataDir)
+}
+
+// The persisted CIDR records what the security group was last applied with, so
+// a successful create records the address it detected and a failed apply leaves
+// the earlier record alone rather than claiming an address that never reached
+// AWS.
+func TestEC2Backend_Create_PersistsTheDetectedIngressCIDROnceTheApplySucceeds(t *testing.T) {
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), ec2FakeTerraform(t))
+	seedPersistedIngressCIDR(t, fixture.metadataDir)
+
+	if err := fixture.backend().Create(fixture.createOptions()); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
 	assertPersistedIngressCIDR(t, fixture.metadataDir, ec2SpyDetectedCIDR)
+}
+
+func TestEC2Backend_Create_LeavesThePersistedIngressCIDRWhenTheApplyFails(t *testing.T) {
+	runner := ec2FakeTerraform(t)
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), runner)
+	seedPersistedIngressCIDR(t, fixture.metadataDir)
+	applyFails := errors.New("Error: creating EC2 Instance: InsufficientInstanceCapacity")
+	runner.OnCommand("terraform", "-chdir="+ec2.TerraformDir(fixture.metadataDir), "apply").Fails(applyFails)
+
+	err := fixture.backend().Create(fixture.createOptions())
+
+	if !errors.Is(err, applyFails) {
+		t.Fatalf("Create() error = %v, want it to wrap %v", err, applyFails)
+	}
+	assertPersistedIngressCIDR(t, fixture.metadataDir, ec2SpyPersistedCIDR)
+}
+
+func seedPersistedIngressCIDR(t *testing.T, base string) {
+	t.Helper()
+
+	if err := ec2.PersistIngressCIDR(base, ec2SpyPersistedCIDR); err != nil {
+		t.Fatalf("seeding the persisted ingress CIDR: %v", err)
+	}
 }
 
 func assertHostProvisionedUnder(t *testing.T, host *hostProvisioningSpy, metadataDir string) {
@@ -756,9 +793,7 @@ func seedCreatedEnvironment(t *testing.T, base string) {
 	if err := ec2.WriteInstanceFile(base, "my-work", ""); err != nil {
 		t.Fatalf("seeding the instance file: %v", err)
 	}
-	if err := ec2.PersistIngressCIDR(base, ec2SpyPersistedCIDR); err != nil {
-		t.Fatalf("seeding the persisted ingress CIDR: %v", err)
-	}
+	seedPersistedIngressCIDR(t, base)
 	seedInitialisedTerraformDir(t, base)
 	seedKnownHosts(t, base)
 	seedRecordedInstance(t, base)
@@ -828,6 +863,19 @@ func assertDestroyInvocations(t *testing.T, f ec2DestroyFixture) {
 			t.Errorf("invocation %d =\n  %s\nwant\n  %s", i, got, wantCall)
 		}
 	}
+}
+
+func TestEC2Destroy_BackendLeavesThePersistedIngressCIDRWhenTheApplyFails(t *testing.T) {
+	f := ec2BackendWithCreatedEnvironment(t)
+	applyFails := errors.New("Error: acquiring the state lock")
+	f.runner.OnCommand("terraform", "-chdir="+ec2.TerraformDir(f.base), "apply").Fails(applyFails)
+
+	err := f.backend.Destroy("my-work")
+
+	if !errors.Is(err, applyFails) {
+		t.Fatalf("Destroy() error = %v, want it to wrap %v", err, applyFails)
+	}
+	assertPersistedIngressCIDR(t, f.base, ec2SpyPersistedCIDR)
 }
 
 func TestEC2Destroy_BackendIsIdempotent(t *testing.T) {
