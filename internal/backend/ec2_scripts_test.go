@@ -100,10 +100,17 @@ func TestEC2Backend_Create_RunsNoScriptWhenTheWorkDirectoryHasNoPidYaml(t *testi
 	}
 
 	for _, cmd := range fixture.remote.commands {
-		if cmd.Args[0] == "bash" && len(cmd.Args) == 2 {
+		if looksLikeAPidYamlScript(cmd) {
 			t.Errorf("Create() ran %v with no pid.yaml to declare it", cmd.Args)
 		}
 	}
+}
+
+// looksLikeAPidYamlScript matches the shape assertScriptRanInTheClone pins — a
+// script file run from the clone — and so not the SDKMAN install, which is
+// `bash -s` fed on stdin from the home directory.
+func looksLikeAPidYamlScript(cmd ec2.RemoteCommand) bool {
+	return cmd.Workdir == ec2.RemoteRepoDir && len(cmd.Args) == 2 && cmd.Args[0] == "bash" && cmd.Stdin == ""
 }
 
 func lastRemoteCommands(t *testing.T, commands []ec2.RemoteCommand, count int) []ec2.RemoteCommand {

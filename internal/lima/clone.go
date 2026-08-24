@@ -1,17 +1,14 @@
 package lima
 
 import (
-	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/humansintheloop-dev/isolarium/internal/project"
+	"github.com/humansintheloop-dev/isolarium/internal/toolchain"
 )
-
-//go:embed install-using-sdkman.sh
-var installUsingSDKMANScript string
 
 // BuildCloneURL constructs the git clone URL, embedding token if provided.
 // Only converts SSH URLs to HTTPS when a token is available for authentication.
@@ -199,7 +196,7 @@ func runCommand(args []string, description string) error {
 
 func InstallUsingSDKMAN(name string) error {
 	cmd := exec.Command("limactl", "shell", name, "--", "bash", "-s")
-	cmd.Stdin = strings.NewReader(installUsingSDKMANScript)
+	cmd.Stdin = strings.NewReader(toolchain.InstallUsingSDKMANScript)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

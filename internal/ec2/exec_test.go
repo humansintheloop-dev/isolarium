@@ -48,6 +48,25 @@ func TestEC2ExecInteractiveConnectsTheHostStdin(t *testing.T) {
 	}
 }
 
+func TestEC2ExecFeedsAScriptToTheTransportsStdin(t *testing.T) {
+	script := RemoteCommand{Args: []string{"sh", "-s"}, Stdin: "exit 7\n"}
+
+	exitCode, err := runRemoteCommand([]string{"sh", "-s"}, script.hostStdin())
+
+	if err != nil {
+		t.Fatalf("runRemoteCommand() error = %v", err)
+	}
+	if exitCode != 7 {
+		t.Errorf("exit code = %d, want 7 from the script the command carried on stdin", exitCode)
+	}
+}
+
+func TestEC2ExecLeavesStdinDisconnectedForACommandThatCarriesNone(t *testing.T) {
+	if got := (RemoteCommand{Args: []string{"true"}}).hostStdin(); got != disconnectedStdin {
+		t.Errorf("hostStdin() = %v, want it disconnected", got)
+	}
+}
+
 func TestEC2ExecReportsAFailureToLaunchSSH(t *testing.T) {
 	exitCode, err := runRemoteCommand([]string{"isolarium-no-such-binary"}, disconnectedStdin)
 

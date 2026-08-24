@@ -2,26 +2,27 @@ package ec2
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"os/exec"
 )
 
-// stdinMode is whether the host's standard input travels to the instance.
-type stdinMode bool
-
-const (
+// The host's standard input travels to the instance only when a command asks
+// for it.
+var (
 	// disconnectedStdin sends nothing from the host, which is what a
 	// non-interactive command wants and what lets a forced pseudo-terminal start
 	// tmux when isolarium itself has no terminal.
-	disconnectedStdin stdinMode = false
+	disconnectedStdin io.Reader = nil
 	// connectedStdin lets the user type into the remote command.
-	connectedStdin stdinMode = true
+	connectedStdin io.Reader = os.Stdin
 )
 
 // ExecCommand runs cmd on the instance over SSH, streaming stdout and stderr to
-// the host terminal, and returns the remote command's exit code.
+// the host terminal and feeding the command whatever input it carries, and
+// returns the remote command's exit code.
 func ExecCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
-	return runRemoteCommand(BuildExecCommand(base, publicDNS, cmd), disconnectedStdin)
+	return runRemoteCommand(BuildExecCommand(base, publicDNS, cmd), cmd.hostStdin())
 }
 
 // ExecInteractiveCommand runs cmd on the instance over SSH with a TTY attached,
@@ -55,17 +56,15 @@ func CaptureCommand(base, publicDNS string, cmd RemoteCommand) (string, int, err
 
 // runRemoteCommand streams the command's stdio and maps a non-zero remote exit
 // into an exit code rather than an error, so callers can propagate it verbatim.
-func runRemoteCommand(cmdArgs []string, stdin stdinMode) (int, error) {
+func runRemoteCommand(cmdArgs []string, stdin io.Reader) (int, error) {
 	return connectAwareExitCode(remoteProcess(cmdArgs, stdin).Run(), cmdArgs[0])
 }
 
 // remoteProcess is the host process that carries the command to the instance,
 // streaming what comes back to the host terminal.
-func remoteProcess(cmdArgs []string, stdin stdinMode) *exec.Cmd {
+func remoteProcess(cmdArgs []string, stdin io.Reader) *exec.Cmd {
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-	if stdin == connectedStdin {
-		cmd.Stdin = os.Stdin
-	}
+	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd

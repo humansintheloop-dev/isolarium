@@ -705,17 +705,17 @@ SSH ingress to every EC2 environment is pinned to the host's public /32, resolve
 ## Steel Thread 15: Project workloads build and test inside the instance: Gradle in spring-boot-app and uv in python-cli-app
 The suite so far proves the toolchain is present and that plain shell commands run; it never builds or tests a real project. The Lima, container and nono backends have gradlew and pytest end-to-end tests over `testdata/spring-boot-app` and `testdata/python-cli-app`, pushed to a throwaway GitHub repository. The EC2 backend needs no throwaway repository: `create` clones this repository, and both testdata projects are tracked, so they are already at `~/repo/testdata` on the instance. The gradle workload cannot pass today because `cloud-init.yaml` installs SDKMAN but not Java or Gradle — Lima installs those after cloning with `install-using-sdkman.sh`, and EC2's `Create` does not — so the first task closes that gap and the next two add the workload tests to the `ec2`-tagged suite run by `./test-scripts/test-ec2.sh`.
 
-- [ ] **Task 15.1: A freshly created EC2 instance has Java and Gradle installed through SDKMAN**
+- [x] **Task 15.1: A freshly created EC2 instance has Java and Gradle installed through SDKMAN**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: on an instance created by `isolarium create --type ec2`, `java -version` and `bash -lc 'source ~/.sdkman/bin/sdkman-init.sh && gradle --version'` each exit 0, alongside the existing toolchain probes
   - Evidence: ``TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` gains `java` and `gradle` probes and passes in a green `./test-scripts/test-ec2.sh` run`
   - Steps:
-    - [ ] Add `java` and `gradle` entries to `toolchainProbes()` in `internal/ec2/toolchain_ec2_test.go` and confirm they fail against the current cloud-init, which installs SDKMAN but neither candidate
-    - [ ] Move `install-using-sdkman.sh` out of `internal/lima` into a package both backends can embed (for example `internal/toolchain`), keeping `lima.InstallUsingSDKMAN` working unchanged
-    - [ ] Add `InstallUsingSDKMAN(session InstanceSession) error` to `internal/ec2/clone.go` that pipes the script to `bash -s` over the plain transport, mirroring how Lima runs it, and call it from `Create` after `PlaceRepository`
-    - [ ] Cover the new call with a runner-based unit test in `internal/ec2/clone_test.go` asserting the script is sent once and a non-zero exit is reported
-    - [ ] Record the added create-time duration in `README.md` next to the cloud-init timing
+    - [x] Add `java` and `gradle` entries to `toolchainProbes()` in `internal/ec2/toolchain_ec2_test.go` and confirm they fail against the current cloud-init, which installs SDKMAN but neither candidate
+    - [x] Move `install-using-sdkman.sh` out of `internal/lima` into a package both backends can embed (for example `internal/toolchain`), keeping `lima.InstallUsingSDKMAN` working unchanged
+    - [x] Add `InstallUsingSDKMAN(session InstanceSession) error` to `internal/ec2/clone.go` that pipes the script to `bash -s` over the plain transport, mirroring how Lima runs it, and call it from `Create` after `PlaceRepository`
+    - [x] Cover the new call with a runner-based unit test in `internal/ec2/clone_test.go` asserting the script is sent once and a non-zero exit is reported
+    - [x] Record the added create-time duration in `README.md` next to the cloud-init timing
 - [ ] **Task 15.2: `./gradlew clean build` succeeds in `testdata/spring-boot-app` on the instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/humansintheloop-dev/isolarium/internal/toolchain"
 )
 
 // remoteRunnerSpy answers a scripted sequence of exit codes — and, where the
@@ -453,6 +455,35 @@ func TestPlaceRepository_SkipsProjectConfigTheHostDoesNotHave(t *testing.T) {
 		"git config user.name",
 		RemoteRepoDir + "/CLAUDE.md",
 	})
+}
+
+func TestInstallUsingSDKMAN_PipesTheScriptToBashOnce(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{0}}
+
+	if err := InstallUsingSDKMAN(runner.session(t)); err != nil {
+		t.Fatalf("InstallUsingSDKMAN returned %v, want nil", err)
+	}
+
+	want := []RemoteCommand{{Args: []string{"bash", "-s"}, Stdin: toolchain.InstallUsingSDKMANScript}}
+	if !reflect.DeepEqual(runner.commands, want) {
+		t.Errorf("ran %v, want exactly one bash -s fed the SDKMAN script", runner.commands)
+	}
+	if !strings.Contains(toolchain.InstallUsingSDKMANScript, "installWithRetry java") {
+		t.Errorf("the embedded script does not install java:\n%s", toolchain.InstallUsingSDKMANScript)
+	}
+}
+
+func TestInstallUsingSDKMAN_ReportsANonZeroExit(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{1}}
+
+	err := InstallUsingSDKMAN(runner.session(t))
+
+	if err == nil {
+		t.Fatal("InstallUsingSDKMAN returned nil, want an error when the script exits non-zero")
+	}
+	if !strings.Contains(err.Error(), "SDKMAN") {
+		t.Errorf("error = %q, want it to name SDKMAN", err)
+	}
 }
 
 // assertRemoteCommandOrder checks that the recorded commands are exactly as many

@@ -80,9 +80,13 @@ launches an EC2 environment.
    distinguishable from commits authored on the host.
 7. Copy project config files (`.claude/settings.local.json`, `CLAUDE.md`) from
    the host into the instance's `/home/ubuntu/repo`.
+8. Install Java 17 and Gradle through SDKMAN, by feeding the same
+   [script](internal/toolchain/install-using-sdkman.sh) the VM backend runs to
+   `bash -s` over SSH, so the script never touches the instance's disk.
 
 The instance comes pre-installed with Git, GitHub CLI, Node.js, tmux, uv, Claude
-Code, and rootless Docker.
+Code, rootless Docker, Java, and Gradle. `java` is on the login `PATH`; `gradle`
+is reachable after `source ~/.sdkman/bin/sdkman-init.sh`, as on the VM.
 
 #### Agent sessions survive a closed laptop
 
@@ -362,8 +366,10 @@ Two things worth knowing before your first `create --type ec2`:
 
 - **Cold start takes minutes, not seconds.** The instance is built from a stock
   Ubuntu image at apply time rather than from a pre-baked AMI, and `create` does
-  not return until cloud-init has finished installing the toolchain. Measured
-  runs took between 1m36s and 2m18s; `create` gives up after 15 minutes.
+  not return until cloud-init has finished installing the toolchain and the
+  SDKMAN install of Java and Gradle has run on top of it. Measured runs took
+  between 1m36s and 2m18s for cloud-init, plus 27s for SDKMAN; `create` gives
+  up on cloud-init after 15 minutes.
 - **Instances bill until you destroy them.** Isolarium has no idle auto-stop and
   no cost reporting. A forgotten `t3.large` with a 50 GiB `gp3` volume costs
   roughly $64/month. Run `isolarium destroy --type ec2 --name <name>` when you
@@ -411,10 +417,13 @@ IPv6, so a healthy instance routinely reports `degraded done` with `errors: []`.
 Create relays the warnings on stderr and carries on; a module that actually
 failed is reported as `status: error` and fails the create.
 
-The run reports three timings you should expect to see in the output: `TIMING:
+The run reports four timings you should expect to see in the output: `TIMING:
 create` (the `terraform apply` wall clock, which includes waiting for cloud-init
-to finish), `TIMING: cold start from create to first SSH login`, and `TIMING:
-cloud-init reported done`. It also reports `SIZE: rendered user_data`.
+to finish and the SDKMAN install that follows it), `TIMING: cold start from
+create to first SSH login`, `TIMING: cloud-init reported done`, and `TIMING:
+SDKMAN install of Java and Gradle` (read back from the instance as the time
+between the script's first and last file writes). It also reports `SIZE:
+rendered user_data`.
 
 Measured on 2026-08-20 in `us-west-1` against a real account, on a run where the
 shared VPC, subnet, gateway, route table, security group, and key pair already
@@ -431,6 +440,7 @@ existed and only the instances had to be built:
 | New-session test | 153s, of which `TIMING: create` was 1m50s |
 | Toolchain test | 147s, of which `TIMING: create` was 1m45s |
 | `TIMING: cloud-init reported done` | 1m47s after create started |
+| `TIMING: SDKMAN install of Java and Gradle` | 27s (measured 2026-08-23, after a 2m7s cloud-init) |
 | `SIZE: rendered user_data` | 3418 bytes of the 16384-byte limit |
 
 Each test builds its own instance, so the wall clock is roughly the instance
@@ -447,8 +457,9 @@ The run exited 0: `Exec` of `echo hello` returned `hello` with exit code 0,
 `Exec` of `exit 42` returned 42, `DescribeInstances` reported the instance
 `terminated` after `destroy`, and on a freshly created instance `cloud-init
 status --wait` reported `status: done` while `git --version`, `gh --version`,
-`node --version`, `tmux -V`, `uv --version`, `claude --version`, and a rootless
-`docker info` each exited 0 with
+`node --version`, `tmux -V`, `uv --version`, `claude --version`, a rootless
+`docker info`, `java -version`, and `bash -lc 'source
+~/.sdkman/bin/sdkman-init.sh && gradle --version'` each exited 0 with
 `kernel.apparmor_restrict_unprivileged_userns = 0`. On the instances created
 from this repository's own checkout, `/home/ubuntu/repo` was on the branch
 `create` ran from, `git config user.name` there carried the ` - i2code` suffix,

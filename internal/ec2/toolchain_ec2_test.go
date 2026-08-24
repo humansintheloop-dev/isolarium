@@ -3,6 +3,7 @@
 package ec2_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,32 @@ func TestEC2Instance_HasToolchain(t *testing.T) {
 	}
 	environment.assertClaudeIsInstalledForTheUserThatRunsIt()
 	environment.assertUnprivilegedUserNamespacesAreUnrestricted()
+	environment.reportSDKMANInstallDuration()
+}
+
+// The SDKMAN script rewrites ~/.sdkman/etc/config as its first step and links
+// /usr/local/bin/java as its last, so the two mtimes bound how long the
+// post-cloud-init install added to create.
+func (e *ec2Environment) reportSDKMANInstallDuration() {
+	e.t.Helper()
+
+	started := e.modificationTime("/home/ubuntu/.sdkman/etc/config")
+	finished := e.modificationTime("/usr/local/bin/java")
+	e.t.Logf("TIMING: SDKMAN install of Java and Gradle took %s", finished.Sub(started).Round(time.Second))
+}
+
+func (e *ec2Environment) modificationTime(path string) time.Time {
+	e.t.Helper()
+
+	exitCode, output := e.askInstance("stat", "-c", "%Y", path)
+	if exitCode != 0 {
+		e.t.Fatalf("stat -c %%Y %s exited %d, want 0; output: %s", path, exitCode, output)
+	}
+	seconds, err := strconv.ParseInt(strings.TrimSpace(output), 10, 64)
+	if err != nil {
+		e.t.Fatalf("stat -c %%Y %s printed %q, want epoch seconds", path, output)
+	}
+	return time.Unix(seconds, 0)
 }
 
 // The root-owned npm global install this replaced answered `claude --version`
@@ -85,6 +112,8 @@ func toolchainProbes() []toolchainProbe {
 		{"uv", []string{"uv", "--version"}},
 		{"claude", []string{"claude", "--version"}},
 		{"docker", []string{"docker", "info"}},
+		{"java", []string{"java", "-version"}},
+		{"gradle", []string{"bash", "-lc", "'source ~/.sdkman/bin/sdkman-init.sh && gradle --version'"}},
 	}
 }
 

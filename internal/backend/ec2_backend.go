@@ -368,7 +368,8 @@ func (b *EC2Backend) recordMetadata(plan environmentPlan, instance launchedInsta
 }
 
 // provisionInstance waits out the gap between an instance AWS calls running and
-// one that can actually be worked in, then places the repository inside it.
+// one that can actually be worked in, places the repository inside it, and
+// finishes the toolchain cloud-init only prepared for.
 func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySpec) error {
 	// The readiness probes are queries rather than plain commands: cloud-init's
 	// own report is what names a failed module, or the warnings of a degraded
@@ -388,8 +389,14 @@ func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySp
 		b.printErr(notice)
 	}
 
+	session := ec2.NewInstanceSession(b.MetadataDir, publicDNS, b.ExecFunc)
 	b.print("Cloning repository...")
-	return ec2.PlaceRepository(ec2.NewInstanceSession(b.MetadataDir, publicDNS, b.ExecFunc), source)
+	if err := ec2.PlaceRepository(session, source); err != nil {
+		return err
+	}
+
+	b.print("Installing Java and Gradle through SDKMAN...")
+	return ec2.InstallUsingSDKMAN(session)
 }
 
 func (b *EC2Backend) sleep() ec2.SleepFunc {

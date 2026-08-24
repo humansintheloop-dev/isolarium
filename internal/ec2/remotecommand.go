@@ -1,13 +1,31 @@
 package ec2
 
-import "sort"
+import (
+	"io"
+	"sort"
+	"strings"
+)
 
 // RemoteCommand is what the instance should run: the command itself, the
-// directory it runs from, and the environment it sees.
+// directory it runs from, the environment it sees, and what it reads on
+// standard input.
 type RemoteCommand struct {
 	Workdir string
 	EnvVars map[string]string
 	Args    []string
+	// Stdin is fed to the command on the instance, which is how a script
+	// travels to `bash -s` without touching the instance's disk. Empty leaves
+	// standard input disconnected.
+	Stdin string
+}
+
+// hostStdin is what the host process that carries the command should read from:
+// the script the command brings with it, or nothing.
+func (cmd RemoteCommand) hostStdin() io.Reader {
+	if cmd.Stdin == "" {
+		return disconnectedStdin
+	}
+	return strings.NewReader(cmd.Stdin)
 }
 
 // shellWords is the command as the remote login shell should read it: a change

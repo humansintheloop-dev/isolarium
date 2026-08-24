@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/humansintheloop-dev/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/toolchain"
 )
 
 // SSHTimeout caps how long create waits for a freshly applied instance to start
@@ -335,6 +336,14 @@ func copyProjectConfig(session InstanceSession, hostDir string) error {
 		}
 	}
 	return nil
+}
+
+// InstallUsingSDKMAN installs Java and Gradle through the SDKMAN cloud-init
+// left on the instance, feeding the same script Lima runs to `bash -s` so it
+// never has to be written to the instance's disk.
+func InstallUsingSDKMAN(session InstanceSession) error {
+	install := RemoteCommand{Args: []string{"bash", "-s"}, Stdin: toolchain.InstallUsingSDKMANScript}
+	return session.mustRun(install, "install Java and Gradle through SDKMAN")
 }
 
 // CopyFileToInstance writes the host file's contents to remotePath, creating its
