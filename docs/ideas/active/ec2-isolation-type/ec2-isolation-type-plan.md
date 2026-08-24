@@ -736,6 +736,29 @@ The suite so far proves the toolchain is present and that plain shell commands r
     - [x] Confirm `uv` resolves in the non-interactive shell the run uses (`$HOME/.local/bin`); if it does not, prefix the command with `export PATH=$HOME/.local/bin:$PATH` as the VM test does and note why
     - [x] Name the file so it sorts after `repo_ec2_test.go`, because `uv run` creates `.venv` in the clone; add it to the file-order comment in `lifecycle_ec2_test.go`
     - [x] Run `./test-scripts/test-ec2.sh` against a real account and confirm both tests pass with no isolarium instance left running
+## Steel Thread 16: i2code is installed on the instance and verified
+Lima's setup clones the workflow-tools repository into the VM and installs the i2code CLI from it (`installWorkflowTools` in `internal/cli/vm_setup.go`: `CloneWorkflowTools`, then `InstallI2Code` running `cd ~/workflow-tools && uv tool install -e .`), verified by `TestInstallI2Code_Integration`. EC2's `provisionInstance` stops after `InstallUsingSDKMAN`, so instances have `uv` but no i2code, and no toolchain probe would notice. This thread mirrors the Lima install on the EC2 create path and extends the toolchain test to prove it. Lima's plugin install (`install-plugin.sh`) is deliberately out of scope here.
+
+- [ ] **Task 16.1: `create` clones workflow-tools and installs i2code on the instance**
+  - TaskType: INFRA
+  - Entrypoint: `go test ./internal/ec2/... ./internal/backend/...`
+  - Observable: `ec2.InstallWorkflowTools(session)` clones `https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git` to `~/workflow-tools` and runs `uv tool install -e .` there, and `provisionInstance` calls it after `InstallUsingSDKMAN`; a failed clone or install is reported with a non-zero exit and neither command repeats any token
+  - Evidence: `runner-based unit tests in `internal/ec2/clone_test.go` assert the exact remote commands and the failure paths, and a backend test in `internal/backend/ec2_backend_test.go` asserts the call order within create`
+  - Steps:
+    - [ ] Add `InstallWorkflowTools(session InstanceSession) error` to `internal/ec2/clone.go`: `git clone <workflow-tools URL> workflow-tools` in the home directory, then `uv tool install -e .` with `Workdir` set to `~/workflow-tools`, building the URL from `project.WorkflowToolsOrgRepo` as `lima.BuildWorkflowToolsCloneCommand` does
+    - [ ] Clone without a token, matching the Lima call `lima.CloneWorkflowTools(s.name, "")`; if the repository turns out to be private for the App-token path, mint an installation token the way `PlaceRepository` does and scrub it from the recorded remote afterwards
+    - [ ] Unit-test the command sequence and both failure paths in `internal/ec2/clone_test.go` with the existing fake runner
+    - [ ] Call `InstallWorkflowTools` from `provisionInstance` in `internal/backend/ec2_backend.go` after `InstallUsingSDKMAN`, with a progress line, and extend the backend create-order test
+    - [ ] Run `make` and confirm it exits 0
+- [ ] **Task 16.2: A freshly created instance answers `i2code --version`**
+  - TaskType: OUTCOME
+  - Entrypoint: `./test-scripts/test-ec2.sh`
+  - Observable: on an instance created by `isolarium create --type ec2`, `i2code --version` exits 0 over the same non-interactive transport the other probes use — proving the `uv tool` install landed in `~/.local/bin`, which `/etc/environment` already puts on the PATH — and `test -d ~/workflow-tools` exits 0
+  - Evidence: ``TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` gains an `i2code` probe and an assertion that `~/workflow-tools` exists, and passes in a green `./test-scripts/test-ec2.sh` run`
+  - Steps:
+    - [ ] Add an `i2code` entry running `i2code --version` to `toolchainProbes()` in `internal/ec2/toolchain_ec2_test.go`
+    - [ ] Add an assertion that `~/workflow-tools` exists on the instance, mirroring what `TestInstallI2Code_Integration` proves for Lima with `which i2code`
+    - [ ] Run `./test-scripts/test-ec2.sh` against a real account, confirm the new probe passes with no isolarium instance left running, and record the added create-time duration in `README.md` next to the SDKMAN timing
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).
@@ -1024,3 +1047,6 @@ Add workload tests for the EC2 backend matching the gradlew and pytest end-to-en
 
 ### 2026-08-23 17:54 - mark-task-complete
 Test lives in run_gradlew_ec2_test.go rather than gradlew_ec2_test.go so it sorts after repo_ec2_test.go and ahead of tmux_ec2_test.go; the green run is logs/test-ec2-gradlew-run2.log (gradlew clean build took 54s). Fixed a regression from the SDKMAN commit that captured os.Stdin at package init and broke the session tests.
+
+### 2026-08-24 07:13 - insert-thread-after
+EC2 instances lack i2code while Lima VMs install it from workflow-tools at create time; add the install to the EC2 create path and an i2code toolchain probe so the gap cannot reopen
