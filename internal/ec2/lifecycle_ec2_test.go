@@ -57,9 +57,12 @@ const (
 //   - recovery_ec2_test.go sorts between this file and repo_ec2_test.go, which
 //     is where its stop and start belong: the instance already exists, and no
 //     test has yet built up the tmux state a reboot would throw away.
-//   - run_ec2_test.go and run_hostaddress_ec2_test.go sort ahead of
-//     tmux_ec2_test.go because they need the shared tmux session free, and the
-//     tmux tests deliberately leave a process running in it.
+//   - run_ec2_test.go, run_gradlew_ec2_test.go and run_hostaddress_ec2_test.go
+//     sort ahead of tmux_ec2_test.go because they need the shared tmux session
+//     free, and the tmux tests deliberately leave a process running in it.
+//   - run_gradlew_ec2_test.go also has to sort after repo_ec2_test.go: its
+//     build writes testdata/spring-boot-app/build and .gradle into the clone,
+//     which the clone-cleanliness assertion would report as modifications.
 //
 // Renaming one of those files, or adding a test that writes to the instance
 // ahead of them, breaks assertions elsewhere without breaking this test.

@@ -716,16 +716,16 @@ The suite so far proves the toolchain is present and that plain shell commands r
     - [x] Add `InstallUsingSDKMAN(session InstanceSession) error` to `internal/ec2/clone.go` that pipes the script to `bash -s` over the plain transport, mirroring how Lima runs it, and call it from `Create` after `PlaceRepository`
     - [x] Cover the new call with a runner-based unit test in `internal/ec2/clone_test.go` asserting the script is sent once and a non-zero exit is reported
     - [x] Record the added create-time duration in `README.md` next to the cloud-init timing
-- [ ] **Task 15.2: `./gradlew clean build` succeeds in `testdata/spring-boot-app` on the instance**
+- [x] **Task 15.2: `./gradlew clean build` succeeds in `testdata/spring-boot-app` on the instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: `isolarium run --type ec2 -- bash -c 'source ~/.sdkman/bin/sdkman-init.sh && cd testdata/spring-boot-app && ./gradlew clean build'` exits 0 and its output contains `BUILD SUCCESSFUL`, using the `testdata/spring-boot-app` directory that arrives with the clone of this repository
   - Evidence: ``TestEC2Run_GradlewBuildsTheSpringBootApp` in `internal/ec2/gradlew_ec2_test.go` behind `//go:build ec2` passes in a green `./test-scripts/test-ec2.sh` run`
   - Steps:
-    - [ ] Add `internal/ec2/gradlew_ec2_test.go` behind `//go:build ec2`, driving the shared instance through `startIsolariumRun` from `run_ec2_test.go` with the gradlew command and asserting exit 0 and `BUILD SUCCESSFUL` in the output
-    - [ ] Assert `testdata/spring-boot-app/gradlew` exists in the clone before running, so a missing checkout fails with a clear message rather than a gradle error
-    - [ ] Name the file so it sorts after `repo_ec2_test.go`, because the build writes `testdata/spring-boot-app/build` and `.gradle` into the clone and `repo_ec2_test.go` asserts the clone is clean; record that ordering in the file-order comment in `lifecycle_ec2_test.go`
-    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and record the gradlew duration in the log
+    - [x] Add `internal/ec2/gradlew_ec2_test.go` behind `//go:build ec2`, driving the shared instance through `startIsolariumRun` from `run_ec2_test.go` with the gradlew command and asserting exit 0 and `BUILD SUCCESSFUL` in the output
+    - [x] Assert `testdata/spring-boot-app/gradlew` exists in the clone before running, so a missing checkout fails with a clear message rather than a gradle error
+    - [x] Name the file so it sorts after `repo_ec2_test.go`, because the build writes `testdata/spring-boot-app/build` and `.gradle` into the clone and `repo_ec2_test.go` asserts the clone is clean; record that ordering in the file-order comment in `lifecycle_ec2_test.go`
+    - [x] Run `./test-scripts/test-ec2.sh` against a real account and record the gradlew duration in the log
 - [ ] **Task 15.3: `uv run pytest` and `uv run greeter` succeed in `testdata/python-cli-app` on the instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
@@ -1021,3 +1021,6 @@ ResolveIngressCIDR detects without writing; applyAndRecordIngress in the backend
 
 ### 2026-08-23 16:24 - insert-thread-after
 Add workload tests for the EC2 backend matching the gradlew and pytest end-to-end tests the other backends have; the clone already carries both testdata projects, and Java/Gradle must be installed first since EC2 create never ran install-using-sdkman.sh
+
+### 2026-08-23 17:54 - mark-task-complete
+Test lives in run_gradlew_ec2_test.go rather than gradlew_ec2_test.go so it sorts after repo_ec2_test.go and ahead of tmux_ec2_test.go; the green run is logs/test-ec2-gradlew-run2.log (gradlew clean build took 54s). Fixed a regression from the SDKMAN commit that captured os.Stdin at package init and broke the session tests.

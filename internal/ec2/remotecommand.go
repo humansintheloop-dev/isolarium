@@ -2,6 +2,7 @@ package ec2
 
 import (
 	"io"
+	"os"
 	"sort"
 	"strings"
 )
@@ -26,6 +27,14 @@ func (cmd RemoteCommand) hostStdin() io.Reader {
 		return disconnectedStdin
 	}
 	return strings.NewReader(cmd.Stdin)
+}
+
+// hostTerminalStdin lets the user type into an interactive remote command. It
+// reads os.Stdin when the command is launched rather than when the package
+// loads, so a caller that has swapped the process's stdin for a terminal of
+// its own is the one the command listens to.
+func hostTerminalStdin() io.Reader {
+	return os.Stdin
 }
 
 // shellWords is the command as the remote login shell should read it: a change

@@ -7,16 +7,10 @@ import (
 	"os/exec"
 )
 
-// The host's standard input travels to the instance only when a command asks
-// for it.
-var (
-	// disconnectedStdin sends nothing from the host, which is what a
-	// non-interactive command wants and what lets a forced pseudo-terminal start
-	// tmux when isolarium itself has no terminal.
-	disconnectedStdin io.Reader = nil
-	// connectedStdin lets the user type into the remote command.
-	connectedStdin io.Reader = os.Stdin
-)
+// disconnectedStdin sends nothing from the host, which is what a
+// non-interactive command wants and what lets a forced pseudo-terminal start
+// tmux when isolarium itself has no terminal.
+var disconnectedStdin io.Reader = nil
 
 // ExecCommand runs cmd on the instance over SSH, streaming stdout and stderr to
 // the host terminal and feeding the command whatever input it carries, and
@@ -28,7 +22,7 @@ func ExecCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
 // ExecInteractiveCommand runs cmd on the instance over SSH with a TTY attached,
 // connecting stdin as well, and returns the remote command's exit code.
 func ExecInteractiveCommand(base, publicDNS string, cmd RemoteCommand) (int, error) {
-	return runRemoteCommand(BuildInteractiveExecCommand(base, publicDNS, cmd), connectedStdin)
+	return runRemoteCommand(BuildInteractiveExecCommand(base, publicDNS, cmd), hostTerminalStdin())
 }
 
 // ExecInSessionCommand runs a tmux-wrapped cmd on the instance over SSH with a

@@ -40,12 +40,34 @@ func TestEC2ExecInSessionLeavesTheHostStdinDisconnected(t *testing.T) {
 	}
 }
 
-func TestEC2ExecInteractiveConnectsTheHostStdin(t *testing.T) {
-	process := remoteProcess([]string{"sh", "-c", "exit 0"}, connectedStdin)
+// The host's stdin is read when the command is launched rather than when the
+// package loads, because the ec2 suite hands its interactive connections a
+// pseudo-terminal by swapping os.Stdin for the duration of a test.
+func TestEC2ExecInteractiveConnectsTheStdinTheHostHasNow(t *testing.T) {
+	swapped := swapHostStdin(t)
 
-	if process.Stdin != os.Stdin {
-		t.Errorf("interactive process stdin = %v, want the host's", process.Stdin)
+	process := remoteProcess([]string{"sh", "-c", "exit 0"}, hostTerminalStdin())
+
+	if process.Stdin != swapped {
+		t.Errorf("interactive process stdin = %v, want the host's current stdin %v", process.Stdin, swapped)
 	}
+}
+
+func swapHostStdin(t *testing.T) *os.File {
+	t.Helper()
+
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating a stdin pipe: %v", err)
+	}
+	original := os.Stdin
+	os.Stdin = reader
+	t.Cleanup(func() {
+		os.Stdin = original
+		_ = reader.Close()
+		_ = writer.Close()
+	})
+	return reader
 }
 
 func TestEC2ExecFeedsAScriptToTheTransportsStdin(t *testing.T) {
