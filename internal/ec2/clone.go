@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/humansintheloop-dev/isolarium/internal/git"
+	"github.com/humansintheloop-dev/isolarium/internal/project"
 	"github.com/humansintheloop-dev/isolarium/internal/toolchain"
 )
 
@@ -344,6 +345,23 @@ func copyProjectConfig(session InstanceSession, hostDir string) error {
 func InstallUsingSDKMAN(session InstanceSession) error {
 	install := RemoteCommand{Args: []string{"bash", "-s"}, Stdin: toolchain.InstallUsingSDKMANScript}
 	return session.mustRun(install, "install Java and Gradle through SDKMAN")
+}
+
+// workflowToolsCloneURL is the public address of the workflow-tools repository,
+// cloned without a token as the Lima flow does.
+var workflowToolsCloneURL = "https://github.com/" + project.WorkflowToolsOrgRepo + ".git"
+
+// InstallWorkflowTools clones the workflow-tools repository beside the project
+// checkout and installs the i2code CLI from it with the uv that cloud-init
+// left on the instance, so the instance can drive the same workflow the host
+// does.
+func InstallWorkflowTools(session InstanceSession) error {
+	clone := RemoteCommand{Args: []string{"git", "clone", workflowToolsCloneURL, "workflow-tools"}}
+	if err := session.mustRun(clone, "clone workflow-tools"); err != nil {
+		return err
+	}
+	install := RemoteCommand{Workdir: RemoteWorkflowToolsDir, Args: []string{"uv", "tool", "install", "-e", "."}}
+	return session.mustRun(install, "install i2code from workflow-tools")
 }
 
 // CopyFileToInstance writes the host file's contents to remotePath, creating its

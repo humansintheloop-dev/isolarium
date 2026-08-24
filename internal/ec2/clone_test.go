@@ -486,6 +486,71 @@ func TestInstallUsingSDKMAN_ReportsANonZeroExit(t *testing.T) {
 	}
 }
 
+func TestInstallWorkflowTools_ClonesThenInstallsI2CodeFromTheClone(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{0}}
+
+	if err := InstallWorkflowTools(runner.session(t)); err != nil {
+		t.Fatalf("InstallWorkflowTools returned %v, want nil", err)
+	}
+
+	want := []RemoteCommand{
+		{Args: []string{"git", "clone", "https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git", "workflow-tools"}},
+		{Workdir: RemoteWorkflowToolsDir, Args: []string{"uv", "tool", "install", "-e", "."}},
+	}
+	if !reflect.DeepEqual(runner.commands, want) {
+		t.Errorf("ran %v, want %v", runner.commands, want)
+	}
+	if RemoteWorkflowToolsDir != "/home/"+RemoteUser+"/workflow-tools" {
+		t.Errorf("RemoteWorkflowToolsDir = %q, want the clone's home-directory path", RemoteWorkflowToolsDir)
+	}
+}
+
+func TestInstallWorkflowTools_CarriesNoToken(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{0}}
+
+	if err := InstallWorkflowTools(runner.session(t)); err != nil {
+		t.Fatalf("InstallWorkflowTools returned %v, want nil", err)
+	}
+
+	for _, cmd := range runner.commands {
+		if rendered := strings.Join(cmd.Args, " "); strings.Contains(rendered, "x-access-token") {
+			t.Errorf("command %q carries a token, want the public repository cloned anonymously", rendered)
+		}
+	}
+}
+
+func TestInstallWorkflowTools_ReportsAFailedCloneWithoutInstalling(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{128}}
+
+	err := InstallWorkflowTools(runner.session(t))
+
+	if err == nil {
+		t.Fatal("InstallWorkflowTools returned nil, want an error for a failed clone")
+	}
+	if !strings.Contains(err.Error(), "workflow-tools") {
+		t.Errorf("error = %q, want it to name workflow-tools", err)
+	}
+	if len(runner.commands) != 1 {
+		t.Errorf("ran %d commands, want 1 — nothing to install from a clone that failed", len(runner.commands))
+	}
+}
+
+func TestInstallWorkflowTools_ReportsAFailedInstall(t *testing.T) {
+	runner := &remoteRunnerSpy{exitCodes: []int{0, 1}}
+
+	err := InstallWorkflowTools(runner.session(t))
+
+	if err == nil {
+		t.Fatal("InstallWorkflowTools returned nil, want an error when uv tool install exits non-zero")
+	}
+	if !strings.Contains(err.Error(), "i2code") {
+		t.Errorf("error = %q, want it to name i2code", err)
+	}
+	if len(runner.commands) != 2 {
+		t.Errorf("ran %d commands, want 2", len(runner.commands))
+	}
+}
+
 // assertRemoteCommandOrder checks that the recorded commands are exactly as many
 // as expected and that each contains its marker, so the sequence is pinned
 // without restating every argument.

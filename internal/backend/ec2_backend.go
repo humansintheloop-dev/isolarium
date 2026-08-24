@@ -396,7 +396,12 @@ func (b *EC2Backend) provisionInstance(publicDNS string, source ec2.RepositorySp
 	}
 
 	b.print("Installing Java and Gradle through SDKMAN...")
-	return ec2.InstallUsingSDKMAN(session)
+	if err := ec2.InstallUsingSDKMAN(session); err != nil {
+		return err
+	}
+
+	b.print("Installing i2code from workflow-tools...")
+	return ec2.InstallWorkflowTools(session)
 }
 
 func (b *EC2Backend) sleep() ec2.SleepFunc {

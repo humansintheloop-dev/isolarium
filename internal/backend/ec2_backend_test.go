@@ -527,20 +527,39 @@ func TestEC2Backend_Create_PlacesRepository(t *testing.T) {
 		"> " + ec2.RemoteRepoDir + "/.claude/settings.local.json",
 		"> " + ec2.RemoteRepoDir + "/CLAUDE.md",
 		"bash -s",
+		"git clone https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git workflow-tools",
+		"cd " + ec2.RemoteWorkflowToolsDir + " && uv tool install -e .",
 	})
 	assertCloneTokenNeverReachesTheInstanceDisk(t, fixture.remote.commands)
 	assertRecordedRepository(t, fixture.metadataDir)
-	assertTheLastCommandCarriesTheSDKMANScript(t, fixture.remote.commands)
+	assertTheBashCommandCarriesTheSDKMANScript(t, fixture.remote.commands)
 }
 
 // The SDKMAN install runs once the clone is in place, so a failed clone never
-// pays for the minutes the install takes.
-func assertTheLastCommandCarriesTheSDKMANScript(t *testing.T, commands []ec2.RemoteCommand) {
+// pays for the minutes the install takes; the workflow-tools install follows
+// it, so a failed toolchain never pays for the i2code install either.
+func assertTheBashCommandCarriesTheSDKMANScript(t *testing.T, commands []ec2.RemoteCommand) {
 	t.Helper()
 
-	last := commands[len(commands)-1]
-	if last.Stdin != toolchain.InstallUsingSDKMANScript {
-		t.Errorf("the last remote command carried %q on stdin, want the SDKMAN install script", last.Stdin)
+	for _, cmd := range commands {
+		if cmd.Args[0] == "bash" && cmd.Stdin == toolchain.InstallUsingSDKMANScript {
+			return
+		}
+	}
+	t.Errorf("no remote bash command carried the SDKMAN install script on stdin: %v", commands)
+}
+
+func TestEC2Backend_Create_FailsWhenTheWorkflowToolsInstallIsRejected(t *testing.T) {
+	fixture := ec2RegionalFixture(t, newHostProvisioningSpy(), ec2FakeTerraform(t))
+	fixture.remote.rejects = "uv tool install"
+
+	err := fixture.backend().Create(fixture.createOptions())
+
+	if err == nil {
+		t.Fatal("Create() returned nil, want an error when the instance rejects the i2code install")
+	}
+	if !strings.Contains(err.Error(), "i2code") {
+		t.Errorf("Create() error = %q, want it to name i2code", err)
 	}
 }
 
@@ -554,7 +573,7 @@ func TestEC2Backend_Create_ReportsProgressThroughEachStage(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	want := "Creating EC2 instance...\nWaiting for cloud-init...\nCloning repository...\nInstalling Java and Gradle through SDKMAN...\n"
+	want := "Creating EC2 instance...\nWaiting for cloud-init...\nCloning repository...\nInstalling Java and Gradle through SDKMAN...\nInstalling i2code from workflow-tools...\n"
 	if got := out.String(); got != want {
 		t.Errorf("Create() printed %q, want %q", got, want)
 	}

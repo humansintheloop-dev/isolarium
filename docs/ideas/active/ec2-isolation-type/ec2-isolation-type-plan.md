@@ -739,17 +739,17 @@ The suite so far proves the toolchain is present and that plain shell commands r
 ## Steel Thread 16: i2code is installed on the instance and verified
 Lima's setup clones the workflow-tools repository into the VM and installs the i2code CLI from it (`installWorkflowTools` in `internal/cli/vm_setup.go`: `CloneWorkflowTools`, then `InstallI2Code` running `cd ~/workflow-tools && uv tool install -e .`), verified by `TestInstallI2Code_Integration`. EC2's `provisionInstance` stops after `InstallUsingSDKMAN`, so instances have `uv` but no i2code, and no toolchain probe would notice. This thread mirrors the Lima install on the EC2 create path and extends the toolchain test to prove it. Lima's plugin install (`install-plugin.sh`) is deliberately out of scope here.
 
-- [ ] **Task 16.1: `create` clones workflow-tools and installs i2code on the instance**
+- [x] **Task 16.1: `create` clones workflow-tools and installs i2code on the instance**
   - TaskType: INFRA
   - Entrypoint: `go test ./internal/ec2/... ./internal/backend/...`
   - Observable: `ec2.InstallWorkflowTools(session)` clones `https://github.com/humansintheloop-dev/humansintheloop-dev-workflow-and-tools.git` to `~/workflow-tools` and runs `uv tool install -e .` there, and `provisionInstance` calls it after `InstallUsingSDKMAN`; a failed clone or install is reported with a non-zero exit and neither command repeats any token
   - Evidence: `runner-based unit tests in `internal/ec2/clone_test.go` assert the exact remote commands and the failure paths, and a backend test in `internal/backend/ec2_backend_test.go` asserts the call order within create`
   - Steps:
-    - [ ] Add `InstallWorkflowTools(session InstanceSession) error` to `internal/ec2/clone.go`: `git clone <workflow-tools URL> workflow-tools` in the home directory, then `uv tool install -e .` with `Workdir` set to `~/workflow-tools`, building the URL from `project.WorkflowToolsOrgRepo` as `lima.BuildWorkflowToolsCloneCommand` does
-    - [ ] Clone without a token, matching the Lima call `lima.CloneWorkflowTools(s.name, "")`; if the repository turns out to be private for the App-token path, mint an installation token the way `PlaceRepository` does and scrub it from the recorded remote afterwards
-    - [ ] Unit-test the command sequence and both failure paths in `internal/ec2/clone_test.go` with the existing fake runner
-    - [ ] Call `InstallWorkflowTools` from `provisionInstance` in `internal/backend/ec2_backend.go` after `InstallUsingSDKMAN`, with a progress line, and extend the backend create-order test
-    - [ ] Run `make` and confirm it exits 0
+    - [x] Add `InstallWorkflowTools(session InstanceSession) error` to `internal/ec2/clone.go`: `git clone <workflow-tools URL> workflow-tools` in the home directory, then `uv tool install -e .` with `Workdir` set to `~/workflow-tools`, building the URL from `project.WorkflowToolsOrgRepo` as `lima.BuildWorkflowToolsCloneCommand` does
+    - [x] Clone without a token, matching the Lima call `lima.CloneWorkflowTools(s.name, "")`; if the repository turns out to be private for the App-token path, mint an installation token the way `PlaceRepository` does and scrub it from the recorded remote afterwards
+    - [x] Unit-test the command sequence and both failure paths in `internal/ec2/clone_test.go` with the existing fake runner
+    - [x] Call `InstallWorkflowTools` from `provisionInstance` in `internal/backend/ec2_backend.go` after `InstallUsingSDKMAN`, with a progress line, and extend the backend create-order test
+    - [x] Run `make` and confirm it exits 0
 - [ ] **Task 16.2: A freshly created instance answers `i2code --version`**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
