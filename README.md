@@ -10,10 +10,11 @@ Isolarium protects your workstation when running AI coding agents like Claude Co
 
 ## Features
 
-- Three isolation backends with different security/speed tradeoffs:
+- Four isolation backends with different security/speed tradeoffs:
   - VM ([Lima](https://lima-vm.io/)) — strongest isolation, separate kernel, no host mounts (macOS only)
   - Container (Docker) — fast provisioning, cross-platform, shared host directory
   - [Nono](https://nono.sh/) sandbox — lightweight process-level sandboxing, no provisioning overhead
+  - EC2 isolation (AWS) — remote Linux instance, isolation off your machine entirely
 - Repo-scoped credentials — GitHub App installation tokens scoped to a single repository, minted fresh per command
 - Separate agent identity — agent actions use a GitHub App identity, not your personal account
 - Claude Code authentication token management — copy existing token
@@ -43,6 +44,136 @@ Isolarium clones the repository by performing the following steps:
 
 The VM comes pre-installed with Git, Node.js, GitHub CLI, Docker (rootless), Java 17, and Gradle.
 Custom setup steps can be added via `isolation_scripts` in `pid.yaml`.
+
+### EC2 isolation (AWS)
+
+The EC2 backend moves the isolated environment off the laptop entirely, so an
+agent session outlives the machine that started it.
+`isolarium create --type ec2` provisions a `t3.large` Ubuntu 24.04 instance
+through Terraform, installs its toolchain from an embedded
+[cloud-init document](internal/ec2/cloud-init.yaml), and clones the repository
+inside it at `/home/ubuntu/repo`.
+As with the VM backend, the instance has no host filesystem mounts — the repo is
+a fully independent copy.
+Commands run over SSH as the `ubuntu` user, rooted at `/home/ubuntu/repo`.
+`isolarium run --type ec2 --create -- <cmd>` performs the same create when no
+environment of that name exists, then runs the command; this is how i2code
+launches an EC2 environment.
+
+`create --type ec2` places the repository by performing the following steps:
+
+1. Apply the Terraform configuration, reusing the shared VPC, subnet, internet
+   gateway, route table, security group, and key pair when they already exist.
+2. Wait for the instance to answer on SSH (up to 5 minutes), then for
+   `cloud-init status --wait` to report first-boot provisioning done (up to 15
+   minutes).
+3. Mint a short-lived GitHub App installation token.
+4. Read the git remote URL and current branch from the host working tree and
+   construct an authenticated clone URL
+   (`https://x-access-token:<token>@github.com/owner/repo`).
+5. Run `git clone --branch <branch>` inside the instance over SSH, so no host
+   credentials are exposed. The token is an argument to that one command and is
+   never written to the instance's disk — `create` rewrites the clone's `origin`
+   to the token-free URL, which is the one place git would otherwise persist it.
+6. Configure `user.email` and `user.name` inside `/home/ubuntu/repo`, suffixing
+   the name with ` - i2code` so commits authored in the environment stay
+   distinguishable from commits authored on the host.
+7. Copy project config files (`.claude/settings.local.json`, `CLAUDE.md`) from
+   the host into the instance's `/home/ubuntu/repo`.
+8. Install Java 17 and Gradle through SDKMAN, by feeding the same
+   [script](internal/toolchain/install-using-sdkman.sh) the VM backend runs to
+   `bash -s` over SSH, so the script never touches the instance's disk.
+9. Clone the public workflow-tools repository to `/home/ubuntu/workflow-tools`
+   and install the `i2code` CLI from it with `uv tool install -e .`, as the VM
+   backend does.
+
+The instance comes pre-installed with Git, GitHub CLI, Node.js, tmux, uv, Claude
+Code, rootless Docker, Java, Gradle, and i2code. `java` and `i2code` are on the
+login `PATH`; `gradle` is reachable after `source ~/.sdkman/bin/sdkman-init.sh`,
+as on the VM.
+
+#### Agent sessions survive a closed laptop
+
+Interactive work — `isolarium run -i` and `isolarium shell` — runs inside a tmux
+session named `isolarium` on the instance, wrapped as
+`tmux new-session -A -s isolarium -- <cmd>` over `ssh -t`.
+Because the process belongs to the instance's tmux server rather than to the SSH
+connection, closing the laptop, losing the network, or killing the SSH client
+leaves the agent running.
+The next `run -i` or `shell` reattaches to that same session and finds the work
+where it left off; isolarium prints
+`attaching to existing session 'isolarium'` to stderr when it does, because tmux
+discards the command it was handed once the session already exists.
+
+Non-interactive `isolarium run` also runs inside the tmux session, over
+`ssh -tt` so tmux starts even when isolarium has no terminal of its own (as
+under i2code). It records the command on the session; a re-run of the same
+command reattaches to it and streams its output, while a different command is
+refused until that session ends — reattach with `isolarium shell --type ec2`,
+or start another session with `--new-session`.
+
+If you also run tmux on your own machine, the instance's session is nested inside
+your local one, which swallows the prefix key. Press `Ctrl-b Ctrl-b` to send the
+prefix through to the instance's tmux — `Ctrl-b Ctrl-b d` detaches from the
+instance's session rather than your local one.
+
+#### Recovering when the instance's address changes
+
+`run` and `shell` connect straight to the public DNS name recorded in
+`~/.isolarium/<name>/ec2/metadata.json`, so an ordinary command costs neither AWS
+credentials nor the `terraform` binary. That name is not permanent: stopping and
+starting an instance, or an out-of-band apply, gives it a new one.
+
+The instance ID is permanent, so isolarium recovers without paying a lookup on
+every command. When SSH fails to *connect* — as distinct from the remote command
+running and exiting non-zero — isolarium calls `DescribeInstances` once with the
+recorded instance ID, rewrites `metadata.json` with the address it gets back,
+prints `instance moved to <dns>; retrying` to stderr, and retries the operation
+exactly once. A second connect failure is reported rather than retried again, so
+an instance that is genuinely unreachable costs two attempts rather than a loop.
+
+A remote command that merely exits non-zero triggers no lookup at all; its exit
+code is returned verbatim.
+
+#### Claude credentials on the instance
+
+`isolarium run --type ec2` copies your host's Claude Code credentials to
+`~/.claude/.credentials.json` on the instance, as the `vm`, `container`, and
+`nono` backends do.
+
+**Security note.** That blob contains `refreshToken` and
+`refreshTokenExpiresAt` — a long-lived credential to your Claude subscription,
+not merely a short-lived access token. What is new with EC2 is where it lands: a
+host reachable from the public internet that may stay up for weeks. Four things
+limit the exposure:
+
+- The file is written mode `0600`, so only `ubuntu` can read it.
+- The instance's root volume is encrypted.
+- That volume carries `delete_on_termination`, so `destroy` takes the blob with
+  it.
+- SSH ingress is a single `/32` rule pinned to your host's current public
+  address. Isolarium never writes `0.0.0.0/0`.
+
+None of that helps once the file is off the instance: anyone holding it has your
+Claude subscription until you revoke it. Destroy environments you are finished
+with.
+
+Unlike the other backends, the EC2 copy is **conditional**. Isolarium reads the
+instance's own `~/.claude/.credentials.json` first and leaves it alone unless the
+host's blob expires strictly later, which protects a long-running tmux session
+that refreshed its own token mid-flight from having it revoked out from under it
+— while still repairing an instance whose refresh lineage the host has rotated
+past. Both `expiresAt` values compared are issued by the auth server and travel
+inside the blob, so no clock skew between laptop and instance enters into it.
+
+Isolarium does not refresh the token on the instance for you. It assumes Claude
+Code there renews its own access token and rewrites that file, as it does on any
+other machine; that assumption is not something isolarium verifies. If a session
+on the instance does lose authentication, run `isolarium run --type ec2
+--copy-session` again to carry a fresh blob over from your host.
+
+See [EC2 mode configuration](#ec2-mode-configuration) for the required
+credentials and IAM permissions, cold-start latency, running cost, and teardown.
 
 ### Container isolation (Docker)
 
@@ -83,10 +214,11 @@ The `--no-gh-token` flag disables all token injection for commands that should r
 
 | Tool | Install | Required for |
 |------|---------|-------------|
-| Go 1.22+ | [go.dev](https://go.dev/dl/) | Building from source |
+| Go 1.24+ | [go.dev](https://go.dev/dl/) | Building from source |
 | Lima | `brew install lima` | VM mode (macOS only) |
 | Docker | `brew install docker` | Container mode |
 | nono | [nono](https://nono.sh/) | Nono sandbox mode |
+| Terraform 1.10+ | `brew install terraform` | EC2 mode (earlier releases lack S3 backend state locking) |
 | GitHub App | [Creating a GitHub App](https://docs.github.com/en/apps/creating-github-apps) | Credential scoping |
 
 ## Install
@@ -107,6 +239,246 @@ Create a GitHub App for repo-scoped agent credentials and configure it in `.env.
 GITHUB_APP_ID=123456
 GITHUB_APP_PRIVATE_KEY_PATH=/path/to/private-key.pem
 ```
+
+### EC2 mode configuration
+
+EC2 mode reads AWS credentials from the same `.env.local` file. There is no
+isolarium-specific AWS profile knob — on SSO, export the env-var form with
+`aws configure export-credentials`.
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `AWS_ACCESS_KEY_ID` | yes | Consumed natively by Terraform and the AWS SDK |
+| `AWS_SECRET_ACCESS_KEY` | yes | Consumed natively by Terraform and the AWS SDK |
+| `AWS_SESSION_TOKEN` | no | For temporary or SSO credentials |
+| `AWS_REGION` | yes | No implicit default; `create --type ec2` fails fast when unset |
+
+On the first `create --type ec2`, isolarium bootstraps a Terraform remote-state
+bucket named `isolarium-tfstate-<account-id>-<region>`, with versioning enabled,
+`AES256` encryption, and all four public-access-block flags set. The bootstrap is
+idempotent — an existing bucket you already own is reused.
+
+The same first `create` also provisions host-side state under `~/.isolarium/ec2/`:
+
+- The Terraform working directory at `~/.isolarium/ec2/terraform/` is extracted
+  from the binary once. Later runs leave it alone, so edits you make there
+  survive — delete a file to have isolarium restore its shipped version.
+- An Ed25519 keypair is generated at `~/.isolarium/ec2/id_ed25519` (mode `0600`)
+  and `id_ed25519.pub` (mode `0644`). Both are reused once present; the public
+  half becomes the shared `aws_key_pair` every instance references. That key pair
+  carries a generated name, so replacing the local keypair rotates it safely —
+  the new key pair is created before any instance that has to be launched with
+  it. Instances already running under the superseded key are replaced, since
+  their `authorized_keys` can no longer be reached.
+
+SSH ingress is restricted to your host's current public address, detected via
+`https://checkip.amazonaws.com` and applied as a single `/32`. There is one
+shared ingress rule for all instances, so **switching networks and then running
+any `create` or `destroy` re-points ingress and restores access to every
+instance**. Each successful detection is persisted to
+`~/.isolarium/ec2/terraform/isolarium.auto.tfvars`.
+
+What happens when that detection fails depends on which operation you are
+running, so that teardown is never blocked by a network you cannot reach the
+detection service from:
+
+| Operation | Detection fails |
+|---|---|
+| `create` | **Fatal.** The detection error is reported as-is and no instance is launched. |
+| `destroy`, `ec2 wipe` | **Warns on stderr and continues**, using the CIDR persisted in `isolarium.auto.tfvars`. With no persisted value, fatal. |
+
+**Isolarium never writes `0.0.0.0/0`.** No failure path on either operation
+widens ingress, and a persisted value that is not a single-host CIDR is refused
+rather than used.
+
+These credentials must carry the following IAM permissions:
+
+- `sts:GetCallerIdentity`
+- On the state bucket: `s3:CreateBucket`, `s3:PutBucketVersioning`,
+  `s3:PutEncryptionConfiguration`, `s3:PutBucketPublicAccessBlock`,
+  `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket`
+- `ssm:GetParameter` for the AMI lookup
+- The EC2 and VPC permissions to create, describe, tag, and delete instances,
+  key pairs, security groups, VPCs, subnets, internet gateways, and route tables
+
+No `dynamodb:*` permission is required — state locking uses S3 conditional writes.
+
+Each environment is one `t3.large` instance described by a generated
+`~/.isolarium/ec2/terraform/instance-<name>.tf`, with a 50 GiB encrypted `gp3`
+root volume that is deleted when the instance is terminated. Where the instance
+can be reached is recorded at `~/.isolarium/<name>/ec2/metadata.json`. If
+`instance-<name>.tf` already exists, `create` refuses rather than overwriting it
+— run `isolarium destroy --type ec2 --name <name>` first.
+
+`isolarium destroy --type ec2 --name <name>` removes `instance-<name>.tf`,
+re-applies so Terraform terminates the instance it no longer has configuration
+for, evicts the host's entry from `~/.isolarium/ec2/known_hosts`, and deletes
+`~/.isolarium/<name>/ec2/`. Two consequences worth knowing:
+
+- **An interrupted `destroy` is safe to re-run.** Removing the file and
+  re-applying is self-correcting: an instance left in state with no
+  configuration is always planned for destruction, so the next `destroy`
+  converges. Once the environment is gone, `destroy` prints
+  `no EC2 environment to destroy` and exits 0.
+- **A `destroy` killed mid-apply can leave the state lock held.** Terraform
+  reports the lock ID; clear it with
+  `terraform -chdir=~/.isolarium/ec2/terraform force-unlock <id>` and re-run
+  `destroy`. Only do this once you are certain no other isolarium invocation is
+  still running.
+- **An apply killed between an AWS call and the state write orphans that
+  resource.** Terraform will try to create it again on the next apply and AWS
+  will refuse — an orphaned subnet, for instance, fails the next `create` with
+  `InvalidSubnet.Conflict`. Either `terraform import` the orphan into state, or
+  delete it in the console once you have confirmed nothing is using it, and
+  re-run.
+
+Teardown also tolerates a failure to detect your public IP, falling back to the
+persisted CIDR under the policy tabled above, so being off the network you
+created from never strands a billing instance.
+
+Project setup steps run at the end of `create --type ec2`, declared under an
+`ec2` key in the repository's `pid.yaml`:
+
+```yaml
+isolarium:
+  ec2:
+    create:
+      creation_scripts:
+        - path: scripts/isolation/install-go.sh
+        - path: scripts/isolation/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+      post_creation_scripts:
+        host_scripts: []
+        env_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+```
+
+`creation_scripts` and `post_creation_scripts.env_scripts` run inside the
+instance from `/home/ubuntu/repo`, so their paths are relative to the repository
+root and have to be committed to the branch being cloned.
+`post_creation_scripts.host_scripts` run on the host, relative to the directory
+`create` was run from. Every script sees `ISOLARIUM_NAME` and
+`ISOLARIUM_TYPE=ec2`, plus the host variables it names under `env` — an unset
+one fails the `create` rather than running the script without it. A path that
+escapes the project root is rejected when `pid.yaml` is read, before the AWS
+account is touched.
+
+Two things worth knowing before your first `create --type ec2`:
+
+- **Cold start takes minutes, not seconds.** The instance is built from a stock
+  Ubuntu image at apply time rather than from a pre-baked AMI, and `create` does
+  not return until cloud-init has finished installing the toolchain and the
+  SDKMAN install of Java and Gradle and the i2code install have run on top of
+  it. Measured runs took between 1m36s and 2m18s for cloud-init, plus 27s to
+  33s for SDKMAN and 3s for i2code; `create` gives up on cloud-init after 15
+  minutes.
+- **Instances bill until you destroy them.** Isolarium has no idle auto-stop and
+  no cost reporting. A forgotten `t3.large` with a 50 GiB `gp3` volume costs
+  roughly $64/month. Run `isolarium destroy --type ec2 --name <name>` when you
+  are done with an environment.
+
+### Testing EC2 mode against a real account
+
+The EC2 lifecycle tests are behind the `ec2` build tag, so `go test ./...` and CI
+can never launch a billable instance. Nothing in `.github/workflows/ci.yml` needs
+AWS credentials.
+
+```bash
+./test-scripts/test-ec2.sh
+```
+
+The script fails when `go test` selected no test rather than reporting a green
+run over nothing. The
+tests themselves fail — they never skip — when `AWS_REGION`,
+`AWS_ACCESS_KEY_ID`, or `AWS_SECRET_ACCESS_KEY` is missing. The test that proves
+`claude` authenticates on the instance fails the same way when your host has no
+Claude credentials to copy: it reads them from the Keychain, falls back to the
+file named by `CLAUDE_CREDENTIALS_PATH`, and fails when neither is there. Every
+test registers a cleanup that destroys its instance even after a failed
+assertion, so a red run does not leave one billing.
+
+`./test-scripts/test-end-to-end.sh --with-ec2` adds the same script to the
+end-to-end suite; without the flag the suite stays AWS-free. `make test-ec2` runs
+the tagged tests directly.
+
+Every test builds its own billable instance, so re-running one after a failure
+should not have to rebuild all of them. An optional argument narrows the run:
+
+```bash
+./test-scripts/test-ec2.sh TestEC2Instance_ClaudeAuthenticates
+```
+
+A narrowed run that matches nothing still fails, because the script rejects a
+`go test` that reported `no tests to run`.
+
+One message worth recognising: `Warning: cloud-init finished degraded on the
+instance — it logged warnings, but no module failed`, followed by cloud-init's
+own report. `cloud-init status --wait` exits 2 when any module logged a warning,
+and the Ubuntu AMI's IMDS probe over IPv6 does so on every instance that has no
+IPv6, so a healthy instance routinely reports `degraded done` with `errors: []`.
+Create relays the warnings on stderr and carries on; a module that actually
+failed is reported as `status: error` and fails the create.
+
+The run reports five timings you should expect to see in the output: `TIMING:
+create` (the `terraform apply` wall clock, which includes waiting for cloud-init
+to finish and the SDKMAN and i2code installs that follow it), `TIMING: cold
+start from create to first SSH login`, `TIMING: cloud-init reported done`,
+`TIMING: SDKMAN install of Java and Gradle` (read back from the instance as the
+time between the script's first and last file writes), and `TIMING:
+workflow-tools clone and i2code install` (read back as the time between the
+SDKMAN script's last file write and `uv tool install` writing the `i2code`
+launcher). It also reports `SIZE: rendered user_data`.
+
+Measured on 2026-08-20 in `us-west-1` against a real account, on a run where the
+shared VPC, subnet, gateway, route table, security group, and key pair already
+existed and only the instances had to be built:
+
+| Measurement | Value |
+| --- | --- |
+| `go test -tags=ec2 ./internal/ec2/...` | 1046s for all seven instances |
+| Lifecycle test | 155s, of which `TIMING: create` was 1m56s |
+| Repository test | 135s, of which `TIMING: create` was 1m45s |
+| Persisted-token test | 141s, of which `TIMING: create` was 1m52s |
+| Claude-authenticates test | 151s, of which `TIMING: create` was 1m50s |
+| Survives-disconnect test | 163s, of which `TIMING: create` was 1m55s |
+| New-session test | 153s, of which `TIMING: create` was 1m50s |
+| Toolchain test | 147s, of which `TIMING: create` was 1m45s |
+| `TIMING: cloud-init reported done` | 1m47s after create started |
+| `TIMING: SDKMAN install of Java and Gradle` | 27s (measured 2026-08-23, after a 2m7s cloud-init); 33s on 2026-08-24 |
+| `TIMING: workflow-tools clone and i2code install` | 3s (measured 2026-08-24, on a 3m6s `TIMING: create`) |
+| `SIZE: rendered user_data` | 3418 bytes of the 16384-byte limit |
+
+Each test builds its own instance, so the wall clock is roughly the instance
+count times the cold start. Earlier runs measured `TIMING: create` as high as
+2m18s.
+
+EC2 caps `user_data` at 16 KB, which makes that limit a live constraint on
+`internal/ec2/cloud-init.yaml` rather than a theoretical one. The document
+currently spends about a fifth of the budget, so the toolchain has room to grow —
+but a substantial addition should be measured against the reported size rather
+than assumed to fit.
+
+The run exited 0: `Exec` of `echo hello` returned `hello` with exit code 0,
+`Exec` of `exit 42` returned 42, `DescribeInstances` reported the instance
+`terminated` after `destroy`, and on a freshly created instance `cloud-init
+status --wait` reported `status: done` while `git --version`, `gh --version`,
+`node --version`, `tmux -V`, `uv --version`, `claude --version`, a rootless
+`docker info`, `java -version`, and `bash -lc 'source
+~/.sdkman/bin/sdkman-init.sh && gradle --version'` each exited 0 with
+`kernel.apparmor_restrict_unprivileged_userns = 0`. On the instances created
+from this repository's own checkout, `/home/ubuntu/repo` was on the branch
+`create` ran from, `git config user.name` there carried the ` - i2code` suffix,
+no tracked file was modified, `.claude/settings.local.json` and `CLAUDE.md` had
+travelled from the host, and a recursive search of `/home/ubuntu` found the
+installation token in no file at all. On the disconnect instance, a
+once-per-second writer started through `run -i` kept the same PID and kept
+growing its log after its local `ssh` process was `SIGKILL`ed, and
+`tmux list-sessions` reported exactly one session named `isolarium` both before
+the disconnect and after the reattach. Expect the first run in a fresh account to
+take longer, because that apply also builds the shared network.
 
 ## Quickstart
 
@@ -172,12 +544,71 @@ isolarium run --type nono -i -- claude
 | `isolarium destroy` | Delete the environment and all its contents |
 | `isolarium clone-repo` | Retry repository cloning after a failed create |
 | `isolarium install-tools` | Retry tool installation after a failed create |
+| `isolarium ec2 wipe` | Tear down the shared EC2 infrastructure, retaining the state bucket |
+
+`isolarium status` lists every environment it finds under `~/.isolarium`, one row
+per environment, with the repository and branch for `vm` and `ec2` rows and the
+working directory for `container` and `nono` rows:
+
+```
+NAME       TYPE       STATE     DETAILS
+my-work    ec2        running   humansintheloop-dev/isolarium (main)
+isolarium  vm         stopped   humansintheloop-dev/isolarium (main)
+scratch    container  running   ~/src/scratch
+```
+
+The state of an `ec2` row comes from AWS itself, so `isolarium status` needs the
+credentials from [EC2 mode configuration](#ec2-mode-configuration) to report it.
+Without them the row still appears, with a state of `unknown` rather than the
+command failing.
+
+### Tearing down the shared EC2 infrastructure
+
+`isolarium destroy --type ec2 --name <name>` removes one environment. The VPC,
+subnet, security group, and key pair that every environment shares outlive it,
+and `isolarium ec2 wipe` is what removes those:
+
+```bash
+isolarium ec2 wipe
+```
+
+`wipe` refuses while any EC2 environment still exists, listing them and the
+`isolarium destroy` command to run for each. It never cascades: `destroy` is the
+per-environment verb, and a wipe that silently terminated a running agent session
+would be the wrong default. Once none remain, `wipe` runs `terraform destroy`,
+removes `~/.isolarium/ec2/terraform/`, `id_ed25519`, `id_ed25519.pub`, and
+`known_hosts`, and reports the state bucket it deliberately left behind.
+
+#### Removing the state bucket by hand
+
+`wipe` retains `isolarium-tfstate-<account-id>-<region>`: it costs approximately
+nothing, is harmless to reuse, and the bootstrap on the next `create` is
+idempotent. It is versioned, so emptying it means deleting every object version
+and every delete marker before the bucket itself:
+
+```bash
+BUCKET=isolarium-tfstate-<account-id>-<region>
+
+aws s3api delete-objects --bucket "$BUCKET" --delete "$(aws s3api list-object-versions \
+  --bucket "$BUCKET" --output json \
+  --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}')"
+
+aws s3api delete-objects --bucket "$BUCKET" --delete "$(aws s3api list-object-versions \
+  --bucket "$BUCKET" --output json \
+  --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}')"
+
+aws s3api delete-bucket --bucket "$BUCKET"
+```
+
+Each `delete-objects` call handles up to 1000 versions, so repeat both until
+`list-object-versions` returns nothing. Do this only after `wipe` has succeeded —
+deleting the state while infrastructure still exists strands it.
 
 ## Global flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--type` | `vm` | Environment type: `vm`, `container`, or `nono` |
+| `--type` | `vm` | Environment type: `vm`, `container`, `nono`, or `ec2` |
 | `--name` | `isolarium` | Environment name |
 | `--env-file` | `.env.local` | Path to environment file |
 
@@ -189,7 +620,8 @@ isolarium run --type nono -i -- claude
 | `--copy-session` | `true` | Copy Claude credentials from host |
 | `--fresh-login` | `false` | Authenticate via device code flow instead |
 | `--read` | | Grant nono sandbox read-only access to additional paths |
-| `--create` | `false` | Create the environment if it does not exist |
+| `--create` | `false` | Create the environment if it does not exist; for `ec2` this launches the instance and clones the repository, which takes minutes |
+| `--new-session` | `false` | Start an additional tmux session (`isolarium-<n>`) on the instance instead of joining the running one; `ec2` only, and never kills a session |
 | `--work-directory` | cwd | Work directory to mount (container mode, requires `--create`) |
 
 ## License

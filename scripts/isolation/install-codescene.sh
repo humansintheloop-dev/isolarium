@@ -4,7 +4,11 @@ set -euo pipefail
 mkdir -p "$HOME/.local/bin"
 export PATH="$HOME/.local/bin:$PATH"
 
-curl -fsSL https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh -o /tmp/install-cs.sh
+downloadWithRetry() {
+    curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused --retry-all-errors "$1" -o "$2"
+}
+
+downloadWithRetry https://downloads.codescene.io/enterprise/cli/install-cs-tool.sh /tmp/install-cs.sh
 
 patchInstallerForNonInteractiveUse() {
     if [ ! -t 0 ]; then

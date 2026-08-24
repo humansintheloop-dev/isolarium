@@ -23,6 +23,10 @@ func newDestroyCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFla
 				return destroyVM(name)
 			}
 
+			if envType == "ec2" {
+				return destroyEC2(cmd.OutOrStdout(), name)
+			}
+
 			b, err := resolver(envType)
 			if err != nil {
 				return err

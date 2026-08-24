@@ -1,0 +1,19 @@
+# The work directory the ec2 suite gives create, declaring one script of each
+# kind so a real create proves all three hooks fire.
+#
+# Creation and env scripts run inside the clone at /home/ubuntu/repo, so their
+# paths are relative to the repository root. The host script runs on the host
+# relative to this directory, which is the work directory itself. In ordinary use
+# the two are the same directory and the distinction does not show.
+isolarium:
+  ec2:
+    create:
+      creation_scripts:
+        - path: internal/ec2/testdata/pidscripts/creation-marker.sh
+      post_creation_scripts:
+        host_scripts:
+          - path: host-marker.sh
+            env:
+              - ISOLARIUM_HOST_MARKER_DIR
+        env_scripts:
+          - path: internal/ec2/testdata/pidscripts/env-marker.sh

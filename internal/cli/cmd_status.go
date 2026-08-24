@@ -47,7 +47,7 @@ func newStatusCmdWithLister(rootCmd *cobra.Command, nameFlag *string, typeFlag *
 
 func formatDetails(env status.EnvironmentStatus) string {
 	switch env.Type {
-	case "vm":
+	case "vm", "ec2":
 		if env.Repository != "" {
 			return fmt.Sprintf("%s (%s)", env.Repository, env.Branch)
 		}

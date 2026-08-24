@@ -11,6 +11,7 @@ import (
 
 func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag *environmentType, resolver BackendResolver, envTypeResolver EnvironmentTypeResolver) *cobra.Command {
 	var copySession bool
+	var newSession bool
 
 	cmd := &cobra.Command{
 		Use:   "shell",
@@ -23,25 +24,18 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 				return err
 			}
 
-			if envType == "nono" {
-				if cmd.Flags().Changed("copy-session") {
-					return fmt.Errorf("--copy-session is not supported with --type nono")
-				}
+			if err := rejectFlagsUnsupportedByShell(cmd, envType, newSession); err != nil {
+				return err
 			}
 
 			b, err := resolver(envType)
 			if err != nil {
 				return err
 			}
+			applyNewSession(b, newSession)
 
-			if copySession && envType == "container" {
-				credentials, credErr := readKeychainCredentials()
-				if credErr != nil {
-					return fmt.Errorf("failed to read credentials: %w", credErr)
-				}
-				if err := b.CopyCredentials(name, credentials); err != nil {
-					return fmt.Errorf("failed to copy credentials: %w", err)
-				}
+			if err := copyCredentialsForContainerShell(b, envType, name, copySession); err != nil {
+				return err
 			}
 
 			envVars, err := buildShellEnvVars(envType)
@@ -62,8 +56,46 @@ func newShellCmdWithResolver(rootCmd *cobra.Command, nameFlag *string, typeFlag 
 	}
 
 	cmd.Flags().BoolVar(&copySession, "copy-session", true, "Copy Claude credentials from host to container")
+	cmd.Flags().BoolVar(&newSession, "new-session", false, newSessionFlagUsage)
 
 	return cmd
+}
+
+func rejectFlagsUnsupportedByShell(cmd *cobra.Command, envType string, newSession bool) error {
+	if envType == "nono" && cmd.Flags().Changed("copy-session") {
+		return fmt.Errorf("--copy-session is not supported with --type nono")
+	}
+	return rejectNewSessionOutsideEC2(envType, newSession)
+}
+
+// copyCredentialsForContainerShell carries the host's Claude credentials into a
+// container before its shell opens. Every other environment type opens straight
+// into its shell: vm and nono never copy, and ec2 leaves the decision to the
+// backend, which only overwrites a credential file the host's is fresher than.
+func copyCredentialsForContainerShell(b backend.Backend, envType, name string, copySession bool) error {
+	if envType != "container" {
+		return nil
+	}
+	return copyKeychainCredentials(b, name, copySession)
+}
+
+// copyKeychainCredentials offers the host's Claude credentials to the
+// environment. What the environment does with them is the backend's call: the
+// container writes unconditionally, while ec2 keeps a credential file a session
+// running there refreshed more recently than the host's.
+func copyKeychainCredentials(b backend.Backend, name string, copySession bool) error {
+	if !copySession {
+		return nil
+	}
+
+	credentials, err := readKeychainCredentials()
+	if err != nil {
+		return fmt.Errorf("failed to read credentials: %w", err)
+	}
+	if err := b.CopyCredentials(name, credentials); err != nil {
+		return fmt.Errorf("failed to copy credentials: %w", err)
+	}
+	return nil
 }
 
 func buildShellEnvVars(envType string) (map[string]string, error) {

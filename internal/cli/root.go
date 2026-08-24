@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/humansintheloop-dev/isolarium/internal/backend"
@@ -76,7 +75,7 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 
 	rootCmd.PersistentFlags().StringVar(&envFileFlag, "env-file", ".env.local", "Path to environment file")
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
-	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", or "nono" (default "vm")`)
+	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", "nono", or "ec2" (default "vm")`)
 	rootCmd.PersistentFlags().StringSliceVar(&envFlags, "env", nil, "Environment variable: VAR (read from env) or VAR=VALUE (literal)")
 
 	lister := newDefaultEnvironmentLister(resolver)
@@ -88,6 +87,7 @@ func newRootCmdWithResolvers(resolver BackendResolver, envTypeResolver Environme
 	rootCmd.AddCommand(newCloneRepoCmd(rootCmd, &typeFlag))
 	rootCmd.AddCommand(newInstallToolsCmd(rootCmd, &typeFlag))
 	rootCmd.AddCommand(newInstallWorkflowToolsFromSourceCmd(rootCmd, &typeFlag))
+	rootCmd.AddCommand(newEC2Cmd())
 
 	return rootCmd
 }
@@ -102,7 +102,7 @@ func newRootCmdWithStatusLister(lister EnvironmentLister) *cobra.Command {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&nameFlag, "name", lima.GetVMName(), "Name of the environment")
-	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", or "nono" (default "vm")`)
+	rootCmd.PersistentFlags().Var(&typeFlag, "type", `Environment type: "vm", "container", "nono", or "ec2" (default "vm")`)
 
 	rootCmd.AddCommand(newStatusCmdWithLister(rootCmd, &nameFlag, &typeFlag, lister))
 
@@ -129,11 +129,7 @@ func applyEnvVarDefaults(cmd *cobra.Command, nameFlag *string, typeFlag *environ
 }
 
 func defaultEnvironmentTypeResolver() EnvironmentTypeResolver {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.Getenv("HOME")
-	}
-	baseDir := filepath.Join(home, ".isolarium")
+	baseDir := isolariumBaseDir()
 	return func(name string) (string, error) {
 		return backend.ResolveEnvironmentType(baseDir, name)
 	}

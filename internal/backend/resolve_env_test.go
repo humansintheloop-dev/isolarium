@@ -62,6 +62,24 @@ func TestResolveEnvironmentTypeFindsNonoWhenOnlyNonoExists(t *testing.T) {
 	}
 }
 
+func TestResolveEnvironmentTypeFindsEC2WhenOnlyEC2Exists(t *testing.T) {
+	baseDir := t.TempDir()
+	name := "test-env"
+
+	ec2Dir := filepath.Join(baseDir, name, "ec2")
+	if err := os.MkdirAll(ec2Dir, 0755); err != nil {
+		t.Fatalf("failed to create ec2 dir: %v", err)
+	}
+
+	envType, err := ResolveEnvironmentType(baseDir, name)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if envType != "ec2" {
+		t.Errorf("expected %q, got %q", "ec2", envType)
+	}
+}
+
 func TestResolveEnvironmentTypeReturnsErrorWhenBothExist(t *testing.T) {
 	baseDir := t.TempDir()
 	name := "test-env"

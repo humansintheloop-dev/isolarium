@@ -1,0 +1,85 @@
+#cloud-config
+# Accepted, tracked duplicate of internal/lima/template.yaml.
+#
+# The toolchain here is deliberately a second copy of the Lima provisioning
+# content rather than a shared source of truth, so that the EC2 backend carries
+# no VM regression risk. Any toolchain change must be applied to both files.
+# Unifying them is named follow-up 8.2 of the ec2-isolation-type spec.
+
+package_update: true
+
+packages:
+  - git
+  - curl
+  - wget
+  - ca-certificates
+  - gnupg
+  - lsb-release
+  - unzip
+  - zip
+  - uidmap
+  - dbus-user-session
+  - tmux
+
+write_files:
+  - path: /etc/sysctl.d/99-rootless-docker.conf
+    content: "kernel.apparmor_restrict_unprivileged_userns=0\n"
+
+  # rootless Docker's installer refuses to run until nf_tables is loaded, and
+  # the stock Ubuntu EC2 kernel does not load it on boot
+  - path: /etc/modules-load.d/99-rootless-docker.conf
+    content: "nf_tables\n"
+
+  # `isolarium run` reaches the instance as `ssh <host> <command>`, whose
+  # non-interactive shell returns out of ~/.bashrc before reading anything
+  # exported there. PAM reads /etc/environment for those sessions, so the
+  # user-level installs are only reachable if they are published here. The
+  # ubuntu user is uid 1000 on every Ubuntu cloud image.
+  - path: /etc/environment
+    content: |
+      PATH="/home/ubuntu/bin:/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      DOCKER_HOST="unix:///run/user/1000/docker.sock"
+
+runcmd:
+  # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor,
+  # which prevents rootless Docker from starting
+  - sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+  - modprobe nf_tables
+
+  # Install Node.js LTS
+  - curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+  - apt-get install -y nodejs
+
+  # Install GitHub CLI
+  - curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+  - chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+  - apt-get update
+  - apt-get install -y gh
+
+  # Keep user services (like rootless Docker) running after logout. This comes
+  # before the install because the installer only enables and starts the daemon
+  # when the ubuntu user already has a systemd session to own it.
+  - loginctl enable-linger ubuntu
+
+  # Install Docker in rootless mode for the ubuntu user
+  - runuser -l ubuntu -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); curl -fsSL https://get.docker.com/rootless | sh'
+  - runuser -l ubuntu -c 'export XDG_RUNTIME_DIR=/run/user/$(id -u); systemctl --user enable --now docker'
+
+  # Configure shell for rootless Docker
+  - runuser -l ubuntu -c 'echo "export PATH=\$HOME/bin:\$PATH" >> ~/.bashrc'
+  - runuser -l ubuntu -c 'echo "export DOCKER_HOST=unix:///run/user/$(id -u ubuntu)/docker.sock" >> ~/.bashrc'
+
+  # Install SDKMAN (Java and Gradle are installed separately via install-using-sdkman.sh)
+  - runuser -l ubuntu -c 'curl -s "https://get.sdkman.io" | bash'
+
+  # Install uv (Python package manager) for i2code CLI
+  - runuser -l ubuntu -c 'curl -LsSf https://astral.sh/uv/install.sh | sh'
+
+  # Install Claude Code as the user that runs it, so the binary lands in
+  # /home/ubuntu/.local/bin where its own auto-update can rewrite it. The
+  # release channel is named rather than left to the installer's default, so
+  # one instance cannot silently come up on a different train than the last;
+  # `stable` rather than an exact version, because a pin would go stale in both
+  # copies of this toolchain while every instance is thrown away after a session.
+  - runuser -l ubuntu -c 'curl -fsSL https://claude.ai/install.sh | bash -s stable'

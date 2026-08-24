@@ -33,6 +33,23 @@ isolarium:
       env:
         - CS_ACCESS_TOKEN
         - CS_ACE_ACCESS_TOKEN
+  ec2:
+    create:
+      creation_scripts:
+        - path: scripts/isolation/install-go.sh
+        - path: scripts/isolation/install-linters.sh
+        - path: scripts/isolation/install-pre-commit.sh
+        - path: scripts/isolation/install-codescene.sh
+          env:
+            - CS_ACCESS_TOKEN
+            - CS_ACE_ACCESS_TOKEN
+      post_creation_scripts:
+        host_scripts: []
+        env_scripts: []
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
   nono:
     run:
       env:

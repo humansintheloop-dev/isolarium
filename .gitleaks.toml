@@ -13,10 +13,12 @@ tags = ["sensitive", "local-path"]
 severity = "high"
 
 [rules.allowlist]
-description = "Exclude common placeholder usernames in docs/examples"
+description = "Exclude placeholder usernames and well-known instance accounts"
 regexes = [
   '''/(Users|home)/(user|username|name)(/|$)''',
-  '''/(Users|home)/(dev|test|isolarium|lima\.linux)(/|$)'''
+  '''/(Users|home)/(dev|test|isolarium|lima\.linux)(/|$)''',
+  # Default account on the Ubuntu AMIs used by the EC2 and VM backends
+  '''/home/ubuntu(/|$)'''
 ]
 paths = [
   '''.claude/settings.local.json'''

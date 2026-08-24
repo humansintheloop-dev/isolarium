@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/humansintheloop-dev/isolarium/internal/command"
 	"github.com/humansintheloop-dev/isolarium/internal/docker"
+	"github.com/humansintheloop-dev/isolarium/internal/ec2"
 	"github.com/humansintheloop-dev/isolarium/internal/git"
 	"github.com/humansintheloop-dev/isolarium/internal/nono"
 )
@@ -22,6 +24,8 @@ func ResolveBackend(envType string) (Backend, error) {
 		return newDockerBackend(), nil
 	case "nono":
 		return newNonoBackend(), nil
+	case "ec2":
+		return NewEC2Backend(), nil
 	default:
 		return nil, fmt.Errorf("unknown environment type: %q", envType)
 	}
@@ -38,6 +42,26 @@ func newNonoBackend() *NonoBackend {
 		ExecFunc:            nono.ExecCommand,
 		ExecInteractiveFunc: nono.ExecInteractiveCommand,
 		OpenShellFunc:       func(req ExecRequest) (int, error) { return nono.OpenShell(req.ContainerName, req.EnvVars) },
+	}
+}
+
+func NewEC2Backend() *EC2Backend {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = os.Getenv("HOME")
+	}
+	return &EC2Backend{
+		MetadataDir:            filepath.Join(home, ".isolarium"),
+		Runner:                 command.ExecRunner{},
+		LookupEnvFunc:          os.LookupEnv,
+		EnsureBucketFunc:       ec2.BootstrapStateBucket,
+		ExtractScaffoldingFunc: ec2.ExtractScaffolding,
+		EnsureKeypairFunc:      ec2.EnsureKeypair,
+		CheckIPFunc:            ec2.DefaultHTTPGet,
+		SleepFunc:              time.Sleep,
+		ExecFunc:               ec2.ExecCommand,
+		ExecInteractiveFunc:    ec2.ExecInteractiveCommand,
+		ExecInSessionFunc:      ec2.ExecInSessionCommand,
 	}
 }
 

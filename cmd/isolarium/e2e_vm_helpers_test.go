@@ -1,4 +1,4 @@
-//go:build e2e_gradlew || e2e_pytest || e2e_claude
+//go:build e2e_gradlew || e2e_pytest || e2e_claude || e2e_ec2
 
 package main
 

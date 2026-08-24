@@ -95,7 +95,7 @@ func TestListAllEnvironments_ReturnsBothVMAndContainer(t *testing.T) {
 
 func TestListAllEnvironments_VMStatusIncludesRepositoryAndBranch(t *testing.T) {
 	s := newTestEnvSetup(t)
-	s.createVMWithRepo("my-vm", project.GitHubOrg, project.GitHubRepo, "main")
+	s.createVMWithRepo("my-vm", isolariumOnMain())
 
 	envs := ListAllEnvironments(s.baseDir, alwaysState("running"))
 
@@ -232,6 +232,46 @@ func TestListAllEnvironments_NonoAppearsAlongsideVMAndContainer(t *testing.T) {
 	assertContainsEnvironment(t, envs, expectedEnv{"my-nono", "nono", "configured"})
 }
 
+func TestEC2State_ListAllEnvironmentsIncludesEC2Rows(t *testing.T) {
+	s := newTestEnvSetup(t)
+	s.createEC2("my-work", isolariumOnMain())
+	s.createContainer("my-container", "/home/user/repo")
+
+	rows := rowsByType(ListAllEnvironments(s.baseDir, alwaysState("running")))
+
+	assertRowEquals(t, rows["ec2"], EnvironmentStatus{
+		Name:       "my-work",
+		Type:       "ec2",
+		State:      "running",
+		Repository: project.GitHubOrgRepo,
+		Branch:     "main",
+	})
+	assertRowEquals(t, rows["container"], EnvironmentStatus{
+		Name:          "my-container",
+		Type:          "container",
+		State:         "running",
+		WorkDirectory: "/home/user/repo",
+	})
+}
+
+func rowsByType(envs []EnvironmentStatus) map[string]EnvironmentStatus {
+	rows := make(map[string]EnvironmentStatus, len(envs))
+	for _, env := range envs {
+		rows[env.Type] = env
+	}
+	return rows
+}
+
+// assertRowEquals compares whole rows, so a type that produced no row at all
+// fails against the zero value rather than passing unnoticed.
+func assertRowEquals(t *testing.T, row, want EnvironmentStatus) {
+	t.Helper()
+
+	if row != want {
+		t.Errorf("row = %+v, want %+v", row, want)
+	}
+}
+
 // --- helpers ---
 
 type testEnvSetup struct {
@@ -260,9 +300,30 @@ func (s testEnvSetup) createVM(name string) {
 	s.writeMetadata(name, "vm", `{"owner":"","repo":"","branch":""}`)
 }
 
-func (s testEnvSetup) createVMWithRepo(name, owner, repo, branch string) {
+// repositoryFixture is the repository an environment's metadata records, which
+// both the vm and the ec2 backends spell the same way.
+type repositoryFixture struct {
+	owner  string
+	repo   string
+	branch string
+}
+
+func isolariumOnMain() repositoryFixture {
+	return repositoryFixture{owner: project.GitHubOrg, repo: project.GitHubRepo, branch: "main"}
+}
+
+func (r repositoryFixture) metadataFields() string {
+	return `"owner":"` + r.owner + `","repo":"` + r.repo + `","branch":"` + r.branch + `"`
+}
+
+func (s testEnvSetup) createVMWithRepo(name string, repository repositoryFixture) {
 	s.t.Helper()
-	s.writeMetadata(name, "vm", `{"owner":"`+owner+`","repo":"`+repo+`","branch":"`+branch+`"}`)
+	s.writeMetadata(name, "vm", `{`+repository.metadataFields()+`}`)
+}
+
+func (s testEnvSetup) createEC2(name string, repository repositoryFixture) {
+	s.t.Helper()
+	s.writeMetadata(name, "ec2", `{"instance_id":"i-0123456789abcdef0","public_dns":"ec2-203-0-113-7.compute-1.amazonaws.com","region":"us-west-2",`+repository.metadataFields()+`}`)
 }
 
 func (s testEnvSetup) createContainer(name, workDir string) {

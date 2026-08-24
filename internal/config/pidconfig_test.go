@@ -63,6 +63,27 @@ func TestLoadPidConfigParsesLifecycleGroupedYAML(t *testing.T) {
 	assertRunEnv(t, cfg.VM.Run.Env, []string{"CS_ACCESS_TOKEN"}, "vm.run.env")
 }
 
+func TestLoadPidConfigParsesEC2RunEnv(t *testing.T) {
+	dir := t.TempDir()
+	writePidYaml(t, dir, `isolarium:
+  ec2:
+    run:
+      env:
+        - CS_ACCESS_TOKEN
+        - CS_ACE_ACCESS_TOKEN
+`)
+
+	cfg, err := LoadPidConfig(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+
+	assertRunEnv(t, cfg.EC2.Run.Env, []string{"CS_ACCESS_TOKEN", "CS_ACE_ACCESS_TOKEN"}, "ec2.run.env")
+}
+
 func TestLoadPidConfigReturnsNilWhenFileAbsent(t *testing.T) {
 	dir := t.TempDir()
 
@@ -115,6 +136,62 @@ func TestLoadPidConfigRejectsInvalidScriptEntries(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.errContains) {
 				t.Errorf("expected error to contain %q, got: %v", tt.errContains, err)
+			}
+		})
+	}
+}
+
+func TestValidateConfig_RejectsEscapingEC2Paths(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		errText string
+	}{
+		{
+			name: "creation_scripts",
+			yaml: `isolarium:
+  ec2:
+    create:
+      creation_scripts:
+        - path: ../escape.sh
+`,
+			errText: `ec2.create.creation_scripts[0]: path "../escape.sh" escapes project root`,
+		},
+		{
+			name: "post_creation_scripts.host_scripts",
+			yaml: `isolarium:
+  ec2:
+    create:
+      post_creation_scripts:
+        host_scripts:
+          - path: ../escape.sh
+`,
+			errText: `ec2.create.post_creation_scripts.host_scripts[0]: path "../escape.sh" escapes project root`,
+		},
+		{
+			name: "post_creation_scripts.env_scripts",
+			yaml: `isolarium:
+  ec2:
+    create:
+      post_creation_scripts:
+        env_scripts:
+          - path: ../escape.sh
+`,
+			errText: `ec2.create.post_creation_scripts.env_scripts[0]: path "../escape.sh" escapes project root`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writePidYaml(t, dir, tt.yaml)
+
+			_, err := LoadPidConfig(dir)
+			if err == nil {
+				t.Fatalf("expected error %q", tt.errText)
+			}
+			if err.Error() != tt.errText {
+				t.Errorf("expected error %q, got: %v", tt.errText, err)
 			}
 		})
 	}

@@ -4,12 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SKIP_DOCKER_INTEGRATION=false
+WITH_EC2=false
 
 for arg in "$@"; do
     case "$arg" in
         --skip-docker-integration) SKIP_DOCKER_INTEGRATION=true ;;
+        --with-ec2) WITH_EC2=true ;;
         *)
-            echo "Usage: $0 [--skip-docker-integration]"
+            echo "Usage: $0 [--skip-docker-integration] [--with-ec2]"
             exit 1
             ;;
     esac
@@ -21,6 +23,14 @@ echo "=== Cleaning up existing VM ==="
 
 echo ""
 "$SCRIPT_DIR/test-unit.sh"
+
+echo ""
+"$SCRIPT_DIR/test-ec2-preflight.sh"
+
+if [ "$WITH_EC2" = true ]; then
+    echo ""
+    "$SCRIPT_DIR/test-ec2.sh"
+fi
 
 if [ "$SKIP_DOCKER_INTEGRATION" = false ]; then
     echo ""

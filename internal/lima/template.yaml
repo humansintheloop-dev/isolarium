@@ -86,8 +86,13 @@ provision:
       curl -s "https://get.sdkman.io" | bash
       set -u
 
-      # Install Claude Code via npm (requires sudo for global install)
-      sudo npm install -g @anthropic-ai/claude-code
+      # Install Claude Code as the user that runs it, so the binary lands in
+      # ~/.local/bin where its own auto-update can rewrite it. The release
+      # channel is named rather than left to the installer's default, so one VM
+      # cannot silently come up on a different train than the last; `stable`
+      # rather than an exact version, because a pin would go stale in both
+      # copies of this toolchain (see internal/ec2/cloud-init.yaml).
+      curl -fsSL https://claude.ai/install.sh | bash -s stable
 
       # Install uv (Python package manager) for i2code CLI
       curl -LsSf https://astral.sh/uv/install.sh | sh

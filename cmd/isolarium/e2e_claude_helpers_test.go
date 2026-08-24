@@ -1,4 +1,4 @@
-//go:build e2e_claude
+//go:build e2e_claude || e2e_ec2
 
 package main
 
@@ -149,6 +149,15 @@ func (o *ptyOutput) contains(needle []byte) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return bytes.Contains(o.buf.Bytes(), needle)
+}
+
+// text is everything the terminal has printed so far, which is what a failure
+// has to report: the command that produced it is the only account of what the
+// environment did.
+func (o *ptyOutput) text() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.buf.String()
 }
 
 func (e testEnv) runClaudeInteractive() {

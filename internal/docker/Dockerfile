@@ -72,13 +72,25 @@ RUN sudo npm install -g @anthropic-ai/claude-code
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # SDKMAN, Java 17, Gradle 8.14 (user-level tools)
+# installWithRetry retries a failed download and clears SDKMAN's tmp dir
+# so a partial archive from the failed attempt is not reused.
 RUN curl -s "https://get.sdkman.io" | bash
 RUN bash -c '\
-    source "$HOME/.sdkman/bin/sdkman-init.sh" \
-    && echo "sdkman_auto_answer=true" > "$HOME/.sdkman/etc/config" \
-    && echo "sdkman_selfupdate_feature=false" >> "$HOME/.sdkman/etc/config" \
-    && sdk install java 17.0.13-tem \
-    && sdk install gradle 8.14'
+    set -e; \
+    source "$HOME/.sdkman/bin/sdkman-init.sh"; \
+    echo "sdkman_auto_answer=true" > "$HOME/.sdkman/etc/config"; \
+    echo "sdkman_selfupdate_feature=false" >> "$HOME/.sdkman/etc/config"; \
+    installWithRetry() { \
+        for attempt in 1 2 3 4 5; do \
+            sdk install "$@" && return 0; \
+            echo "sdk install $* failed (attempt $attempt of 5); retrying in 10s" >&2; \
+            rm -rf "${SDKMAN_DIR:?}/tmp/"*; \
+            sleep 10; \
+        done; \
+        return 1; \
+    }; \
+    installWithRetry java 17.0.13-tem; \
+    installWithRetry gradle 8.14'
 
 # pre-commit
 RUN uv tool install pre-commit

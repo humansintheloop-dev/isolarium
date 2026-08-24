@@ -207,6 +207,114 @@ func TestShellCommand_ContainerPassesEnvFlagVarsToBackendOpenShell(t *testing.T)
 	}
 }
 
+func stubKeychainCredentials(t *testing.T, credentials string, err error) {
+	t.Helper()
+	orig := readKeychainCredentials
+	readKeychainCredentials = func() (string, error) {
+		return credentials, err
+	}
+	t.Cleanup(func() { readKeychainCredentials = orig })
+}
+
+func TestCopyCredentialsForContainerShell_CopiesForContainer(t *testing.T) {
+	stubKeychainCredentials(t, `{"token":"helper-creds"}`, nil)
+	spy := &backendSpy{}
+
+	if err := copyCredentialsForContainerShell(spy, "container", "my-env", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !spy.copyCredentialsCalled {
+		t.Fatal("expected backend.CopyCredentials to be called")
+	}
+	if spy.copyCredentialsName != "my-env" {
+		t.Errorf("expected name 'my-env', got '%s'", spy.copyCredentialsName)
+	}
+	if spy.copyCredentialsCredentials != `{"token":"helper-creds"}` {
+		t.Errorf("expected credentials %q, got %q", `{"token":"helper-creds"}`, spy.copyCredentialsCredentials)
+	}
+}
+
+func TestCopyCredentialsForContainerShell_SkipsNonContainerTypes(t *testing.T) {
+	stubKeychainCredentials(t, "", fmt.Errorf("keychain must not be read"))
+
+	for _, envType := range []string{"vm", "nono", "ec2"} {
+		t.Run(envType, func(t *testing.T) {
+			spy := &backendSpy{}
+
+			if err := copyCredentialsForContainerShell(spy, envType, "my-env", true); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if spy.copyCredentialsCalled {
+				t.Fatalf("expected CopyCredentials NOT to be called for %s", envType)
+			}
+		})
+	}
+}
+
+func TestCopyCredentialsForContainerShell_SkipsWhenCopySessionDisabled(t *testing.T) {
+	stubKeychainCredentials(t, "", fmt.Errorf("keychain must not be read"))
+	spy := &backendSpy{}
+
+	if err := copyCredentialsForContainerShell(spy, "container", "my-env", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if spy.copyCredentialsCalled {
+		t.Fatal("expected CopyCredentials NOT to be called when copySession is false")
+	}
+}
+
+func TestCopyCredentialsForContainerShell_WrapsKeychainReadFailure(t *testing.T) {
+	stubKeychainCredentials(t, "", fmt.Errorf("keychain locked"))
+	spy := &backendSpy{}
+
+	err := copyCredentialsForContainerShell(spy, "container", "my-env", true)
+	if err == nil {
+		t.Fatal("expected an error when the keychain read fails")
+	}
+	if !strings.Contains(err.Error(), "failed to read credentials: keychain locked") {
+		t.Errorf("expected wrapped keychain error, got: %v", err)
+	}
+	if spy.copyCredentialsCalled {
+		t.Fatal("expected CopyCredentials NOT to be called after a keychain read failure")
+	}
+}
+
+func TestCopyCredentialsForContainerShell_WrapsBackendCopyFailure(t *testing.T) {
+	stubKeychainCredentials(t, `{"token":"helper-creds"}`, nil)
+	spy := &backendSpy{copyCredentialsErr: fmt.Errorf("container not running")}
+
+	err := copyCredentialsForContainerShell(spy, "container", "my-env", true)
+	if err == nil {
+		t.Fatal("expected an error when the backend copy fails")
+	}
+	if !strings.Contains(err.Error(), "failed to copy credentials: container not running") {
+		t.Errorf("expected wrapped backend error, got: %v", err)
+	}
+}
+
+func TestShellCommand_ContainerSurfacesCopyCredentialsFailure(t *testing.T) {
+	stubKeychainCredentials(t, `{"token":"shell-creds"}`, nil)
+	spy := &backendSpy{copyCredentialsErr: fmt.Errorf("container not running")}
+	rootCmd := newRootCmdWithResolver(func(envType string) (backend.Backend, error) {
+		return spy, nil
+	})
+	rootCmd.SetArgs([]string{"shell", "--type", "container", "--copy-session"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected shell to fail when copying credentials fails")
+	}
+	if !strings.Contains(err.Error(), "failed to copy credentials: container not running") {
+		t.Errorf("expected wrapped backend error, got: %v", err)
+	}
+	if spy.openShellCalled {
+		t.Fatal("expected OpenShell NOT to be called after a credential copy failure")
+	}
+}
+
 func TestShellCommand_AutoDetectsContainerWhenTypeNotProvided(t *testing.T) {
 	spy := &backendSpy{}
 	rootCmd := newRootCmdWithResolvers(
