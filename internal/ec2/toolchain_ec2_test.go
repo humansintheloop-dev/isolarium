@@ -16,6 +16,9 @@ const (
 	claudeBinaryPath = "/home/ubuntu/.local/bin/claude"
 	claudeOwner      = "ubuntu"
 	npmClaudeCode    = "@anthropic-ai/claude-code"
+	i2codeBinaryPath = "/home/ubuntu/.local/bin/i2code"
+	sdkmanConfigPath = "/home/ubuntu/.sdkman/etc/config"
+	javaLinkPath     = "/usr/local/bin/java"
 )
 
 // TestEC2Instance_HasToolchain proves that the cloud-init document carried as
@@ -30,8 +33,10 @@ func TestEC2Instance_HasToolchain(t *testing.T) {
 		environment.assertToolIsInstalled(probe)
 	}
 	environment.assertClaudeIsInstalledForTheUserThatRunsIt()
+	environment.assertWorkflowToolsIsCloned()
 	environment.assertUnprivilegedUserNamespacesAreUnrestricted()
 	environment.reportSDKMANInstallDuration()
+	environment.reportWorkflowToolsInstallDuration()
 }
 
 // The SDKMAN script rewrites ~/.sdkman/etc/config as its first step and links
@@ -40,9 +45,32 @@ func TestEC2Instance_HasToolchain(t *testing.T) {
 func (e *ec2Environment) reportSDKMANInstallDuration() {
 	e.t.Helper()
 
-	started := e.modificationTime("/home/ubuntu/.sdkman/etc/config")
-	finished := e.modificationTime("/usr/local/bin/java")
+	started := e.modificationTime(sdkmanConfigPath)
+	finished := e.modificationTime(javaLinkPath)
 	e.t.Logf("TIMING: SDKMAN install of Java and Gradle took %s", finished.Sub(started).Round(time.Second))
+}
+
+// The workflow-tools clone starts as soon as the SDKMAN script has linked java,
+// and `uv tool install` writes the i2code launcher as its last step, so the two
+// mtimes bound what cloning and installing i2code added to create.
+func (e *ec2Environment) reportWorkflowToolsInstallDuration() {
+	e.t.Helper()
+
+	started := e.modificationTime(javaLinkPath)
+	finished := e.modificationTime(i2codeBinaryPath)
+	e.t.Logf("TIMING: workflow-tools clone and i2code install took %s", finished.Sub(started).Round(time.Second))
+}
+
+// `i2code --help` alone would also pass with a launcher installed from
+// somewhere else, so the clone it was installed from is asserted separately, as
+// the Lima integration test does before it installs.
+func (e *ec2Environment) assertWorkflowToolsIsCloned() {
+	e.t.Helper()
+
+	exitCode, output := e.askInstance("test", "-d", ec2.RemoteWorkflowToolsDir)
+	if exitCode != 0 {
+		e.t.Errorf("test -d %s exited %d, want 0; output: %s", ec2.RemoteWorkflowToolsDir, exitCode, output)
+	}
 }
 
 func (e *ec2Environment) modificationTime(path string) time.Time {
@@ -97,7 +125,8 @@ func (e *ec2Environment) assertNpmGlobalTreeHasNoClaudeCode() {
 }
 
 // toolchainProbe is one tool the instance is expected to carry, together with
-// the command that proves it is installed and runnable.
+// the command that proves it is installed and runnable. i2code is probed with
+// --help because its CLI has no --version option.
 type toolchainProbe struct {
 	tool string
 	args []string
@@ -111,6 +140,7 @@ func toolchainProbes() []toolchainProbe {
 		{"tmux", []string{"tmux", "-V"}},
 		{"uv", []string{"uv", "--version"}},
 		{"claude", []string{"claude", "--version"}},
+		{"i2code", []string{"i2code", "--help"}},
 		{"docker", []string{"docker", "info"}},
 		{"java", []string{"java", "-version"}},
 		{"gradle", []string{"bash", "-lc", "'source ~/.sdkman/bin/sdkman-init.sh && gradle --version'"}},

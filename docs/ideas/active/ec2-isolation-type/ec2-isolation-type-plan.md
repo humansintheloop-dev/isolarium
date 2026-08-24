@@ -750,15 +750,16 @@ Lima's setup clones the workflow-tools repository into the VM and installs the i
     - [x] Unit-test the command sequence and both failure paths in `internal/ec2/clone_test.go` with the existing fake runner
     - [x] Call `InstallWorkflowTools` from `provisionInstance` in `internal/backend/ec2_backend.go` after `InstallUsingSDKMAN`, with a progress line, and extend the backend create-order test
     - [x] Run `make` and confirm it exits 0
-- [ ] **Task 16.2: A freshly created instance answers `i2code --version`**
+- [x] **Task 16.2: A freshly created instance answers `i2code --help`**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
-  - Observable: on an instance created by `isolarium create --type ec2`, `i2code --version` exits 0 over the same non-interactive transport the other probes use — proving the `uv tool` install landed in `~/.local/bin`, which `/etc/environment` already puts on the PATH — and `test -d ~/workflow-tools` exits 0
-  - Evidence: ``TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` gains an `i2code` probe and an assertion that `~/workflow-tools` exists, and passes in a green `./test-scripts/test-ec2.sh` run`
+  - Observable: on an instance created by `isolarium create --type ec2`, `i2code --help` exits 0 over the same non-interactive transport the other probes use — proving the `uv tool` install landed in `~/.local/bin`, which `/etc/environment` already puts on the PATH — and `test -d ~/workflow-tools` exits 0. The i2code CLI has no `--version` option, so `--help` is the probe
+  - Evidence: ``TestEC2Instance_HasToolchain` in `internal/ec2/toolchain_ec2_test.go` gains an `i2code` probe and an assertion that `~/workflow-tools` exists, `TestEC2Instance_HasNoPersistedToken` treats the public workflow-tools clone like the repo checkout (source excluded, `.git` scanned), and both pass in a green `./test-scripts/test-ec2.sh` run`
   - Steps:
-    - [ ] Add an `i2code` entry running `i2code --version` to `toolchainProbes()` in `internal/ec2/toolchain_ec2_test.go`
-    - [ ] Add an assertion that `~/workflow-tools` exists on the instance, mirroring what `TestInstallI2Code_Integration` proves for Lima with `which i2code`
-    - [ ] Run `./test-scripts/test-ec2.sh` against a real account, confirm the new probe passes with no isolarium instance left running, and record the added create-time duration in `README.md` next to the SDKMAN timing
+    - [x] Add an `i2code` entry running `i2code --help` to `toolchainProbes()` in `internal/ec2/toolchain_ec2_test.go`
+    - [x] Add an assertion that `~/workflow-tools` exists on the instance, mirroring what `TestInstallI2Code_Integration` proves for Lima with `which i2code`
+    - [x] Exclude the workflow-tools source from the home-wide `x-access-token` scan in `internal/ec2/repo_ec2_test.go` (its test fixtures carry the literal) and scan `~/workflow-tools/.git` separately, as the repo checkout already is
+    - [x] Run `./test-scripts/test-ec2.sh` against a real account, confirm the new probe passes with no isolarium instance left running, and record the added create-time duration in `README.md` next to the SDKMAN timing
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).
@@ -1050,3 +1051,6 @@ Test lives in run_gradlew_ec2_test.go rather than gradlew_ec2_test.go so it sort
 
 ### 2026-08-24 07:13 - insert-thread-after
 EC2 instances lack i2code while Lima VMs install it from workflow-tools at create time; add the install to the EC2 create path and an i2code toolchain probe so the gap cannot reopen
+
+### 2026-08-24 08:13 - replace-task
+The i2code CLI has no --version option, so the probe is --help; and the public workflow-tools clone carries an x-access-token fixture, so the persisted-token scan treats it like the repo checkout.

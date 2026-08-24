@@ -124,19 +124,24 @@ type secretSearch struct {
 }
 
 // secretSearches covers the shape of the URL the token travelled in. They skip
-// binaries and the checkout, because this repository's own source and the
-// Docker binary both carry the literal x-access-token for reasons that have
-// nothing to do with the clone — but they do read the clone's git metadata,
-// which is where git records the authenticated remote it fetched from.
+// binaries and the two checkouts, because this repository's own source, the
+// workflow-tools test fixtures, and the Docker binary all carry the literal
+// x-access-token for reasons that have nothing to do with the clone — but they
+// do read each clone's git metadata, which is where git records the
+// authenticated remote it fetched from.
 func secretSearches() []secretSearch {
 	return []secretSearch{
 		{
-			what: "an authenticated clone URL outside the checkout",
-			args: []string{"grep", "-rlI", "--exclude-dir=repo", "x-access-token", instanceHomeDir},
+			what: "an authenticated clone URL outside the checkouts",
+			args: []string{"grep", "-rlI", "--exclude-dir=repo", "--exclude-dir=workflow-tools", "x-access-token", instanceHomeDir},
 		},
 		{
 			what: "an authenticated clone URL in the clone's git metadata",
 			args: []string{"grep", "-rlI", "x-access-token", instanceHomeDir + "/repo/.git"},
+		},
+		{
+			what: "an authenticated clone URL in the workflow-tools clone's git metadata",
+			args: []string{"grep", "-rlI", "x-access-token", instanceHomeDir + "/workflow-tools/.git"},
 		},
 	}
 }
