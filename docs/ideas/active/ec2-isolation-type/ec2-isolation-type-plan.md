@@ -726,16 +726,16 @@ The suite so far proves the toolchain is present and that plain shell commands r
     - [x] Assert `testdata/spring-boot-app/gradlew` exists in the clone before running, so a missing checkout fails with a clear message rather than a gradle error
     - [x] Name the file so it sorts after `repo_ec2_test.go`, because the build writes `testdata/spring-boot-app/build` and `.gradle` into the clone and `repo_ec2_test.go` asserts the clone is clean; record that ordering in the file-order comment in `lifecycle_ec2_test.go`
     - [x] Run `./test-scripts/test-ec2.sh` against a real account and record the gradlew duration in the log
-- [ ] **Task 15.3: `uv run pytest` and `uv run greeter` succeed in `testdata/python-cli-app` on the instance**
+- [x] **Task 15.3: `uv run pytest` and `uv run greeter` succeed in `testdata/python-cli-app` on the instance**
   - TaskType: OUTCOME
   - Entrypoint: `./test-scripts/test-ec2.sh`
   - Observable: `isolarium run --type ec2 -- bash -c 'cd testdata/python-cli-app && rm -rf .venv && uv run pytest -v'` exits 0 with `2 passed` in its output, and `isolarium run --type ec2 -- bash -c 'cd testdata/python-cli-app && uv run greeter EC2'` exits 0 printing `Hello, EC2!`, matching the commands `cmd/isolarium/e2e_pytest_vm_test.go` runs in a VM
   - Evidence: ``TestEC2Run_PytestPassesInThePythonCliApp` and `TestEC2Run_GreeterCliPrintsAGreeting` in `internal/ec2/pytest_ec2_test.go` behind `//go:build ec2` pass in a green `./test-scripts/test-ec2.sh` run`
   - Steps:
-    - [ ] Add `internal/ec2/pytest_ec2_test.go` behind `//go:build ec2` with both tests driving the shared instance through `startIsolariumRun`, asserting the exit code and the expected output text
-    - [ ] Confirm `uv` resolves in the non-interactive shell the run uses (`$HOME/.local/bin`); if it does not, prefix the command with `export PATH=$HOME/.local/bin:$PATH` as the VM test does and note why
-    - [ ] Name the file so it sorts after `repo_ec2_test.go`, because `uv run` creates `.venv` in the clone; add it to the file-order comment in `lifecycle_ec2_test.go`
-    - [ ] Run `./test-scripts/test-ec2.sh` against a real account and confirm both tests pass with no isolarium instance left running
+    - [x] Add `internal/ec2/pytest_ec2_test.go` behind `//go:build ec2` with both tests driving the shared instance through `startIsolariumRun`, asserting the exit code and the expected output text
+    - [x] Confirm `uv` resolves in the non-interactive shell the run uses (`$HOME/.local/bin`); if it does not, prefix the command with `export PATH=$HOME/.local/bin:$PATH` as the VM test does and note why
+    - [x] Name the file so it sorts after `repo_ec2_test.go`, because `uv run` creates `.venv` in the clone; add it to the file-order comment in `lifecycle_ec2_test.go`
+    - [x] Run `./test-scripts/test-ec2.sh` against a real account and confirm both tests pass with no isolarium instance left running
 ## Change History
 ### 2026-08-19 16:39 - reorder-threads
 Develop the happy path first: the create -> run -> shell -> destroy spine and its real-AWS end-to-end proof now precede the guardrail threads (preflight rejection, user_data size limit, DNS-refresh recovery) and the secondary capabilities (credentials, pid.yaml scripts, status, wipe).
